@@ -3,9 +3,10 @@ import pandas as pd
 import lotus
 from lotus.models import LM
 
-lm = LM(model="gpt-4o-mini") 
+lm = LM(model="gpt-4o-mini")
+lm.cache.reset()
 
-lotus.settings.configure(lm=lm, enable_cache=True) # default caching is False
+lotus.settings.configure(lm=lm, enable_cache=True)  # default caching is False
 data = {
     "Course Name": [
         "Probability and Random Processes",
@@ -24,4 +25,3 @@ print(df)
 df = df.sem_filter(user_instruction)
 print("====== second run ======")
 print(df)
-

@@ -1,3 +1,5 @@
+import os
+
 import lotus.models
 
 
@@ -10,6 +12,7 @@ class Settings:
 
     # Cache settings
     enable_cache: bool = False
+    cache_dir: str = os.path.expanduser("~/.lotus/cache")
 
     def configure(self, **kwargs):
         for key, value in kwargs.items():
