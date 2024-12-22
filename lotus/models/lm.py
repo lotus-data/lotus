@@ -12,7 +12,7 @@ from tokenizers import Tokenizer
 from tqdm import tqdm
 
 import lotus
-from lotus.cache import CacheConfig, CacheFactory
+from lotus.cache import CacheFactory
 from lotus.types import LMOutput, LMStats, LogprobsForCascade, LogprobsForFilterCascade
 
 logging.getLogger("LiteLLM").setLevel(logging.CRITICAL)
@@ -28,7 +28,7 @@ class LM:
         max_tokens: int = 512,
         max_batch_size: int = 64,
         tokenizer: Tokenizer | None = None,
-        cache_config: CacheConfig | None = None,
+        cache=None,
         **kwargs: dict[str, Any],
     ):
         self.model = model
@@ -40,11 +40,7 @@ class LM:
 
         self.stats: LMStats = LMStats()
 
-        if cache_config is not None:
-            self.cache = CacheFactory.create_cache(cache_config)
-        else:
-            lotus.logger.debug("No cache config provided, using default in-memory cache")
-            self.cache = CacheFactory.create_default_cache()
+        self.cache = cache or CacheFactory.create_default_cache()
 
     def __call__(
         self,
