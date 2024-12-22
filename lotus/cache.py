@@ -4,6 +4,7 @@ import sqlite3
 import time
 from abc import ABC, abstractmethod
 from collections import OrderedDict
+from enum import Enum
 from functools import wraps
 from typing import Any, Callable
 
@@ -22,6 +23,18 @@ def require_cache_enabled(func: Callable) -> Callable:
     return wrapper
 
 
+class CacheType(Enum):
+    IN_MEMORY = "in_memory"
+    SQLITE = "sqlite"
+
+
+class CacheConfig:
+    def __init__(self, cache_type: CacheType, max_size: int, **kwargs):
+        self.cache_type = cache_type
+        self.max_size = max_size
+        self.kwargs = kwargs
+
+
 class Cache(ABC):
     def __init__(self, max_size: int):
         self.max_size = max_size
@@ -37,6 +50,24 @@ class Cache(ABC):
     @abstractmethod
     def reset(self, max_size: int | None = None):
         pass
+
+
+class CacheFactory:
+    @staticmethod
+    def create_cache(config: CacheConfig) -> Cache:
+        if config.cache_type == CacheType.IN_MEMORY:
+            return InMemoryCache(max_size=config.max_size)
+        elif config.cache_type == CacheType.SQLITE:
+            cache_dir = config.kwargs.get("cache_dir", "~/.lotus/cache")
+            if not isinstance(cache_dir, str):
+                raise ValueError("cache_dir must be a string")
+            return SQLiteCache(max_size=config.max_size, cache_dir=cache_dir)
+        else:
+            raise ValueError(f"Unsupported cache type: {config.cache_type}")
+
+    @staticmethod
+    def create_default_cache(max_size: int = 1024) -> Cache:
+        return CacheFactory.create_cache(CacheConfig(CacheType.IN_MEMORY, max_size))
 
 
 class SQLiteCache(Cache):

@@ -3,12 +3,12 @@ import os
 import pandas as pd
 
 import lotus
-from lotus.cache import SQLiteCache
+from lotus.cache import CacheConfig, CacheType
 from lotus.models import LM
 
-cache = SQLiteCache(max_size=100, cache_dir=os.path.expanduser("~/.lotus/cache"))
+cache_config = CacheConfig(cache_type=CacheType.SQLITE, max_size=1000, cache_dir=os.path.expanduser("~/.lotus/cache"))
 
-lm = LM(model="gpt-4o-mini", cache=cache)
+lm = LM(model="gpt-4o-mini", cache_config=cache_config)
 
 lotus.settings.configure(lm=lm, enable_cache=True)  # default caching is False
 data = {
