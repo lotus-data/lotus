@@ -2,6 +2,8 @@ import os
 import pickle
 import sqlite3
 import time
+from abc import ABC, abstractmethod
+from collections import OrderedDict
 from functools import wraps
 from typing import Any, Callable
 
@@ -20,10 +22,27 @@ def require_cache_enabled(func: Callable) -> Callable:
     return wrapper
 
 
-class Cache:
+class Cache(ABC):
     def __init__(self, max_size: int):
         self.max_size = max_size
-        self.db_path = os.path.join(lotus.settings.cache_dir, "lotus_cache.db")
+
+    @abstractmethod
+    def get(self, key: str) -> Any | None:
+        pass
+
+    @abstractmethod
+    def insert(self, key: str, value: Any):
+        pass
+
+    @abstractmethod
+    def reset(self, max_size: int | None = None):
+        pass
+
+
+class SQLiteCache(Cache):
+    def __init__(self, max_size: int, cache_dir=os.path.expanduser("~/.lotus/cache")):
+        super().__init__(max_size)
+        self.db_path = os.path.join(cache_dir, "lotus_cache.db")
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
         self.conn = sqlite3.connect(self.db_path)
         self._create_table()
@@ -96,3 +115,29 @@ class Cache:
 
     def __del__(self):
         self.conn.close()
+
+
+class InMemoryCache(Cache):
+    def __init__(self, max_size: int):
+        super().__init__(max_size)
+        self.cache: OrderedDict[str, Any] = OrderedDict()
+
+    @require_cache_enabled
+    def get(self, key: str) -> Any | None:
+        if key in self.cache:
+            lotus.logger.debug(f"Cache hit for {key}")
+
+        return self.cache.get(key)
+
+    @require_cache_enabled
+    def insert(self, key: str, value: Any):
+        self.cache[key] = value
+
+        # LRU eviction
+        if len(self.cache) > self.max_size:
+            self.cache.popitem(last=False)
+
+    def reset(self, max_size: int | None = None):
+        self.cache.clear()
+        if max_size is not None:
+            self.max_size = max_size

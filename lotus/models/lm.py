@@ -12,7 +12,7 @@ from tokenizers import Tokenizer
 from tqdm import tqdm
 
 import lotus
-from lotus.cache import Cache
+from lotus.cache import Cache, InMemoryCache
 from lotus.types import LMOutput, LMStats, LogprobsForCascade, LogprobsForFilterCascade
 
 logging.getLogger("LiteLLM").setLevel(logging.CRITICAL)
@@ -29,6 +29,7 @@ class LM:
         max_batch_size: int = 64,
         tokenizer: Tokenizer | None = None,
         max_cache_size: int = 1024,
+        cache: Cache | None = None,
         **kwargs: dict[str, Any],
     ):
         self.model = model
@@ -39,7 +40,12 @@ class LM:
         self.kwargs = dict(temperature=temperature, max_tokens=max_tokens, **kwargs)
 
         self.stats: LMStats = LMStats()
-        self.cache = Cache(max_cache_size)
+
+        if cache is not None:
+            self.cache = cache
+        else:
+            lotus.logger.debug("No cache provided, defaulting to in-memory cache")
+            self.cache = InMemoryCache(max_cache_size)
 
     def __call__(
         self,
