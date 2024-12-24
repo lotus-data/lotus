@@ -46,15 +46,15 @@ class SemClusterByDataframe:
             )
 
         cluster_fn = lotus.utils.cluster(col_name, ncentroids)
-        # indices, scores, centroids = cluster_fn(self._obj, niter, verbose)
-        indices = cluster_fn(self._obj, niter, verbose)
+        indices, scores, centroids = cluster_fn(self._obj, niter, verbose)
+        # indices = cluster_fn(self._obj, niter, verbose)
 
         self._obj["cluster_id"] = pd.Series(indices, index=self._obj.index)
-        # if return_scores:
-        #     self._obj["centroid_sim_score"] = pd.Series(scores, index=self._obj.index)
+        if return_scores:
+            self._obj["centroid_sim_score"] = pd.Series(scores, index=self._obj.index)
         
-        # if return_centroids:
-        #     return self._obj, centroids
-        # else:
-        #     return self._obj
-        return self._obj
+        if return_centroids:
+            return self._obj, centroids
+        else:
+            return self._obj
+        # return self._obj

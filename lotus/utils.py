@@ -66,9 +66,9 @@ def cluster(col_name: str, ncentroids: int) -> Callable[[pd.DataFrame, int, bool
         scores, indices = kmeans.index.search(vec_set, 1)
         
         # get the cluster centroids
-        # centroids = kmeans.centroids
-        # return indices.flatten(), scores.flatten(), centroids
-        return indices.flatten()
+        centroids = kmeans.centroids
+        return indices.flatten(), scores.flatten(), centroids
+        # return indices.flatten()
 
     return ret
 
