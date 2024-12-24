@@ -1,3 +1,4 @@
+import re
 import xml.etree.ElementTree as ET
 from typing import Any
 
@@ -273,6 +274,10 @@ def df2text(df: pd.DataFrame, cols: list[str]) -> list[str]:
     def custom_format_row(x: pd.Series, cols: list[str]) -> str:
         return "".join([f"[{cols[i].capitalize()}]: «{x[cols[i]]}»\n" for i in range(len(cols))])
 
+    def clean_and_escape_column_name(column_name: str) -> str:
+        clean_name = re.sub(r"[^\w]", "", column_name)  # Remove spaces and special characters
+        return clean_name
+
     # take cols that are in df
     cols = [col for col in cols if col in df.columns]
     if len(cols) == 0:
@@ -286,11 +291,11 @@ def df2text(df: pd.DataFrame, cols: list[str]) -> list[str]:
     elif lotus.settings.serialization_format == SerializationFormat.JSON:
         formatted_rows = projected_df.to_json(orient="records", lines=True).splitlines()
     elif lotus.settings.serialization_format == SerializationFormat.XML:
+        projected_df = projected_df.rename(columns=lambda x: clean_and_escape_column_name(x))
         full_xml = projected_df.to_xml(root_name="data", row_name="row", pretty_print=False, index=False)
         root = ET.fromstring(full_xml)
         formatted_rows = [ET.tostring(row, encoding="unicode", method="xml") for row in root.findall("row")]
 
-    print(formatted_rows)
     return formatted_rows
 
 
