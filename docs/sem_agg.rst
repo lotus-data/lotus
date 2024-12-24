@@ -99,7 +99,7 @@ Example with group-by
     # Perform semantic aggregation with groupby
     df = df.sem_agg(
         "Summarize the {ArticleContent} for each {Category}.",
-        groupby=["Category"]
+        group_by=["Category"]
     )
 
     print(df._output)
@@ -108,9 +108,8 @@ Output:
 
 .. code-block:: text
 
-    0    Context: Renewable energy plays a crucial role...
-    0    Context: Deep space exploration is primarily c...
-    0    Context: Quantum computing is emerging as a po...
+    0    The "Env" category features two key points: re...
+    0    In the Tech category, two key developments are...
 
 
 
