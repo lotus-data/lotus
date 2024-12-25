@@ -1,5 +1,4 @@
 import re
-import xml.etree.ElementTree as ET
 from typing import Any
 
 import pandas as pd
@@ -291,6 +290,14 @@ def df2text(df: pd.DataFrame, cols: list[str]) -> list[str]:
     elif lotus.settings.serialization_format == SerializationFormat.JSON:
         formatted_rows = projected_df.to_json(orient="records", lines=True).splitlines()
     elif lotus.settings.serialization_format == SerializationFormat.XML:
+        try:
+            import xml.etree.ElementTree as ET
+        except ImportError:
+            raise ImportError(
+                "The 'lxml' library is required for XML serialization. "
+                "You can install it with the following command:\n\n"
+                "    pip install 'lotus-ai[xml]'"
+            )
         projected_df = projected_df.rename(columns=lambda x: clean_and_escape_column_name(x))
         full_xml = projected_df.to_xml(root_name="data", row_name="row", pretty_print=False, index=False)
         root = ET.fromstring(full_xml)
