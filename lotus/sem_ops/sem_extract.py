@@ -1,3 +1,5 @@
+import hashlib
+import json
 from typing import Any, Callable
 
 import pandas as pd
@@ -19,6 +21,7 @@ def sem_extract(
     postprocessor: Callable[[list[str]], SemanticExtractPostprocessOutput] = extract_postprocess,
     safe_mode: bool = False,
     progress_bar_desc: str = "Extracting",
+    use_operator_cache: bool = False,
 ) -> SemanticExtractOutput:
     """
     Extracts attributes and values from a list of documents using a model.
@@ -33,6 +36,23 @@ def sem_extract(
     Returns:
         SemanticExtractOutput: The outputs, raw outputs, and quotes.
     """
+
+    # prepare docs for serialization
+    cache_docs = [json.loads(json.dumps(doc, sort_keys=True)) for doc in docs]
+    output_cols = {key: value for key, value in sorted(output_cols.items())}
+
+    # generate cache key
+    cache_key = hashlib.sha256(
+        json.dumps({"docs": cache_docs, "output_cols": output_cols, "extract_quotes": extract_quotes}).encode()
+    ).hexdigest()
+
+    # check cache
+    if use_operator_cache and model.cache:
+        cached_result = model.cache.get(cache_key)
+        if cached_result is not None:
+            print(f"Cache hit for {cache_key}")
+            return cached_result
+        print(f"Cache miss for {cache_key}")
 
     # prepare model inputs
     inputs = []
@@ -58,7 +78,12 @@ def sem_extract(
     if safe_mode:
         model.print_total_usage()
 
-    return SemanticExtractOutput(**postprocess_output.model_dump())
+    result = SemanticExtractOutput(**postprocess_output.model_dump())
+
+    if use_operator_cache and model.cache:
+        print(f"Inserting cache for {cache_key}")
+        model.cache.insert(cache_key, result)
+    return result
 
 
 @pd.api.extensions.register_dataframe_accessor("sem_extract")
@@ -81,6 +106,7 @@ class SemExtractDataFrame:
         return_raw_outputs: bool = False,
         safe_mode: bool = False,
         progress_bar_desc: str = "Extracting",
+        use_operator_cache: bool = False,
     ) -> pd.DataFrame:
         """
         Extracts the attributes and values of a dataframe.
@@ -115,6 +141,7 @@ class SemExtractDataFrame:
             postprocessor=postprocessor,
             safe_mode=safe_mode,
             progress_bar_desc=progress_bar_desc,
+            use_operator_cache=use_operator_cache,
         )
 
         new_df = self._obj.copy()
