@@ -3,6 +3,7 @@ from typing import Any
 import pandas as pd
 
 import lotus.models
+from lotus.cache import operator_cache
 from lotus.templates import task_instructions
 from lotus.types import LMOutput, SemanticAggOutput
 
@@ -14,6 +15,7 @@ def sem_agg(
     partition_ids: list[int],
     safe_mode: bool = False,
     progress_bar_desc: str = "Aggregating",
+    use_operator_cache: bool = False,
 ) -> SemanticAggOutput:
     """
     Aggregates multiple documents into a single answer using a model.
@@ -143,6 +145,7 @@ class SemAggDataframe:
     def _validate(obj: Any) -> None:
         pass
 
+    @operator_cache
     def __call__(
         self,
         user_instruction: str,
@@ -151,6 +154,7 @@ class SemAggDataframe:
         group_by: list[str] | None = None,
         safe_mode: bool = False,
         progress_bar_desc: str = "Aggregating",
+        use_operator_cache: bool = False,
     ) -> pd.DataFrame:
         """
         Applies semantic aggregation over a dataframe.
@@ -181,9 +185,6 @@ class SemAggDataframe:
             if column not in self._obj.columns:
                 raise ValueError(f"column {column} not found in DataFrame. Given usr instruction: {user_instruction}")
 
-       
-
-
         if group_by:
             grouped = self._obj.groupby(group_by)
             new_df = pd.DataFrame()
@@ -191,9 +192,7 @@ class SemAggDataframe:
                 res = group.sem_agg(user_instruction, all_cols, suffix, None, progress_bar_desc=progress_bar_desc)
                 new_df = pd.concat([new_df, res])
             return new_df
-        
-        
-            
+
         # Sort df by partition_id if it exists
         if "_lotus_partition_id" in self._obj.columns:
             self._obj = self._obj.sort_values(by="_lotus_partition_id")
@@ -213,6 +212,7 @@ class SemAggDataframe:
             partition_ids,
             safe_mode=safe_mode,
             progress_bar_desc=progress_bar_desc,
+            use_operator_cache=use_operator_cache,
         )
 
         # package answer in a dataframe
