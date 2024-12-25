@@ -1,3 +1,5 @@
+import hashlib
+import json
 import os
 import pickle
 import sqlite3
@@ -18,6 +20,34 @@ def require_cache_enabled(func: Callable) -> Callable:
     def wrapper(self, *args, **kwargs):
         if not lotus.settings.enable_cache:
             return None
+        return func(self, *args, **kwargs)
+
+    return wrapper
+
+
+def operator_cache(func: Callable) -> Callable:
+    """Decorator to add operator level caching."""
+
+    @wraps(func)
+    def wrapper(self, *args, **kwargs):
+        model = lotus.settings.lm
+        use_operator_cache = kwargs.get("use_operator_cache", False)
+
+        if use_operator_cache and model.cache:
+            cache_key = hashlib.sha256(
+                json.dumps({"args": args, "kwargs": kwargs}, sort_keys=True).encode()
+            ).hexdigest()
+
+            cached_result = model.cache.get(cache_key)
+            if cached_result is not None:
+                print(f"Cache hit for {cache_key}")
+                return cached_result
+            print(f"Cache miss for {cache_key}")
+
+            result = func(self, *args, **kwargs)
+            model.cache.insert(cache_key, result)
+            return result
+
         return func(self, *args, **kwargs)
 
     return wrapper

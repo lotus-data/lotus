@@ -1,10 +1,9 @@
-import hashlib
-import json
 from typing import Any, Callable
 
 import pandas as pd
 
 import lotus
+from lotus.cache import operator_cache
 from lotus.templates import task_instructions
 from lotus.types import LMOutput, SemanticMapOutput, SemanticMapPostprocessOutput
 from lotus.utils import show_safe_mode
@@ -40,31 +39,6 @@ def sem_map(
     Returns:
         SemanticMapOutput: The outputs, raw outputs, and explanations.
     """
-    # prepare docs for serialization
-    cache_docs = [json.loads(json.dumps(docs, sort_keys=True)) for doc in docs]
-
-    # generate cache key
-    cache_key = hashlib.sha256(
-        json.dumps(
-            {
-                "docs": cache_docs,
-                "user_instruction": user_instruction,
-                "examples_multimodal_data": examples_multimodal_data,
-                "examples_answers": examples_answers,
-                "cot_reasoning": cot_reasoning,
-                "strategy": strategy,
-            }
-        ).encode()
-    ).hexdigest()
-
-    # check cache
-    if use_operator_cache and model.cache:
-        cache_result = model.cache.get(cache_key)
-        if cache_result is not None:
-            print(f'Cache hit for "{cache_key}"')
-            return cache_result
-        print(f'Cache miss for "{cache_key}"')
-
     # prepare model inputs
     inputs = []
     for doc in docs:
@@ -92,12 +66,7 @@ def sem_map(
     if safe_mode:
         model.print_total_usage()
 
-    result = SemanticMapOutput(**postprocess_output.model_dump())
-
-    if use_operator_cache and model.cache:
-        model.cache.insert(cache_key, result)
-
-    return result
+    return SemanticMapOutput(**postprocess_output.model_dump())
 
 
 @pd.api.extensions.register_dataframe_accessor("sem_map")
@@ -113,6 +82,7 @@ class SemMapDataframe:
         if not isinstance(obj, pd.DataFrame):
             raise AttributeError("Must be a DataFrame")
 
+    @operator_cache
     def __call__(
         self,
         user_instruction: str,
