@@ -1,4 +1,5 @@
 from typing import Any
+import os
 
 import pandas as pd
 
@@ -6,6 +7,9 @@ import lotus.models
 from lotus.templates import task_instructions
 from lotus.types import LMOutput, SemanticAggOutput
 
+def initializer(settings, log_level):
+    lotus.logger.setLevel(log_level)
+    lotus.settings.clone(settings)
 
 def sem_agg(
     docs: list[str],
@@ -142,6 +146,12 @@ class SemAggDataframe:
     @staticmethod
     def _validate(obj: Any) -> None:
         pass
+    
+    @staticmethod
+    def process_group(args):
+        lotus.logger.debug(f"Processing in PID: {os.getpid()}")
+        group, user_instruction, all_cols, suffix, progress_bar_desc = args
+        return group.sem_agg(user_instruction, all_cols, suffix, None, progress_bar_desc=progress_bar_desc)
 
     def __call__(
         self,
@@ -163,7 +173,7 @@ class SemAggDataframe:
         Returns:
             pd.DataFrame: The dataframe with the aggregated answer.
         """
-
+        # print all the settings values
         if lotus.settings.lm is None:
             raise ValueError(
                 "The language model must be an instance of LM. Please configure a valid language model using lotus.settings.configure()"
@@ -181,18 +191,18 @@ class SemAggDataframe:
             if column not in self._obj.columns:
                 raise ValueError(f"column {column} not found in DataFrame. Given usr instruction: {user_instruction}")
 
-       
-
-
         if group_by:
             grouped = self._obj.groupby(group_by)
-            new_df = pd.DataFrame()
-            for name, group in grouped:
-                res = group.sem_agg(user_instruction, all_cols, suffix, None, progress_bar_desc=progress_bar_desc)
-                new_df = pd.concat([new_df, res])
-            return new_df
-        
-        
+            group_args = [(group, user_instruction, all_cols, suffix, progress_bar_desc) for _, group in grouped]
+            if lotus.settings.enable_multithreading:
+                lotus.logger.debug("Using multithreading")
+                from multiprocessing import Pool
+                with Pool(initializer=initializer, initargs=(lotus.settings, lotus.logger.getEffectiveLevel())) as pool:
+                    return pd.concat(pool.map(SemAggDataframe.process_group, group_args))     
+            else:
+                lotus.logger.debug("Not using multithreading")
+                return pd.concat([SemAggDataframe.process_group(group_arg) for group_arg in group_args])
+            
             
         # Sort df by partition_id if it exists
         if "_lotus_partition_id" in self._obj.columns:
