@@ -10,6 +10,8 @@ from enum import Enum
 from functools import wraps
 from typing import Any, Callable
 
+import pandas as pd
+
 import lotus
 
 
@@ -34,8 +36,17 @@ def operator_cache(func: Callable) -> Callable:
         use_operator_cache = kwargs.get("use_operator_cache", False)
 
         if use_operator_cache and model.cache:
+
+            def serialize(value):
+                if isinstance(value, pd.DataFrame):
+                    return value.to_json()
+                elif hasattr(value, "dict"):
+                    return value.dict()
+                return value
+
+            serilized_kwargs = {key: serialize(value) for key, value in kwargs.items()}
             cache_key = hashlib.sha256(
-                json.dumps({"args": args, "kwargs": kwargs}, sort_keys=True).encode()
+                json.dumps({"args": args, "kwargs": serilized_kwargs}, sort_keys=True).encode()
             ).hexdigest()
 
             cached_result = model.cache.get(cache_key)
