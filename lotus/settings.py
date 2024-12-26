@@ -17,6 +17,9 @@ class Settings:
     # Serialization setting
     serialization_format: SerializationFormat = SerializationFormat.DEFAULT
 
+    # Parallel groupby settings
+    parallel_groupby_max_threads: int = 8
+
     def configure(self, **kwargs):
         for key, value in kwargs.items():
             if not hasattr(self, key):
