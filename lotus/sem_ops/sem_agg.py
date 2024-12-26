@@ -191,7 +191,7 @@ class SemAggDataframe:
             group_args = [(group, user_instruction, all_cols, suffix, progress_bar_desc) for _, group in grouped]
             from concurrent.futures import ThreadPoolExecutor
 
-            with ThreadPoolExecutor() as executor:
+            with ThreadPoolExecutor(max_workers=lotus.settings.parallel_groupby_max_threads) as executor:
                 return pd.concat(list(executor.map(SemAggDataframe.process_group, group_args)))
 
         # Sort df by partition_id if it exists

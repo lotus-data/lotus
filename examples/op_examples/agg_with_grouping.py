@@ -8,10 +8,6 @@ from lotus.models import LM
 lm = LM(model="gpt-4o-mini")
 
 lotus.settings.configure(lm=lm)
-lotus.settings.configure(enable_multithreading=True)
-
-# turn on lotus debug logging
-lotus.logger.setLevel("DEBUG")
 
 data = {
     "Course Name": [
