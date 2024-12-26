@@ -1,6 +1,8 @@
 import pytest
-from lotus.settings import Settings, SerializationFormat
-from lotus.models import LM, RM, Reranker, SentenceTransformersRM
+
+from lotus.models import LM
+from lotus.settings import SerializationFormat, Settings
+
 
 class TestSettings:
     @pytest.fixture
@@ -17,9 +19,7 @@ class TestSettings:
         assert settings.enable_multithreading is False
 
     def test_configure_method(self, settings):
-        settings.configure(
-            enable_multithreading=True
-        )
+        settings.configure(enable_multithreading=True)
         assert settings.enable_multithreading is True
 
     def test_invalid_setting(self, settings):

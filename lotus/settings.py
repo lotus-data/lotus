@@ -3,6 +3,7 @@ from lotus.types import SerializationFormat
 
 # NOTE: Settings class is not thread-safe
 
+
 class Settings:
     # Models
     lm: lotus.models.LM | None = None
@@ -28,8 +29,9 @@ class Settings:
     def clone(self, other_settings):
         for key in vars(other_settings):
             setattr(self, key, getattr(other_settings, key))
-    
+
     def __str__(self):
         return str(vars(self))
+
 
 settings = Settings()

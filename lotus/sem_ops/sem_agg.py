@@ -1,5 +1,5 @@
-from typing import Any
 import os
+from typing import Any
 
 import pandas as pd
 
@@ -7,9 +7,11 @@ import lotus.models
 from lotus.templates import task_instructions
 from lotus.types import LMOutput, SemanticAggOutput
 
+
 def initializer(settings, log_level):
     lotus.logger.setLevel(log_level)
     lotus.settings.clone(settings)
+
 
 def sem_agg(
     docs: list[str],
@@ -146,7 +148,7 @@ class SemAggDataframe:
     @staticmethod
     def _validate(obj: Any) -> None:
         pass
-    
+
     @staticmethod
     def process_group(args):
         lotus.logger.debug(f"Processing in PID: {os.getpid()}")
@@ -197,13 +199,13 @@ class SemAggDataframe:
             if lotus.settings.enable_multithreading:
                 lotus.logger.debug("Using multithreading")
                 from multiprocessing import Pool
+
                 with Pool(initializer=initializer, initargs=(lotus.settings, lotus.logger.getEffectiveLevel())) as pool:
-                    return pd.concat(pool.map(SemAggDataframe.process_group, group_args))     
+                    return pd.concat(pool.map(SemAggDataframe.process_group, group_args))
             else:
                 lotus.logger.debug("Not using multithreading")
                 return pd.concat([SemAggDataframe.process_group(group_arg) for group_arg in group_args])
-            
-            
+
         # Sort df by partition_id if it exists
         if "_lotus_partition_id" in self._obj.columns:
             self._obj = self._obj.sort_values(by="_lotus_partition_id")
