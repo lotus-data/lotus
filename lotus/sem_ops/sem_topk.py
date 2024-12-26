@@ -433,16 +433,18 @@ class SemTopKDataframe:
                 (group, user_instruction, K, method, strategy, None, cascade_threshold, return_stats)
                 for _, group in grouped
             ]
+
             from concurrent.futures import ThreadPoolExecutor
 
-            with ThreadPoolExecutor() as executor:
+            with ThreadPoolExecutor(max_workers=lotus.settings.parallel_groupby_max_threads) as executor:
                 results = list(executor.map(SemTopKDataframe.process_group, group_args))
-
-            new_df = pd.concat([res[0] for res in results])
-            stats = {name: res[1] for name, res in zip(grouped.groups.keys(), results)}
+    
             if return_stats:
+                new_df = pd.concat([res[0] for res in results])
+                stats = {name: res[1] for name, res in zip(grouped.groups.keys(), results)}
                 return new_df, stats
-            return new_df
+            else:
+                return pd.concat(results)
 
         if method == "quick-sem":
             assert len(col_li) == 1, "Only one column can be used for embedding optimization"
