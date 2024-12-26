@@ -373,6 +373,19 @@ class SemTopKDataframe:
     def _validate(obj: Any) -> None:
         pass
 
+    @staticmethod
+    def process_group(args):
+        group, user_instruction, K, method, strategy, group_by, cascade_threshold, return_stats = args
+        return group.sem_topk(
+            user_instruction,
+            K,
+            method=method,
+            strategy=strategy,
+            group_by=None,
+            cascade_threshold=cascade_threshold,
+            return_stats=return_stats,
+        )
+
     def __call__(
         self,
         user_instruction: str,
@@ -416,30 +429,22 @@ class SemTopKDataframe:
         # Separate code path for grouping
         if group_by:
             grouped = self._obj.groupby(group_by)
-            new_df = pd.DataFrame()
-            stats = {}
-            for name, group in grouped:
-                res = group.sem_topk(
-                    user_instruction,
-                    K,
-                    method=method,
-                    strategy=strategy,
-                    group_by=None,
-                    cascade_threshold=cascade_threshold,
-                    return_stats=return_stats,
-                )
+            group_args = [
+                (group, user_instruction, K, method, strategy, None, cascade_threshold, return_stats)
+                for _, group in grouped
+            ]
 
-                if return_stats:
-                    sorted_group, group_stats = res
-                    stats[name] = group_stats
-                else:
-                    sorted_group = res
+            from concurrent.futures import ThreadPoolExecutor
 
-                new_df = pd.concat([new_df, sorted_group])
-
+            with ThreadPoolExecutor(max_workers=lotus.settings.parallel_groupby_max_threads) as executor:
+                results = list(executor.map(SemTopKDataframe.process_group, group_args))
+    
             if return_stats:
+                new_df = pd.concat([res[0] for res in results])
+                stats = {name: res[1] for name, res in zip(grouped.groups.keys(), results)}
                 return new_df, stats
-            return new_df
+            else:
+                return pd.concat(results)
 
         if method == "quick-sem":
             assert len(col_li) == 1, "Only one column can be used for embedding optimization"
