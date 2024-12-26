@@ -173,7 +173,7 @@ class SemAggDataframe:
         Returns:
             pd.DataFrame: The dataframe with the aggregated answer.
         """
-        # print all the settings values
+
         if lotus.settings.lm is None:
             raise ValueError(
                 "The language model must be an instance of LM. Please configure a valid language model using lotus.settings.configure()"

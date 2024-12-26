@@ -11,6 +11,9 @@ from lotus.templates import task_instructions
 from lotus.types import LMOutput, SemanticTopKOutput
 from lotus.utils import show_safe_mode
 
+def initializer(settings, log_level):
+    lotus.logger.setLevel(log_level)
+    lotus.settings.clone(settings)
 
 def get_match_prompt_binary(
     doc1: dict[str, Any], doc2: dict[str, Any], user_instruction: str, strategy: str | None = None
@@ -373,6 +376,19 @@ class SemTopKDataframe:
     def _validate(obj: Any) -> None:
         pass
 
+    @staticmethod
+    def process_group(args):
+        group, user_instruction, K, method, strategy, group_by, cascade_threshold, return_stats = args
+        return group.sem_topk(
+                    user_instruction,
+                    K,
+                    method=method,
+                    strategy=strategy,
+                    group_by=None,
+                    cascade_threshold=cascade_threshold,
+                    return_stats=return_stats,
+                )
+
     def __call__(
         self,
         user_instruction: str,
@@ -416,30 +432,24 @@ class SemTopKDataframe:
         # Separate code path for grouping
         if group_by:
             grouped = self._obj.groupby(group_by)
-            new_df = pd.DataFrame()
-            stats = {}
-            for name, group in grouped:
-                res = group.sem_topk(
-                    user_instruction,
-                    K,
-                    method=method,
-                    strategy=strategy,
-                    group_by=None,
-                    cascade_threshold=cascade_threshold,
-                    return_stats=return_stats,
-                )
-
-                if return_stats:
-                    sorted_group, group_stats = res
-                    stats[name] = group_stats
-                else:
-                    sorted_group = res
-
-                new_df = pd.concat([new_df, sorted_group])
-
+            group_args = [
+                    (group, user_instruction, K, method, strategy, None, cascade_threshold, return_stats)
+                    for _, group in grouped
+                ]
+            if lotus.settings.enable_multithreading:
+                from multiprocessing import Pool
+                
+                with Pool(initializer=initializer, initargs=(lotus.settings, lotus.logger.getEffectiveLevel())) as pool:
+                    results = pool.map(SemTopKDataframe.process_group, group_args)
+            else:
+                results = [SemTopKDataframe.process_group(group_arg) for group_arg in group_args]
+    
+            new_df = pd.concat([res[0] for res in results])
+            stats = {name: res[1] for name, res in zip(grouped.groups.keys(), results)}
             if return_stats:
                 return new_df, stats
             return new_df
+    
 
         if method == "quick-sem":
             assert len(col_li) == 1, "Only one column can be used for embedding optimization"

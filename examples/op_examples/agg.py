@@ -10,8 +10,6 @@ def main():
     lotus.settings.configure(lm=lm)
     lotus.settings.configure(enable_multithreading=True)
 
-    start_time = time.time()
-
     # turn on lotus debug logging
     lotus.logger.setLevel("DEBUG")
 
@@ -71,10 +69,10 @@ def main():
     }
 
     df = pd.DataFrame(data)
+    start_time = time.time()
     df = df.sem_agg("Summarize all {Course Name}", group_by=["Grade Level"])
-    print(df._output[0])
-
     end_time = time.time()
+    print(df._output[0])
     print(f"Total execution time: {end_time - start_time:.2f} seconds")
 
 if __name__ == '__main__':
