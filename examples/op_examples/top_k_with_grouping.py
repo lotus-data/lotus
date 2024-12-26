@@ -8,7 +8,6 @@ from lotus.models import LM
 lm = LM(model="gpt-4o-mini")
 
 lotus.settings.configure(lm=lm)
-lotus.settings.configure(enable_multithreading=True)
 
 data = {
     "Department": ["Math", "Physics", "Computer Science", "Biology"] * 7,
