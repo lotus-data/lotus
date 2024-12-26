@@ -1,6 +1,5 @@
 import pytest
 
-from lotus.models import LM
 from lotus.settings import SerializationFormat, Settings
 
 
@@ -16,23 +15,11 @@ class TestSettings:
         assert settings.reranker is None
         assert settings.enable_cache is False
         assert settings.serialization_format == SerializationFormat.DEFAULT
-        assert settings.enable_multithreading is False
 
     def test_configure_method(self, settings):
-        settings.configure(enable_multithreading=True)
-        assert settings.enable_multithreading is True
+        settings.configure(enable_cache=True)
+        assert settings.enable_cache is True
 
     def test_invalid_setting(self, settings):
         with pytest.raises(ValueError, match="Invalid setting: invalid_setting"):
             settings.configure(invalid_setting=True)
-
-    def test_clone_method(self, settings):
-        other_settings = Settings()
-        lm = LM(model="test-model")
-        other_settings.lm = lm
-        other_settings.enable_cache = True
-
-        settings.clone(other_settings)
-
-        assert settings.lm == lm
-        assert settings.enable_cache is True

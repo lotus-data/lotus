@@ -12,11 +12,6 @@ from lotus.types import LMOutput, SemanticTopKOutput
 from lotus.utils import show_safe_mode
 
 
-def initializer(settings, log_level):
-    lotus.logger.setLevel(log_level)
-    lotus.settings.clone(settings)
-
-
 def get_match_prompt_binary(
     doc1: dict[str, Any], doc2: dict[str, Any], user_instruction: str, strategy: str | None = None
 ) -> list[dict[str, Any]]:
@@ -438,13 +433,10 @@ class SemTopKDataframe:
                 (group, user_instruction, K, method, strategy, None, cascade_threshold, return_stats)
                 for _, group in grouped
             ]
-            if lotus.settings.enable_multithreading:
-                from multiprocessing import Pool
+            from concurrent.futures import ThreadPoolExecutor
 
-                with Pool(initializer=initializer, initargs=(lotus.settings, lotus.logger.getEffectiveLevel())) as pool:
-                    results = pool.map(SemTopKDataframe.process_group, group_args)
-            else:
-                results = [SemTopKDataframe.process_group(group_arg) for group_arg in group_args]
+            with ThreadPoolExecutor() as executor:
+                results = list(executor.map(SemTopKDataframe.process_group, group_args))
 
             new_df = pd.concat([res[0] for res in results])
             stats = {name: res[1] for name, res in zip(grouped.groups.keys(), results)}
