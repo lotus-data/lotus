@@ -45,8 +45,9 @@ def operator_cache(func: Callable) -> Callable:
                 return value
 
             serialized_kwargs = {key: serialize(value) for key, value in kwargs.items()}
+            serialized_args = [serialize(arg) for arg in args]
             cache_key = hashlib.sha256(
-                json.dumps({"args": args, "kwargs": serialized_kwargs}, sort_keys=True).encode()
+                json.dumps({"args": serialized_args, "kwargs": serialized_kwargs}, sort_keys=True).encode()
             ).hexdigest()
 
             cached_result = model.cache.get(cache_key)
