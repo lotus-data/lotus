@@ -495,10 +495,10 @@ def test_operator_cache(setup_models, model):
     df = pd.DataFrame(data)
     user_instruction = "What is a similar course to {Course Name}. Be concise?"
 
-    first_response = df.sem_map(df, user_instruction)
+    first_response = df.sem_map(user_instruction)
     assert lm.stats.total_usage.operator_cache_hits == 0
 
-    second_response = df.sem_map(df, user_instruction)
+    second_response = df.sem_map(user_instruction)
     assert lm.stats.total_usage.operator_cache_hits == 1
 
     assert first_response == second_response
@@ -524,18 +524,18 @@ def test_disable_operator_cache(setup_models, model):
     df = pd.DataFrame(data)
     user_instruction = "What is a similar course to {Course Name}. Be concise?"
 
-    first_response = df.sem_map(df, user_instruction)
+    first_response = df.sem_map(user_instruction)
     assert lm.stats.total_usage.operator_cache_hits == 0
 
-    second_response = df.sem_map(df, user_instruction)
+    second_response = df.sem_map(user_instruction)
     assert lm.stats.total_usage.operator_cache_hits == 0
 
     assert first_response == second_response
 
     # Now enable operator cache. Note that the first batch is not cached.
     lotus.settings.configure(enable_operator_cache=True)
-    first_responses = df.sem_map(df, user_instruction)
+    first_responses = df.sem_map(user_instruction)
     assert lm.stats.total_usage.operator_cache_hits == 0
-    second_responses = df.sem_map(df, user_instruction)
+    second_responses = df.sem_map(user_instruction)
     assert lm.stats.total_usage.operator_cache_hits == 1
     assert first_responses == second_responses
