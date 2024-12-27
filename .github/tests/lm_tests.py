@@ -492,8 +492,25 @@ def test_operator_cache(setup_models, model):
         ]
     }
 
+    expected_response = pd.DataFrame(
+        {
+            "Course Name": [
+                "Dynamics and Control of Chemical Processes",
+                "Optimization Methods in Engineering",
+                "Chemical Kinetics and Catalysis",
+                "Transport Phenomena and Separations",
+            ],
+            "_map": [
+                "«Process Dynamics and Control»",
+                "«Advanced Optimization Techniques in Engineering»",
+                "«Reaction Kinetics and Mechanisms»",
+                "Fluid Mechanics and Mass Transfer",
+            ],
+        }
+    )
+
     df = pd.DataFrame(data)
-    user_instruction = "What is a similar course to {Course Name}. Be concise?"
+    user_instruction = "What is a similar course to {Course Name}. Please just output the course name."
 
     first_response = df.sem_map(user_instruction)
     assert lm.stats.total_usage.operator_cache_hits == 0
@@ -501,7 +518,7 @@ def test_operator_cache(setup_models, model):
     second_response = df.sem_map(user_instruction)
     assert lm.stats.total_usage.operator_cache_hits == 1
 
-    assert first_response == second_response
+    assert first_response == second_response == expected_response
 
 
 @pytest.mark.parametrize("model", get_enabled("gpt-4o-mini"))
@@ -521,8 +538,25 @@ def test_disable_operator_cache(setup_models, model):
         ]
     }
 
+    expected_response = pd.DataFrame(
+        {
+            "Course Name": [
+                "Dynamics and Control of Chemical Processes",
+                "Optimization Methods in Engineering",
+                "Chemical Kinetics and Catalysis",
+                "Transport Phenomena and Separations",
+            ],
+            "_map": [
+                "«Process Dynamics and Control»",
+                "«Advanced Optimization Techniques in Engineering»",
+                "«Reaction Kinetics and Mechanisms»",
+                "Fluid Mechanics and Mass Transfer",
+            ],
+        }
+    )
+
     df = pd.DataFrame(data)
-    user_instruction = "What is a similar course to {Course Name}. Be concise?"
+    user_instruction = "What is a similar course to {Course Name}. Please just output the course name."
 
     first_response = df.sem_map(user_instruction)
     assert lm.stats.total_usage.operator_cache_hits == 0
@@ -538,4 +572,4 @@ def test_disable_operator_cache(setup_models, model):
     assert lm.stats.total_usage.operator_cache_hits == 0
     second_responses = df.sem_map(user_instruction)
     assert lm.stats.total_usage.operator_cache_hits == 1
-    assert first_responses == second_responses
+    assert first_responses == second_responses == expected_response
