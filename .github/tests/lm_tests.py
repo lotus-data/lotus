@@ -5,6 +5,7 @@ import pytest
 from tokenizers import Tokenizer
 
 import lotus
+from lotus.cache import CacheConfig, CacheFactory, CacheType
 from lotus.models import LM, SentenceTransformersRM
 from lotus.types import CascadeArgs
 
@@ -476,7 +477,10 @@ def test_reset_cache(setup_models, model):
 
 @pytest.mark.parametrize("model", get_enabled("gpt-4o-mini"))
 def test_operator_cache(setup_models, model):
-    lm = setup_models[model]
+    cache_config = CacheConfig(cache_type=CacheType.SQLITE, max_size=1000)
+    cache = CacheFactory.create_cache(cache_config)
+
+    lm = LM(model="gpt-4o-mini", cache=cache)
     lotus.settings.configure(lm=lm, enable_message_cache=True, enable_operator_cache=True)
 
     batch = [
@@ -486,14 +490,16 @@ def test_operator_cache(setup_models, model):
     first_responses = lm(batch).outputs
     assert lm.stats.total_usage.operator_cache_hits == 0
     second_responses = lm(batch).outputs
-    lotus.logger.debug(f"Operator Cache hits: {lm.stats.total_usage.operator_cache_hits}")
     assert lm.stats.total_usage.operator_cache_hits == 2
     assert first_responses == second_responses
 
 
 @pytest.mark.parametrize("model", get_enabled("gpt-4o-mini"))
 def test_disable_operator_cache(setup_models, model):
-    lm = setup_models[model]
+    cache_config = CacheConfig(cache_type=CacheType.SQLITE, max_size=1000)
+    cache = CacheFactory.create_cache(cache_config)
+
+    lm = LM(model="gpt-4o-mini", cache=cache)
     lotus.settings.configure(lm=lm, enable_message_cache=True, enable_operator_cache=False)
 
     batch = [
@@ -510,6 +516,5 @@ def test_disable_operator_cache(setup_models, model):
     first_responses = lm(batch).outputs
     assert lm.stats.total_usage.operator_cache_hits == 0
     second_responses = lm(batch).outputs
-    lotus.logger.debug(f"Operator Cache hits: {lm.stats.total_usage.operator_cache_hits}")
     assert lm.stats.total_usage.operator_cache_hits == 2
     assert first_responses == second_responses
