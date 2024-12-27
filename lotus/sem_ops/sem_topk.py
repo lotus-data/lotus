@@ -7,6 +7,7 @@ import pandas as pd
 from tqdm import tqdm
 
 import lotus
+from lotus.cache import operator_cache
 from lotus.templates import task_instructions
 from lotus.types import LMOutput, SemanticTopKOutput
 from lotus.utils import show_safe_mode
@@ -386,6 +387,7 @@ class SemTopKDataframe:
             return_stats=return_stats,
         )
 
+    @operator_cache
     def __call__(
         self,
         user_instruction: str,
@@ -396,6 +398,7 @@ class SemTopKDataframe:
         cascade_threshold: float | None = None,
         return_stats: bool = False,
         safe_mode: bool = False,
+        use_operator_cache: bool = False,
     ) -> pd.DataFrame | tuple[pd.DataFrame, dict[str, Any]]:
         """
         Sorts the DataFrame based on the user instruction and returns the top K rows.
@@ -438,7 +441,7 @@ class SemTopKDataframe:
 
             with ThreadPoolExecutor(max_workers=lotus.settings.parallel_groupby_max_threads) as executor:
                 results = list(executor.map(SemTopKDataframe.process_group, group_args))
-    
+
             if return_stats:
                 new_df = pd.concat([res[0] for res in results])
                 stats = {name: res[1] for name, res in zip(grouped.groups.keys(), results)}
