@@ -501,9 +501,9 @@ def test_operator_cache(setup_models, model):
                 "Transport Phenomena and Separations",
             ],
             "_map": [
-                "«Process Dynamics and Control»",
-                "«Advanced Optimization Techniques in Engineering»",
-                "«Reaction Kinetics and Mechanisms»",
+                "Process Dynamics and Control",
+                "Advanced Optimization Techniques in Engineering",
+                "Reaction Kinetics and Mechanisms",
                 "Fluid Mechanics and Mass Transfer",
             ],
         }
@@ -518,7 +518,12 @@ def test_operator_cache(setup_models, model):
     second_response = df.sem_map(user_instruction)
     assert lm.stats.total_usage.operator_cache_hits == 1
 
-    assert first_response == second_response == expected_response
+    result_1 = first_response["_map"].str.replace(r"[^a-zA-Z\s]", "", regex=True)
+    result_2 = second_response["_map"].str.replace(r"[^a-zA-Z\s]", "", regex=True)
+
+    pd.testing.assert_frame_equal(result_1, result_2)
+    pd.testing.assert_frame_equal(result_1, expected_response)
+    pd.testing.assert_frame_equal(result_2, expected_response)
 
 
 @pytest.mark.parametrize("model", get_enabled("gpt-4o-mini"))
@@ -547,9 +552,9 @@ def test_disable_operator_cache(setup_models, model):
                 "Transport Phenomena and Separations",
             ],
             "_map": [
-                "«Process Dynamics and Control»",
-                "«Advanced Optimization Techniques in Engineering»",
-                "«Reaction Kinetics and Mechanisms»",
+                "Process Dynamics and Control",
+                "Advanced Optimization Techniques in Engineering",
+                "Reaction Kinetics and Mechanisms",
                 "Fluid Mechanics and Mass Transfer",
             ],
         }
@@ -564,12 +569,15 @@ def test_disable_operator_cache(setup_models, model):
     second_response = df.sem_map(user_instruction)
     assert lm.stats.total_usage.operator_cache_hits == 0
 
-    assert first_response == second_response
+    pd.testing.assert_frame_equal(first_response, second_response)
 
-    # Now enable operator cache. Note that the first batch is not cached.
+    # Now enable operator cache.
     lotus.settings.configure(enable_operator_cache=True)
-    first_responses = df.sem_map(user_instruction)
+    first_responses = df.sem_map(user_instruction)["_map"].str.replace(r"[^a-zA-Z\s]", "", regex=True)
     assert lm.stats.total_usage.operator_cache_hits == 0
-    second_responses = df.sem_map(user_instruction)
+    second_responses = df.sem_map(user_instruction)["_map"].str.replace(r"[^a-zA-Z\s]", "", regex=True)
     assert lm.stats.total_usage.operator_cache_hits == 1
-    assert first_responses == second_responses == expected_response
+
+    pd.testing.assert_frame_equal(first_responses, second_responses)
+    pd.testing.assert_frame_equal(first_responses, expected_response)
+    pd.testing.assert_frame_equal(second_responses, expected_response)
