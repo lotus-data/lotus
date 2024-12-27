@@ -33,7 +33,7 @@ def operator_cache(func: Callable) -> Callable:
     @wraps(func)
     def wrapper(self, *args, **kwargs):
         model = lotus.settings.lm
-        use_operator_cache = kwargs.get("use_operator_cache", False)
+        use_operator_cache = lotus.settings.enable_operator_cache
 
         if use_operator_cache and model.cache:
 

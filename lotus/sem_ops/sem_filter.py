@@ -27,7 +27,6 @@ def sem_filter(
     safe_mode: bool = False,
     show_progress_bar: bool = True,
     progress_bar_desc: str = "Filtering",
-    use_operator_cache: bool = False,
 ) -> SemanticFilterOutput:
     """
     Filters a list of documents based on a given user instruction using a language model.
@@ -105,7 +104,6 @@ def learn_filter_cascade_thresholds(
             strategy=strategy,
             safe_mode=False,
             progress_bar_desc="Running oracle for threshold learning",
-            use_operator_cache=False,
         ).outputs
 
         best_combination, _ = learn_cascade_thresholds(
@@ -152,7 +150,6 @@ class SemFilterDataframe:
         return_stats: bool = False,
         safe_mode: bool = False,
         progress_bar_desc: str = "Filtering",
-        use_operator_cache: bool = False,
     ) -> pd.DataFrame | tuple[pd.DataFrame, dict[str, Any]]:
         """
         Applies semantic filter over a dataframe.
@@ -250,7 +247,6 @@ class SemFilterDataframe:
                 safe_mode=safe_mode,
                 show_progress_bar=True,
                 progress_bar_desc="Running helper LM",
-                use_operator_cache=use_operator_cache,
             )
             helper_outputs, helper_logprobs = helper_output.outputs, helper_output.logprobs
             assert helper_logprobs is not None
@@ -331,7 +327,6 @@ class SemFilterDataframe:
                     strategy=strategy,
                     safe_mode=safe_mode,
                     progress_bar_desc="Running predicate evals with oracle LM",
-                    use_operator_cache=use_operator_cache,
                 )
 
                 for idx, large_idx in enumerate(low_conf_idxs):
@@ -355,7 +350,6 @@ class SemFilterDataframe:
                 safe_mode=safe_mode,
                 show_progress_bar=True,
                 progress_bar_desc=progress_bar_desc,
-                use_operator_cache=use_operator_cache,
             )
             outputs = output.outputs
             raw_outputs = output.raw_outputs

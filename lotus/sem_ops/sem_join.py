@@ -30,7 +30,6 @@ def sem_join(
     safe_mode: bool = False,
     show_progress_bar: bool = True,
     progress_bar_desc: str = "Join comparisons",
-    use_operator_cache: bool = False,
 ) -> SemanticJoinOutput:
     """
     Joins two series using a model.
@@ -92,7 +91,6 @@ def sem_join(
             default=default,
             strategy=strategy,
             show_progress_bar=False,
-            use_operator_cache=use_operator_cache,
         )
         outputs = output.outputs
         raw_outputs = output.raw_outputs
@@ -142,7 +140,6 @@ def sem_join_cascade(
     default: bool = True,
     strategy: str | None = None,
     safe_mode: bool = False,
-    use_operator_cache: bool = False,
 ) -> SemanticJoinOutput:
     """
     Joins two series using a cascade helper model and a oracle model.
@@ -238,8 +235,6 @@ def sem_join_cascade(
             cot_reasoning=cot_reasoning,
             default=default,
             strategy=strategy,
-            show_progress_bar=False,
-            use_operator_cache=use_operator_cache,
         )
         pbar.update(num_large)
         pbar.close()
@@ -518,7 +513,6 @@ def learn_join_cascade_threshold(
             cot_reasoning=cot_reasoning,
             strategy=strategy,
             progress_bar_desc="Running oracle for threshold learning",
-            use_operator_cache=False,
         )
 
         (pos_threshold, neg_threshold), _ = learn_cascade_thresholds(
@@ -566,7 +560,6 @@ class SemJoinDataframe:
         return_stats: bool = False,
         safe_mode: bool = False,
         progress_bar_desc: str = "Join comparisons",
-        use_operator_cache: bool = False,
     ) -> pd.DataFrame:
         """
         Applies semantic join over a dataframe.
@@ -680,7 +673,6 @@ class SemJoinDataframe:
                 default=default,
                 strategy=strategy,
                 safe_mode=safe_mode,
-                use_operator_cache=use_operator_cache,
             )
         else:
             output = sem_join(
@@ -699,7 +691,6 @@ class SemJoinDataframe:
                 strategy=strategy,
                 safe_mode=safe_mode,
                 progress_bar_desc=progress_bar_desc,
-                use_operator_cache=use_operator_cache,
             )
         join_results = output.join_results
         all_raw_outputs = output.all_raw_outputs

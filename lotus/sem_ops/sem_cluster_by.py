@@ -29,7 +29,6 @@ class SemClusterByDataframe:
         return_centroids: bool = False,
         niter: int = 20,
         verbose: bool = False,
-        use_operator_cache: bool = False,
     ) -> pd.DataFrame | tuple[pd.DataFrame, np.ndarray]:
         """
         Perform semantic clustering on the DataFrame.

@@ -22,7 +22,6 @@ def sem_map(
     strategy: str | None = None,
     safe_mode: bool = False,
     progress_bar_desc: str = "Mapping",
-    use_operator_cache: bool = False,
 ) -> SemanticMapOutput:
     """
     Maps a list of documents to a list of outputs using a model.
@@ -94,7 +93,6 @@ class SemMapDataframe:
         strategy: str | None = None,
         safe_mode: bool = False,
         progress_bar_desc: str = "Mapping",
-        use_operator_cache: bool = False,
     ) -> pd.DataFrame:
         """
         Applies semantic map over a dataframe.
@@ -149,7 +147,6 @@ class SemMapDataframe:
             strategy=strategy,
             safe_mode=safe_mode,
             progress_bar_desc=progress_bar_desc,
-            use_operator_cache=use_operator_cache,
         )
 
         new_df = self._obj.copy()

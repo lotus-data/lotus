@@ -20,7 +20,6 @@ def sem_extract(
     postprocessor: Callable[[list[str]], SemanticExtractPostprocessOutput] = extract_postprocess,
     safe_mode: bool = False,
     progress_bar_desc: str = "Extracting",
-    use_operator_cache: bool = False,
 ) -> SemanticExtractOutput:
     """
     Extracts attributes and values from a list of documents using a model.
@@ -83,7 +82,6 @@ class SemExtractDataFrame:
         return_raw_outputs: bool = False,
         safe_mode: bool = False,
         progress_bar_desc: str = "Extracting",
-        use_operator_cache: bool = False,
     ) -> pd.DataFrame:
         """
         Extracts the attributes and values of a dataframe.
@@ -118,7 +116,6 @@ class SemExtractDataFrame:
             postprocessor=postprocessor,
             safe_mode=safe_mode,
             progress_bar_desc=progress_bar_desc,
-            use_operator_cache=use_operator_cache,
         )
 
         new_df = self._obj.copy()

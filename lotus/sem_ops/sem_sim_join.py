@@ -32,7 +32,6 @@ class SemSimJoinDataframe:
         rsuffix: str = "",
         score_suffix: str = "",
         keep_index: bool = False,
-        use_operator_cache: bool = False,
     ) -> pd.DataFrame:
         """
         Perform semantic similarity join on the DataFrame.

@@ -13,6 +13,7 @@ class Settings:
 
     # Cache settings
     enable_cache: bool = False
+    enable_operator_cache: bool = False
 
     # Serialization setting
     serialization_format: SerializationFormat = SerializationFormat.DEFAULT

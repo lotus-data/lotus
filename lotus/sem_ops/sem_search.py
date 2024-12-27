@@ -29,7 +29,6 @@ class SemSearchDataframe:
         n_rerank: int | None = None,
         return_scores: bool = False,
         suffix: str = "_sim_score",
-        use_operator_cache: bool = False,
     ) -> pd.DataFrame:
         """
         Perform semantic search on the DataFrame.

@@ -15,7 +15,6 @@ def sem_agg(
     partition_ids: list[int],
     safe_mode: bool = False,
     progress_bar_desc: str = "Aggregating",
-    use_operator_cache: bool = False,
 ) -> SemanticAggOutput:
     """
     Aggregates multiple documents into a single answer using a model.
@@ -159,7 +158,6 @@ class SemAggDataframe:
         group_by: list[str] | None = None,
         safe_mode: bool = False,
         progress_bar_desc: str = "Aggregating",
-        use_operator_cache: bool = False,
     ) -> pd.DataFrame:
         """
         Applies semantic aggregation over a dataframe.
@@ -217,7 +215,6 @@ class SemAggDataframe:
             partition_ids,
             safe_mode=safe_mode,
             progress_bar_desc=progress_bar_desc,
-            use_operator_cache=use_operator_cache,
         )
 
         # package answer in a dataframe

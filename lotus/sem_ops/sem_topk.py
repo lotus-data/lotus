@@ -398,7 +398,6 @@ class SemTopKDataframe:
         cascade_threshold: float | None = None,
         return_stats: bool = False,
         safe_mode: bool = False,
-        use_operator_cache: bool = False,
     ) -> pd.DataFrame | tuple[pd.DataFrame, dict[str, Any]]:
         """
         Sorts the DataFrame based on the user instruction and returns the top K rows.
