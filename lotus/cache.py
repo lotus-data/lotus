@@ -20,7 +20,7 @@ def require_cache_enabled(func: Callable) -> Callable:
 
     @wraps(func)
     def wrapper(self, *args, **kwargs):
-        if not lotus.settings.enable_cache:
+        if not lotus.settings.enable_message_cache:
             return None
         return func(self, *args, **kwargs)
 
@@ -52,9 +52,9 @@ def operator_cache(func: Callable) -> Callable:
 
             cached_result = model.cache.get(cache_key)
             if cached_result is not None:
-                print(f"Cache hit for {cache_key}")
+                lotus.logger.debug(f"Cache hit for {cache_key}")
                 return cached_result
-            print(f"Cache miss for {cache_key}")
+            lotus.logger.debug(f"Cache miss for {cache_key}")
 
             result = func(self, *args, **kwargs)
             model.cache.insert(cache_key, result)

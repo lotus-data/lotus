@@ -11,7 +11,7 @@ cache = CacheFactory.create_cache(cache_config)
 
 lm = LM(model="gpt-4o-mini", cache=cache)
 
-lotus.settings.configure(lm=lm, enable_cache=True)  # default caching is False
+lotus.settings.configure(lm=lm, enable_message_cache=True)  # default caching is False
 data = {
     "Course Name": [
         "Probability and Random Processes",

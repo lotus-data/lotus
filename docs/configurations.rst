@@ -21,12 +21,12 @@ Using the Settings module
 Configurable Parameters
 --------------------------
 
-1. enable_cache: 
+1. enable_message_cache: 
     * Description: Enables or Disables cahcing mechanisms
     * Default: False
 .. code-block:: python
 
-    lotus.settings.configure(enable_cache=True)
+    lotus.settings.configure(enable_message_cache=True)
 
 2. setting RM:
     * Description: Configures the retrieval model

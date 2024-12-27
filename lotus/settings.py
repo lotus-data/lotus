@@ -12,7 +12,7 @@ class Settings:
     reranker: lotus.models.Reranker | None = None
 
     # Cache settings
-    enable_cache: bool = False
+    enable_message_cache: bool = False
     enable_operator_cache: bool = False
 
     # Serialization setting

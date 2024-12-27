@@ -13,12 +13,12 @@ class TestSettings:
         assert settings.rm is None
         assert settings.helper_lm is None
         assert settings.reranker is None
-        assert settings.enable_cache is False
+        assert settings.enable_message_cache is False
         assert settings.serialization_format == SerializationFormat.DEFAULT
 
     def test_configure_method(self, settings):
-        settings.configure(enable_cache=True)
-        assert settings.enable_cache is True
+        settings.configure(enable_message_cache=True)
+        assert settings.enable_message_cache is True
 
     def test_invalid_setting(self, settings):
         with pytest.raises(ValueError, match="Invalid setting: invalid_setting"):
