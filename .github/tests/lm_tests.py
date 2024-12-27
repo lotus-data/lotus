@@ -483,15 +483,25 @@ def test_operator_cache(setup_models, model):
     lm = LM(model="gpt-4o-mini", cache=cache)
     lotus.settings.configure(lm=lm, enable_message_cache=True, enable_operator_cache=True)
 
-    batch = [
-        [{"role": "user", "content": "Hello, world!"}],
-        [{"role": "user", "content": "What is the capital of France?"}],
-    ]
-    first_responses = lm(batch).outputs
+    data = {
+        "Course Name": [
+            "Dynamics and Control of Chemical Processes",
+            "Optimization Methods in Engineering",
+            "Chemical Kinetics and Catalysis",
+            "Transport Phenomena and Separations",
+        ]
+    }
+
+    df = pd.DataFrame(data)
+    user_instruction = "What is a similar course to {Course Name}. Be concise?"
+
+    first_response = df.sem_map(df, user_instruction)
     assert lm.stats.total_usage.operator_cache_hits == 0
-    second_responses = lm(batch).outputs
-    assert lm.stats.total_usage.operator_cache_hits == 2
-    assert first_responses == second_responses
+
+    second_response = df.sem_map(df, user_instruction)
+    assert lm.stats.total_usage.operator_cache_hits == 1
+
+    assert first_response == second_response
 
 
 @pytest.mark.parametrize("model", get_enabled("gpt-4o-mini"))
@@ -502,19 +512,30 @@ def test_disable_operator_cache(setup_models, model):
     lm = LM(model="gpt-4o-mini", cache=cache)
     lotus.settings.configure(lm=lm, enable_message_cache=True, enable_operator_cache=False)
 
-    batch = [
-        [{"role": "user", "content": "Hello, world!"}],
-        [{"role": "user", "content": "What is the capital of France?"}],
-    ]
-    lm(batch)
+    data = {
+        "Course Name": [
+            "Dynamics and Control of Chemical Processes",
+            "Optimization Methods in Engineering",
+            "Chemical Kinetics and Catalysis",
+            "Transport Phenomena and Separations",
+        ]
+    }
+
+    df = pd.DataFrame(data)
+    user_instruction = "What is a similar course to {Course Name}. Be concise?"
+
+    first_response = df.sem_map(df, user_instruction)
     assert lm.stats.total_usage.operator_cache_hits == 0
-    lm(batch)
+
+    second_response = df.sem_map(df, user_instruction)
     assert lm.stats.total_usage.operator_cache_hits == 0
+
+    assert first_response == second_response
 
     # Now enable operator cache. Note that the first batch is not cached.
     lotus.settings.configure(enable_operator_cache=True)
-    first_responses = lm(batch).outputs
+    first_responses = df.sem_map(df, user_instruction)
     assert lm.stats.total_usage.operator_cache_hits == 0
-    second_responses = lm(batch).outputs
-    assert lm.stats.total_usage.operator_cache_hits == 2
+    second_responses = df.sem_map(df, user_instruction)
+    assert lm.stats.total_usage.operator_cache_hits == 1
     assert first_responses == second_responses
