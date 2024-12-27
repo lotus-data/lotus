@@ -486,6 +486,7 @@ def test_operator_cache(setup_models, model):
     first_responses = lm(batch).outputs
     assert lm.stats.total_usage.operator_cache_hits == 0
     second_responses = lm(batch).outputs
+    lotus.logger.debug(f"Operator Cache hits: {lm.stats.total_usage.operator_cache_hits}")
     assert lm.stats.total_usage.operator_cache_hits == 2
     assert first_responses == second_responses
 
@@ -509,5 +510,6 @@ def test_disable_operator_cache(setup_models, model):
     first_responses = lm(batch).outputs
     assert lm.stats.total_usage.operator_cache_hits == 0
     second_responses = lm(batch).outputs
+    lotus.logger.debug(f"Operator Cache hits: {lm.stats.total_usage.operator_cache_hits}")
     assert lm.stats.total_usage.operator_cache_hits == 2
     assert first_responses == second_responses
