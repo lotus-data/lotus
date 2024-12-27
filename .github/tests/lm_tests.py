@@ -518,12 +518,13 @@ def test_operator_cache(setup_models, model):
     second_response = df.sem_map(user_instruction)
     assert lm.stats.total_usage.operator_cache_hits == 1
 
-    result_1 = first_response[first_response["_map"].str.replace(r"[^a-zA-Z\s]", "", regex=True)]
-    result_2 = second_response[second_response["_map"].str.replace(r"[^a-zA-Z\s]", "", regex=True)]
+    first_response["_map"] = first_response["_map"].str.replace(r"[^a-zA-Z\s]", "", regex=True).str.lower()
+    second_response["_map"] = second_response["_map"].str.replace(r"[^a-zA-Z\s]", "", regex=True).str.lower()
+    expected_response["_map"] = expected_response["_map"].str.replace(r"[^a-zA-Z\s]", "", regex=True).str.lower()
 
-    pd.testing.assert_frame_equal(result_1, result_2)
-    pd.testing.assert_frame_equal(result_1, expected_response)
-    pd.testing.assert_frame_equal(result_2, expected_response)
+    pd.testing.assert_frame_equal(first_response, second_response)
+    pd.testing.assert_frame_equal(first_response, expected_response)
+    pd.testing.assert_frame_equal(second_response, expected_response)
 
     lm.reset_cache()
     lm.reset_stats()
@@ -578,11 +579,13 @@ def test_disable_operator_cache(setup_models, model):
     # Now enable operator cache.
     lotus.settings.configure(enable_operator_cache=True)
     first_responses = df.sem_map(user_instruction)
-    first_responses = first_responses[first_responses["_map"].str.replace(r"[^a-zA-Z\s]", "", regex=True)]
+    first_responses["_map"] = first_responses["_map"].str.replace(r"[^a-zA-Z\s]", "", regex=True).str.lower()
     assert lm.stats.total_usage.operator_cache_hits == 0
     second_responses = df.sem_map(user_instruction)
-    second_responses = second_responses[second_responses["_map"].str.replace(r"[^a-zA-Z\s]", "", regex=True)]
+    second_responses["_map"] = second_responses["_map"].str.replace(r"[^a-zA-Z\s]", "", regex=True).str.lower()
     assert lm.stats.total_usage.operator_cache_hits == 1
+
+    expected_response["_map"] = expected_response["_map"].str.replace(r"[^a-zA-Z\s]", "", regex=True).str.lower()
 
     pd.testing.assert_frame_equal(first_responses, second_responses)
     pd.testing.assert_frame_equal(first_responses, expected_response)
