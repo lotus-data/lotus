@@ -484,9 +484,9 @@ def test_operator_cache(setup_models, model):
         [{"role": "user", "content": "What is the capital of France?"}],
     ]
     first_responses = lm(batch).outputs
-    assert lm.stats.total_usage.cache_hits == 0
+    assert lm.stats.total_usage.operator_cache_hits == 0
     second_responses = lm(batch).outputs
-    assert lm.stats.total_usage.cache_hits == 2
+    assert lm.stats.total_usage.operator_cache_hits == 2
     assert first_responses == second_responses
 
 
@@ -500,14 +500,14 @@ def test_disable_operator_cache(setup_models, model):
         [{"role": "user", "content": "What is the capital of France?"}],
     ]
     lm(batch)
-    assert lm.stats.total_usage.cache_hits == 0
+    assert lm.stats.total_usage.operator_cache_hits == 0
     lm(batch)
-    assert lm.stats.total_usage.cache_hits == 0
+    assert lm.stats.total_usage.operator_cache_hits == 0
 
     # Now enable operator cache. Note that the first batch is not cached.
     lotus.settings.configure(enable_operator_cache=True)
     first_responses = lm(batch).outputs
-    assert lm.stats.total_usage.cache_hits == 0
+    assert lm.stats.total_usage.operator_cache_hits == 0
     second_responses = lm(batch).outputs
-    assert lm.stats.total_usage.cache_hits == 2
+    assert lm.stats.total_usage.operator_cache_hits == 2
     assert first_responses == second_responses

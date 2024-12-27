@@ -32,6 +32,7 @@ class LMStats(BaseModel):
         total_tokens: int = 0
         total_cost: float = 0.0
         cache_hits: int = 0
+        operator_cache_hits: int = 0
 
     total_usage: TotalUsage = TotalUsage()
 
