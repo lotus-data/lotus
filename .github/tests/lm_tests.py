@@ -525,6 +525,10 @@ def test_operator_cache(setup_models, model):
     pd.testing.assert_frame_equal(result_1, expected_response)
     pd.testing.assert_frame_equal(result_2, expected_response)
 
+    lm.reset_cache()
+    lm.reset_stats()
+    assert lm.stats.total_usage.operator_cache_hits == 0
+
 
 @pytest.mark.parametrize("model", get_enabled("gpt-4o-mini"))
 def test_disable_operator_cache(setup_models, model):
@@ -573,9 +577,11 @@ def test_disable_operator_cache(setup_models, model):
 
     # Now enable operator cache.
     lotus.settings.configure(enable_operator_cache=True)
-    first_responses = df.sem_map(user_instruction)["_map"].str.replace(r"[^a-zA-Z\s]", "", regex=True)
+    first_responses = df.sem_map(user_instruction)
+    first_responses = first_responses[first_responses["_map"].str.replace(r"[^a-zA-Z\s]", "", regex=True)]
     assert lm.stats.total_usage.operator_cache_hits == 0
-    second_responses = df.sem_map(user_instruction)["_map"].str.replace(r"[^a-zA-Z\s]", "", regex=True)
+    second_responses = df.sem_map(user_instruction)
+    second_responses = second_responses[second_responses["_map"].str.replace(r"[^a-zA-Z\s]", "", regex=True)]
     assert lm.stats.total_usage.operator_cache_hits == 1
 
     pd.testing.assert_frame_equal(first_responses, second_responses)
