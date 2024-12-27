@@ -518,8 +518,8 @@ def test_operator_cache(setup_models, model):
     second_response = df.sem_map(user_instruction)
     assert lm.stats.total_usage.operator_cache_hits == 1
 
-    result_1 = first_response["_map"].str.replace(r"[^a-zA-Z\s]", "", regex=True)
-    result_2 = second_response["_map"].str.replace(r"[^a-zA-Z\s]", "", regex=True)
+    result_1 = first_response[first_response["_map"].str.replace(r"[^a-zA-Z\s]", "", regex=True)]
+    result_2 = second_response[second_response["_map"].str.replace(r"[^a-zA-Z\s]", "", regex=True)]
 
     pd.testing.assert_frame_equal(result_1, result_2)
     pd.testing.assert_frame_equal(result_1, expected_response)
