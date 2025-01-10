@@ -27,6 +27,7 @@ def sem_filter(
     safe_mode: bool = False,
     show_progress_bar: bool = True,
     progress_bar_desc: str = "Filtering",
+    additional_cot_instructions: str = ""
 ) -> SemanticFilterOutput:
     """
     Filters a list of documents based on a given user instruction using a language model.
@@ -40,6 +41,7 @@ def sem_filter(
         examples_answers (list[bool] | None): The answers for examples. Defaults to None.
         cot_reasoning (list[str] | None): The reasoning for CoT. Defaults to None.
         logprobs (bool): Whether to return log probabilities. Defaults to False.
+        additional_cot_instructions (str): Additional instructions for the CoT. Defaults to "".
 
     Returns:
         SemanticFilterOutput: The True/False outputs, raw outputs, and explanations, and log probabilities.
@@ -47,7 +49,7 @@ def sem_filter(
     inputs = []
     for doc in docs:
         prompt = lotus.templates.task_instructions.filter_formatter(
-            doc, user_instruction, examples_multimodal_data, examples_answers, cot_reasoning, strategy
+            doc, user_instruction, examples_multimodal_data, examples_answers, cot_reasoning, strategy, reasoning_instructions=additional_cot_instructions
         )
         lotus.logger.debug(f"input to model: {prompt}")
         inputs.append(prompt)
@@ -85,6 +87,7 @@ def learn_filter_cascade_thresholds(
     examples_answers: list[bool] | None = None,
     cot_reasoning: list[str] | None = None,
     strategy: str | None = None,
+    additional_cot_instructions: str = "",
 ) -> tuple[float, float]:
     """Automatically learns the cascade thresholds for a cascade
     filter given a sample of data and doing a search across threshold
@@ -102,6 +105,7 @@ def learn_filter_cascade_thresholds(
             strategy=strategy,
             safe_mode=False,
             progress_bar_desc="Running oracle for threshold learning",
+            additional_cot_instructions=additional_cot_instructions,
         ).outputs
 
         best_combination, _ = learn_cascade_thresholds(
@@ -148,6 +152,7 @@ class SemFilterDataframe:
         return_stats: bool = False,
         safe_mode: bool = False,
         progress_bar_desc: str = "Filtering",
+        additional_cot_instructions: str = "",
     ) -> pd.DataFrame | tuple[pd.DataFrame, dict[str, Any]]:
         """
         Applies semantic filter over a dataframe.
@@ -166,6 +171,7 @@ class SemFilterDataframe:
                 sampling_percentage (float): The percentage of the data to sample when cascading. Defaults to 0.1.
                 failure_probability (float): The failure probability when cascading. Defaults to 0.2.
             return_stats (bool): Whether to return statistics. Defaults to False.
+            additional_cot_instructions (str): Additional instructions for the CoT. Defaults to "".
 
         Returns:
             pd.DataFrame | tuple[pd.DataFrame, dict[str, Any]]: The filtered dataframe or a tuple containing the filtered dataframe and statistics.
@@ -245,6 +251,7 @@ class SemFilterDataframe:
                 safe_mode=safe_mode,
                 show_progress_bar=True,
                 progress_bar_desc="Running helper LM",
+                additional_cot_instructions=additional_cot_instructions,
             )
             helper_outputs, helper_logprobs = helper_output.outputs, helper_output.logprobs
             assert helper_logprobs is not None
@@ -271,6 +278,7 @@ class SemFilterDataframe:
                 examples_answers=examples_answers,
                 cot_reasoning=cot_reasoning,
                 strategy=strategy,
+                additional_cot_instructions=additional_cot_instructions,
             )
 
             stats["pos_cascade_threshold"] = pos_cascade_threshold
@@ -325,6 +333,7 @@ class SemFilterDataframe:
                     strategy=strategy,
                     safe_mode=safe_mode,
                     progress_bar_desc="Running predicate evals with oracle LM",
+                    additional_cot_instructions=additional_cot_instructions,
                 )
 
                 for idx, large_idx in enumerate(low_conf_idxs):
@@ -348,6 +357,7 @@ class SemFilterDataframe:
                 safe_mode=safe_mode,
                 show_progress_bar=True,
                 progress_bar_desc=progress_bar_desc,
+                additional_cot_instructions=additional_cot_instructions,
             )
             outputs = output.outputs
             raw_outputs = output.raw_outputs
