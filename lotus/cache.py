@@ -20,7 +20,7 @@ def require_cache_enabled(func: Callable) -> Callable:
 
     @wraps(func)
     def wrapper(self, *args, **kwargs):
-        if not lotus.settings.enable_message_cache and not lotus.settings.enable_operator_cache:
+        if not lotus.settings.enable_message_cache:
             return None
         return func(self, *args, **kwargs)
 
@@ -134,7 +134,6 @@ class SQLiteCache(Cache):
     def _get_time(self):
         return int(time.time())
 
-    @require_cache_enabled
     def get(self, key: str) -> Any | None:
         with self.conn:
             cursor = self.conn.execute("SELECT value FROM cache WHERE key = ?", (key,))
@@ -152,7 +151,6 @@ class SQLiteCache(Cache):
                 return value
         return None
 
-    @require_cache_enabled
     def insert(self, key: str, value: Any):
         pickled_value = pickle.dumps(value)
         with self.conn:
@@ -196,14 +194,12 @@ class InMemoryCache(Cache):
         super().__init__(max_size)
         self.cache: OrderedDict[str, Any] = OrderedDict()
 
-    @require_cache_enabled
     def get(self, key: str) -> Any | None:
         if key in self.cache:
             lotus.logger.debug(f"Cache hit for {key}")
 
         return self.cache.get(key)
 
-    @require_cache_enabled
     def insert(self, key: str, value: Any):
         self.cache[key] = value
 
