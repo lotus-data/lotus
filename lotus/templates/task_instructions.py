@@ -7,18 +7,29 @@ import lotus
 from lotus.dtype_extensions import ImageDtype
 from lotus.types import SerializationFormat
 
+
 def cot_formatter(reasoning, answer):
     return f"""<Reasoning>{reasoning}</Reasoning><Answer>{answer}</Answer>"""
 
+
+def answer_only_formatter(answer):
+    return f"""<Answer>{answer}</Answer>"""
+
+
 def cot_prompt_formatter(reasoning_instructions: str = "", answer_instructions: str = "") -> str:
-    reasoning_instructions = f"Provide your reasoning here.{reasoning_instructions}"
+    reasoning_instructions = f"Provide your reasoning here. {reasoning_instructions}"
     answer_instructions = f"Provide your answer here. {answer_instructions}"
     return f"""Let's think step by step. Use the following format to provide your answer:
         {cot_formatter(reasoning_instructions, answer_instructions)}
         """
+
+
 def non_cot_prompt_formatter(answer_instructions: str = "") -> str:
     answer_instructions = f"Provide your answer here. {answer_instructions}"
-    return f"""<Answer>{answer_instructions}</Answer>"""
+    return f"""Use the following format to provide your answer:
+            {answer_only_formatter(answer_instructions)}
+            """
+
 
 def context_formatter(
     multimodal_data: dict[str, Any] | str,
@@ -47,6 +58,7 @@ def context_formatter(
         raise ValueError("multimodal_data must be a dictionary or a string")
     return text, image_inputs
 
+
 def user_message_formatter(
     multimodal_data: dict[str, Any] | str,
     user_instruction_with_tag: str | None = None,
@@ -65,6 +77,7 @@ def user_message_formatter(
         "content": content,
     }
 
+
 def filter_formatter(
     multimodal_data: dict[str, Any],
     user_instruction: str,
@@ -74,26 +87,18 @@ def filter_formatter(
     strategy: str | None = None,
     reasoning_instructions: str = "",
 ) -> list[dict[str, str]]:
-    answer_instructions="The answer should be either True or False"
-    
-    if strategy == "cot":
-        sys_instruction = (
-            f"""The user will provide a claim and some relevant context.
-            Your job is to determine whether the claim is true for the given context.
+    answer_instructions = "The answer should be either True or False"
 
-            {cot_prompt_formatter(
-                reasoning_instructions=reasoning_instructions, 
-                answer_instructions=answer_instructions)}
-            """
+    sys_instruction = """The user will provide a claim and some relevant context.
+    Your job is to determine whether the claim is true for the given context.
+     """
+
+    if strategy == "cot":
+        sys_instruction += cot_prompt_formatter(
+            reasoning_instructions=reasoning_instructions, answer_instructions=answer_instructions
         )
     else:
-        sys_instruction = (
-            f"""The user will provide a claim and some relevant context.
-            Your job is to determine whether the claim is true for the given context.
-
-            {non_cot_prompt_formatter(answer_instructions=answer_instructions)}
-            """
-        )
+        sys_instruction += non_cot_prompt_formatter(answer_instructions=answer_instructions)
 
     messages = [
         {"role": "system", "content": sys_instruction},
@@ -107,17 +112,19 @@ def filter_formatter(
         if cot_reasoning:
             assert isinstance(cot_reasoning, list)
             assert len(examples_multimodal_data) == len(examples_answer) == len(cot_reasoning)
-        
+
         for idx in range(len(examples_multimodal_data)):
             ex_multimodal_data = examples_multimodal_data[idx]
             ex_ans = examples_answer[idx]
-            cot = cot_reasoning[idx] if cot_reasoning else "Reasoning for this example has not been provided"
+
             messages.extend(
                 [
                     user_message_formatter(ex_multimodal_data, f"Claim: {user_instruction}"),
                     {
                         "role": "assistant",
-                        "content": f"""{cot_formatter(cot, ex_ans)}""",
+                        "content": cot_formatter(cot_reasoning[idx], str(ex_ans))
+                        if cot_reasoning
+                        else answer_only_formatter(str(ex_ans)),
                     },
                 ]
             )

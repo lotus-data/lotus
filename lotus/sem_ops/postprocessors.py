@@ -7,18 +7,20 @@ from lotus.types import (
     SemanticMapPostprocessOutput,
 )
 
+
 def cot_postprocessor(llm_answers: list[str]):
     outputs: list[str | None] = []
     explanations: list[str | None] = []
     for llm_answer in llm_answers:
         import xml.etree.ElementTree as ET
+
         try:
             root = ET.fromstring(f"<root>{llm_answer}</root>")
-            reasoning = root.find('.//Reasoning')  # Use XPath to find nested tags
-            answer = root.find('.//Answer')  # Use XPath to find nested tags
+            reasoning = root.find(".//Reasoning")  # Use XPath to find nested tags
+            answer = root.find(".//Answer")  # Use XPath to find nested tags
 
             if answer is not None and answer.text:
-                 answer = answer.text.strip()
+                answer = answer.text.strip()
             else:
                 lotus.logger.error(f"\t Failed to parse answer from: {llm_answer}")
                 answer = ""
@@ -26,18 +28,19 @@ def cot_postprocessor(llm_answers: list[str]):
             if reasoning is not None and reasoning.text:
                 reasoning = reasoning.text.strip()
             else:
-                lotus.logger.debug(f"\t Failed to parse reasoning from: {llm_answer}")
+                lotus.logger.debug(f"\t Unable to extract reasoning from: {llm_answer}. Was CoT used?")
                 reasoning = None
 
             explanations.append(reasoning)
             outputs.append(answer)
-            
-        except (ET.ParseError):
-            lotus.logger.debug(f"\t Failed to parse reasoning and answer from: {llm_answer}")
+
+        except ET.ParseError:
+            lotus.logger.debug(f"\t XML error parsing: {llm_answer}")
             explanations.append(None)
             outputs.append("")
- 
+
     return outputs, explanations
+
 
 def map_postprocess_cot(llm_answers: list[str]) -> SemanticMapPostprocessOutput:
     """
@@ -110,6 +113,7 @@ def extract_postprocess(llm_answers: list[str]) -> SemanticExtractPostprocessOut
 
     return SemanticExtractPostprocessOutput(raw_outputs=llm_answers, outputs=extract_data)
 
+
 def filter_postprocess(
     llm_answers: list[str],
     default: bool = True,
@@ -139,7 +143,7 @@ def filter_postprocess(
         else:
             lotus.logger.info(f"\t Failed to parse {answer}: defaulting to {default}")
             return default
-    
+
     outputs = [process_outputs(answer) for answer in outputs]
 
     return SemanticFilterPostprocessOutput(raw_outputs=llm_answers, outputs=outputs, explanations=explanations)
