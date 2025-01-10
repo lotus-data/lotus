@@ -47,7 +47,7 @@ def sem_filter(
     inputs = []
     for doc in docs:
         prompt = lotus.templates.task_instructions.filter_formatter(
-            doc, user_instruction, examples_multimodal_data, examples_answers, cot_reasoning, strategy
+            doc, user_instruction, examples_multimodal_data, examples_answers, cot_reasoning
         )
         lotus.logger.debug(f"input to model: {prompt}")
         inputs.append(prompt)
@@ -63,7 +63,7 @@ def sem_filter(
     )
 
     postprocess_output = filter_postprocess(
-        lm_output.outputs, default=default, cot_reasoning=strategy in ["cot", "zs-cot"]
+        lm_output.outputs, default=default
     )
     lotus.logger.debug(f"outputs: {postprocess_output.outputs}")
     lotus.logger.debug(f"raw_outputs: {postprocess_output.raw_outputs}")

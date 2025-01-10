@@ -7,6 +7,33 @@ from lotus.types import (
     SemanticMapPostprocessOutput,
 )
 
+def cot_postprocessor(llm_answers: list[str]):
+    outputs: list[str | None] = []
+    explanations: list[str | None] = []
+    for llm_answer in llm_answers:
+        import xml.etree.ElementTree as ET
+        try:
+            root = ET.fromstring(f"<root>{llm_answer}</root>")
+            reasoning = root.find('Reasoning')
+            answer = root.find('Answer')
+
+            if reasoning is None or answer is None:
+                raise ValueError("Failed to parse reasoning or answer")
+            
+            reasoning = reasoning.text.strip() if reasoning.text else None
+            answer = answer.text.strip() if answer.text else ""
+
+            explanations.append(reasoning)
+            outputs.append(answer)
+
+            lotus.logger.debug(f"{llm_answer}")
+            
+        except (ET.ParseError, ValueError):
+            lotus.logger.debug(f"\t Failed to parse reasoning and answer from: {llm_answer}")
+            explanations.append(None)
+            outputs.append("")
+ 
+    return outputs, explanations
 
 def map_postprocess_cot(llm_answers: list[str]) -> SemanticMapPostprocessOutput:
     """
@@ -79,49 +106,9 @@ def extract_postprocess(llm_answers: list[str]) -> SemanticExtractPostprocessOut
 
     return SemanticExtractPostprocessOutput(raw_outputs=llm_answers, outputs=extract_data)
 
-
-def filter_postprocess_cot(llm_answers: list[str], default: bool) -> SemanticFilterPostprocessOutput:
-    """
-    Postprocess the output of the filter operator with CoT reasoning.
-
-    Args:
-        llm_answers (list[str]): The list of llm answers.
-        default (bool): The default value to use if we fail to parse the answer.
-
-    Returns:
-        SemanticFilterPostprocessOutput
-    """
-    outputs: list[bool] = []
-    explanations: list[str | None] = []
-
-    for llm_answer in llm_answers:
-        reasoning_idx = llm_answer.find("Reasoning:\n")
-        if reasoning_idx == -1:
-            reasoning_idx = 0
-        else:
-            reasoning_idx += len("Reasoning:\n")
-
-        answer_idx = llm_answer.find("Answer:")
-        reasoning = llm_answer[reasoning_idx:answer_idx].rstrip("\n").lstrip("\n")
-        answer = llm_answer[answer_idx + len("Answer:") :]
-
-        explanations.append(reasoning)
-
-        if "True" in answer:
-            outputs.append(True)
-        elif "False" in answer:
-            outputs.append(False)
-        else:
-            lotus.logger.info(f"\t Failed to parse: defaulting to {default}")
-            outputs.append(default)
-
-    return SemanticFilterPostprocessOutput(raw_outputs=llm_answers, outputs=outputs, explanations=explanations)
-
-
 def filter_postprocess(
     llm_answers: list[str],
     default: bool = True,
-    cot_reasoning: bool = False,
 ) -> SemanticFilterPostprocessOutput:
     """
     Postprocess the output of the filter operator.
@@ -134,18 +121,21 @@ def filter_postprocess(
     Returns:
         SemanticFilterPostprocessOutput
     """
-    if cot_reasoning:
-        return filter_postprocess_cot(llm_answers, default)
+    outputs, explanations = cot_postprocessor(llm_answers)
 
-    outputs: list[bool] = []
-    explanations: list[str | None] = [None] * len(llm_answers)
-    for answer in llm_answers:
+    def process_outputs(answer):
+        if answer is None:
+            lotus.logger.info(f"\t Failed to parse {answer}: defaulting to {default}")
+            return default
+
         if "True" in answer:
-            outputs.append(True)
+            return True
         elif "False" in answer:
-            outputs.append(False)
+            return False
         else:
-            lotus.logger.info(f"\t Failed to parse: defaulting to {default}")
-            outputs.append(default)
+            lotus.logger.info(f"\t Failed to parse {answer}: defaulting to {default}")
+            return default
+    
+    outputs = [process_outputs(answer) for answer in outputs]
 
     return SemanticFilterPostprocessOutput(raw_outputs=llm_answers, outputs=outputs, explanations=explanations)

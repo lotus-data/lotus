@@ -6,6 +6,7 @@ from lotus.models import LM
 lm = LM(model="gpt-4o-mini")
 
 lotus.settings.configure(lm=lm)
+
 data = {
     "Course Name": [
         "Probability and Random Processes",
