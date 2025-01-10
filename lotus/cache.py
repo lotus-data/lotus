@@ -61,10 +61,10 @@ def operator_cache(func: Callable) -> Callable:
 
             cached_result = model.cache.get(cache_key)
             if cached_result is not None:
-                print(f"Cache hit for {cache_key}")
+                lotus.logger.debug(f"Cache hit for {cache_key}")
                 model.stats.total_usage.operator_cache_hits += 1
                 return cached_result
-            print(f"Cache miss for {cache_key}")
+            lotus.logger.debug(f"Cache miss for {cache_key}")
 
             result = func(self, *args, **kwargs)
             model.cache.insert(cache_key, result)
