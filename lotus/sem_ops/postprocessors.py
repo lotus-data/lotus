@@ -14,21 +14,25 @@ def cot_postprocessor(llm_answers: list[str]):
         import xml.etree.ElementTree as ET
         try:
             root = ET.fromstring(f"<root>{llm_answer}</root>")
-            reasoning = root.find('Reasoning')
-            answer = root.find('Answer')
+            reasoning = root.find('.//Reasoning')  # Use XPath to find nested tags
+            answer = root.find('.//Answer')  # Use XPath to find nested tags
 
-            if reasoning is None or answer is None:
-                raise ValueError("Failed to parse reasoning or answer")
-            
-            reasoning = reasoning.text.strip() if reasoning.text else None
-            answer = answer.text.strip() if answer.text else ""
+            if answer is not None and answer.text:
+                 answer = answer.text.strip()
+            else:
+                lotus.logger.error(f"\t Failed to parse answer from: {llm_answer}")
+                answer = ""
+
+            if reasoning is not None and reasoning.text:
+                reasoning = reasoning.text.strip()
+            else:
+                lotus.logger.debug(f"\t Failed to parse reasoning from: {llm_answer}")
+                reasoning = None
 
             explanations.append(reasoning)
             outputs.append(answer)
-
-            lotus.logger.debug(f"{llm_answer}")
             
-        except (ET.ParseError, ValueError):
+        except (ET.ParseError):
             lotus.logger.debug(f"\t Failed to parse reasoning and answer from: {llm_answer}")
             explanations.append(None)
             outputs.append("")

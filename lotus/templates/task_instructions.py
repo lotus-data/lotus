@@ -7,7 +7,6 @@ import lotus
 from lotus.dtype_extensions import ImageDtype
 from lotus.types import SerializationFormat
 
-
 def cot_formatter(reasoning, answer):
     return f"""<Reasoning>{reasoning}</Reasoning><Answer>{answer}</Answer>"""
 
@@ -17,6 +16,9 @@ def cot_prompt_formatter(reasoning_instructions: str = "", answer_instructions: 
     return f"""Let's think step by step. Use the following format to provide your answer:
         {cot_formatter(reasoning_instructions, answer_instructions)}
         """
+def non_cot_prompt_formatter(answer_instructions: str = "") -> str:
+    answer_instructions = f"Provide your answer here. {answer_instructions}"
+    return f"""<Answer>{answer_instructions}</Answer>"""
 
 def context_formatter(
     multimodal_data: dict[str, Any] | str,
@@ -45,7 +47,6 @@ def context_formatter(
         raise ValueError("multimodal_data must be a dictionary or a string")
     return text, image_inputs
 
-
 def user_message_formatter(
     multimodal_data: dict[str, Any] | str,
     user_instruction_with_tag: str | None = None,
@@ -69,16 +70,30 @@ def filter_formatter(
     user_instruction: str,
     examples_multimodal_data: list[dict[str, Any]] | None = None,
     examples_answer: list[bool] | None = None,
-    cot_reasoning: list[str] | None = None
+    cot_reasoning: list[str] | None = None,
+    strategy: str | None = None,
+    reasoning_instructions: str = "",
 ) -> list[dict[str, str]]:
+    answer_instructions="The answer should be either True or False"
     
-    sys_instruction = (
-        f"""The user will provide a claim and some relevant context.
-        Your job is to determine whether the claim is true for the given context.
+    if strategy == "cot":
+        sys_instruction = (
+            f"""The user will provide a claim and some relevant context.
+            Your job is to determine whether the claim is true for the given context.
 
-        {cot_prompt_formatter(answer_instructions="The answer should be either True or False")}
-        """
-    )
+            {cot_prompt_formatter(
+                reasoning_instructions=reasoning_instructions, 
+                answer_instructions=answer_instructions)}
+            """
+        )
+    else:
+        sys_instruction = (
+            f"""The user will provide a claim and some relevant context.
+            Your job is to determine whether the claim is true for the given context.
+
+            {non_cot_prompt_formatter(answer_instructions=answer_instructions)}
+            """
+        )
 
     messages = [
         {"role": "system", "content": sys_instruction},
@@ -96,7 +111,7 @@ def filter_formatter(
         for idx in range(len(examples_multimodal_data)):
             ex_multimodal_data = examples_multimodal_data[idx]
             ex_ans = examples_answer[idx]
-            cot = cot_reasoning[idx] if cot_reasoning else "<!--Reasoning has not been provided-->"
+            cot = cot_reasoning[idx] if cot_reasoning else "Reasoning for this example has not been provided"
             messages.extend(
                 [
                     user_message_formatter(ex_multimodal_data, f"Claim: {user_instruction}"),
