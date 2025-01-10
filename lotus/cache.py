@@ -20,7 +20,7 @@ def require_cache_enabled(func: Callable) -> Callable:
 
     @wraps(func)
     def wrapper(self, *args, **kwargs):
-        if not lotus.settings.enable_message_cache:
+        if not lotus.settings.enable_message_cache and not lotus.settings.enable_operator_cache:
             return None
         return func(self, *args, **kwargs)
 
