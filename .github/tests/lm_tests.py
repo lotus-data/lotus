@@ -434,6 +434,9 @@ def test_disable_cache(setup_models, model):
         [{"role": "user", "content": "Hello, world!"}],
         [{"role": "user", "content": "What is the capital of France?"}],
     ]
+    lm.reset_cache()
+    lm.reset_stats()
+
     lm(batch)
     assert lm.stats.total_usage.cache_hits == 0
     lm(batch)
