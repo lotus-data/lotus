@@ -20,19 +20,19 @@ def cot_postprocessor(llm_answers: list[str]):
             answer = root.find(".//Answer")
 
             if answer is not None and answer.text:
-                answer = answer.text.strip()
+                answer_str = answer.text.strip()
             else:
                 lotus.logger.error(f"\t Failed to parse answer from: {llm_answer}")
-                answer = ""
+                answer_str = ""
 
             if reasoning is not None and reasoning.text:
-                reasoning = reasoning.text.strip()
+                reasoning_str= reasoning.text.strip()
             else:
                 lotus.logger.debug(f"\t Unable to extract reasoning from: {llm_answer}. Was CoT used?")
-                reasoning = None
+                reasoning_str = None
 
-            explanations.append(reasoning)
-            outputs.append(answer)
+            explanations.append(reasoning_str)
+            outputs.append(answer_str)
 
         except ET.ParseError:
             lotus.logger.debug(f"\t XML error parsing: {llm_answer}")
