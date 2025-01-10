@@ -16,8 +16,8 @@ def cot_postprocessor(llm_answers: list[str]):
 
         try:
             root = ET.fromstring(f"<root>{llm_answer}</root>")
-            reasoning = root.find(".//Reasoning")  # Use XPath to find nested tags
-            answer = root.find(".//Answer")  # Use XPath to find nested tags
+            reasoning = root.find(".//Reasoning")
+            answer = root.find(".//Answer")
 
             if answer is not None and answer.text:
                 answer = answer.text.strip()
