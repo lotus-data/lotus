@@ -39,23 +39,32 @@ def operator_cache(func: Callable) -> Callable:
 
             def serialize(value):
                 if isinstance(value, pd.DataFrame):
-                    return value.to_json()
+                    return value.to_json(orient="split")
                 elif hasattr(value, "dict"):
                     return value.dict()
+                elif hasattr(value, "__dict__"):
+                    return {
+                        key: serialize(val)  # Recursively serialize attributes
+                        for key, val in vars(value).items()
+                        if isinstance(val, (str, int, float, list, dict, pd.DataFrame, type(None)))
+                    }
                 return value
 
+            serialize_self = serialize(self)
             serialized_kwargs = {key: serialize(value) for key, value in kwargs.items()}
             serialized_args = [serialize(arg) for arg in args]
             cache_key = hashlib.sha256(
-                json.dumps({"args": serialized_args, "kwargs": serialized_kwargs}, sort_keys=True).encode()
+                json.dumps(
+                    {"self": serialize_self, "args": serialized_args, "kwargs": serialized_kwargs}, sort_keys=True
+                ).encode()
             ).hexdigest()
 
             cached_result = model.cache.get(cache_key)
             if cached_result is not None:
-                lotus.logger.debug(f"Cache hit for {cache_key}")
+                print(f"Cache hit for {cache_key}")
                 model.stats.total_usage.operator_cache_hits += 1
                 return cached_result
-            lotus.logger.debug(f"Cache miss for {cache_key}")
+            print(f"Cache miss for {cache_key}")
 
             result = func(self, *args, **kwargs)
             model.cache.insert(cache_key, result)
