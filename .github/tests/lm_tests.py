@@ -481,7 +481,7 @@ def test_operator_cache(setup_models, model):
     cache = CacheFactory.create_cache(cache_config)
 
     lm = LM(model="gpt-4o-mini", cache=cache)
-    lotus.settings.configure(lm=lm, enable_message_cache=True, enable_operator_cache=True)
+    lotus.settings.configure(lm=lm, enable_operator_cache=True)
 
     data = {
         "Course Name": [
@@ -537,7 +537,7 @@ def test_disable_operator_cache(setup_models, model):
     cache = CacheFactory.create_cache(cache_config)
 
     lm = LM(model="gpt-4o-mini", cache=cache)
-    lotus.settings.configure(lm=lm, enable_message_cache=True, enable_operator_cache=False)
+    lotus.settings.configure(lm=lm, enable_operator_cache=False)
 
     data = {
         "Course Name": [
