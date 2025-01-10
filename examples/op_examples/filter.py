@@ -6,7 +6,6 @@ from lotus.models import LM
 lm = LM(model="gpt-4o-mini")
 
 lotus.settings.configure(lm=lm)
-lotus.logger.setLevel("DEBUG")
 
 data = {
     "Course Name": [
