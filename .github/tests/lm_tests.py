@@ -399,7 +399,7 @@ def test_custom_tokenizer():
 @pytest.mark.parametrize("model", get_enabled("gpt-4o-mini"))
 def test_cache(setup_models, model):
     lm = setup_models[model]
-    lotus.settings.configure(lm=lm, enable_message_cache=True)
+    lotus.settings.configure(lm=lm, enable_cache=True)
 
     # Check that "What is the capital of France?" becomes cached
     first_batch = [
@@ -428,7 +428,7 @@ def test_cache(setup_models, model):
 @pytest.mark.parametrize("model", get_enabled("gpt-4o-mini"))
 def test_disable_cache(setup_models, model):
     lm = setup_models[model]
-    lotus.settings.configure(lm=lm, enable_message_cache=False)
+    lotus.settings.configure(lm=lm, enable_cache=False)
 
     batch = [
         [{"role": "user", "content": "Hello, world!"}],
@@ -452,7 +452,7 @@ def test_disable_cache(setup_models, model):
 @pytest.mark.parametrize("model", get_enabled("gpt-4o-mini"))
 def test_reset_cache(setup_models, model):
     lm = setup_models[model]
-    lotus.settings.configure(lm=lm, enable_message_cache=True)
+    lotus.settings.configure(lm=lm, enable_cache=True)
 
     batch = [
         [{"role": "user", "content": "Hello, world!"}],
@@ -482,7 +482,7 @@ def test_operator_cache(setup_models, model):
     cache = CacheFactory.create_cache(cache_config)
 
     lm = LM(model="gpt-4o-mini", cache=cache)
-    lotus.settings.configure(lm=lm, enable_operator_cache=True)
+    lotus.settings.configure(lm=lm, enable_cache=True)
 
     data = {
         "Course Name": [
@@ -538,7 +538,7 @@ def test_disable_operator_cache(setup_models, model):
     cache = CacheFactory.create_cache(cache_config)
 
     lm = LM(model="gpt-4o-mini", cache=cache)
-    lotus.settings.configure(lm=lm, enable_operator_cache=False)
+    lotus.settings.configure(lm=lm, enable_cache=False)
 
     data = {
         "Course Name": [

@@ -55,14 +55,14 @@ class LM:
         if all_kwargs.get("logprobs", False):
             all_kwargs.setdefault("top_logprobs", 10)
 
-        if lotus.settings.enable_message_cache:
+        if lotus.settings.enable_cache:
             # Check cache and separate cached and uncached messages
             hashed_messages = [self._hash_messages(msg, all_kwargs) for msg in messages]
             cached_responses = [self.cache.get(hash) for hash in hashed_messages]
 
         uncached_data = (
             [(msg, hash) for msg, hash, resp in zip(messages, hashed_messages, cached_responses) if resp is None]
-            if lotus.settings.enable_message_cache
+            if lotus.settings.enable_cache
             else [(msg, "no-cache") for msg in messages]
         )
 
@@ -72,7 +72,7 @@ class LM:
         uncached_responses = self._process_uncached_messages(
             uncached_data, all_kwargs, show_progress_bar, progress_bar_desc
         )
-        if lotus.settings.enable_message_cache:
+        if lotus.settings.enable_cache:
             # Add new responses to cache
             for resp, (_, hash) in zip(uncached_responses, uncached_data):
                 if hash:
@@ -81,7 +81,7 @@ class LM:
         # Merge all responses in original order and extract outputs
         all_responses = (
             self._merge_responses(cached_responses, uncached_responses)
-            if lotus.settings.enable_message_cache
+            if lotus.settings.enable_cache
             else uncached_responses
         )
         outputs = [self._get_top_choice(resp) for resp in all_responses]
