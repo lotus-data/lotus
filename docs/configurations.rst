@@ -35,7 +35,7 @@ Configurable Parameters
     cache = CacheFactory.create_cache(cache_config)
 
     lm = LM(model='gpt-4o-mini', cache=cache)
-    lotus.settings.configure(lm=lm, enable_operator_cache=True)
+    lotus.settings.configure(lm=lm, enable_cache=True)
 
 2. setting RM:
     * Description: Configures the retrieval model
