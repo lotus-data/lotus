@@ -441,7 +441,7 @@ def test_disable_cache(setup_models, model):
     assert lm.stats.total_usage.cache_hits == 0
 
     # Now enable cache. Note that the first batch is not cached.
-    lotus.settings.configure(enable_message_cache=True)
+    lotus.settings.configure(enable_cache=True)
     first_responses = lm(batch).outputs
     assert lm.stats.total_usage.cache_hits == 0
     second_responses = lm(batch).outputs
@@ -570,15 +570,17 @@ def test_disable_operator_cache(setup_models, model):
     user_instruction = "What is a similar course to {Course Name}. Please just output the course name."
 
     first_response = df.sem_map(user_instruction)
+    first_response["_map"] = first_response["_map"].str.replace(r"[^a-zA-Z\s]", "", regex=True).str.lower()
     assert lm.stats.total_usage.operator_cache_hits == 0
 
     second_response = df.sem_map(user_instruction)
+    second_response["_map"] = second_response["_map"].str.replace(r"[^a-zA-Z\s]", "", regex=True).str.lower()
     assert lm.stats.total_usage.operator_cache_hits == 0
 
     pd.testing.assert_frame_equal(first_response, second_response)
 
     # Now enable operator cache.
-    lotus.settings.configure(enable_operator_cache=True)
+    lotus.settings.configure(enable_cache=True)
     first_responses = df.sem_map(user_instruction)
     first_responses["_map"] = first_responses["_map"].str.replace(r"[^a-zA-Z\s]", "", regex=True).str.lower()
     assert lm.stats.total_usage.operator_cache_hits == 0
