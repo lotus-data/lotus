@@ -21,6 +21,8 @@ def cot_prompt_formatter(reasoning_instructions: str = "", answer_instructions: 
     answer_instructions = f"Provide your answer here. {answer_instructions}"
     return f"""Let's think step by step. Use the following format to provide your answer:
         {cot_formatter(reasoning_instructions, answer_instructions)}
+
+        Your response must be valid XML format.
         """
 
 
@@ -28,7 +30,8 @@ def non_cot_prompt_formatter(answer_instructions: str = "") -> str:
     answer_instructions = f"Provide your answer here. {answer_instructions}"
     return f"""Use the following format to provide your answer:
             {answer_only_formatter(answer_instructions)}
-            """
+            
+            Your response must be valid XML format."""
 
 
 def context_formatter(
