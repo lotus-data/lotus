@@ -1,10 +1,9 @@
 from lotus.vector_store.vs import VS
 
-
 try:
     import chromadb
 except ImportError:
-    chromadb = None 
+    chromadb = None
 
 
 if chromadb is None:
@@ -13,8 +12,6 @@ if chromadb is None:
     )
 
 
-
 class ChromaVS(VS):
-
     def __init__(self):
-        pass 
+        pass

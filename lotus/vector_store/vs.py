@@ -1,13 +1,14 @@
-from abc import ABC, abstractmethod 
+from abc import ABC, abstractmethod
 
-import pandas as pd 
+import pandas as pd
+
 
 class VS(ABC):
     """Abstract class for vector stores."""
 
     def __init__(self) -> None:
-        pass 
+        pass
 
-    @abstractmethod 
+    @abstractmethod
     def index(self, docs: pd.Series, index_dir):
-        pass 
+        pass
