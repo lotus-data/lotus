@@ -19,3 +19,11 @@ repos:
           - sentence-transformers>=3.0.1
           - tiktoken>=0.7.0
           - tqdm>=4.66.4
+
+  - repo: https://github.com/codespell-project/codespell
+    # Configuration for codespell is in pyproject.toml
+    rev: v2.3.0
+    hooks:
+    - id: codespell
+      additional_dependencies:
+      - tomli
