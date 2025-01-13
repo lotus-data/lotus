@@ -79,5 +79,5 @@ ignore_missing_imports = true
 # Ref: https://github.com/codespell-project/codespell#using-a-config-file
 skip = '.git*'
 check-hidden = true
-# ignore-regex = ''
-# ignore-words-list = ''
+ignore-regex = '\bParth\b'
+ignore-words-list = 'ans'
