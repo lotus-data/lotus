@@ -22,7 +22,7 @@ Configurable Parameters
 --------------------------
 
 1. enable_message_cache: 
-    * Description: Enables or Disables cahcing mechanisms
+    * Description: Enables or Disables caching mechanisms
     * Default: False
     * Parameters: 
         - cache_type: Type of caching (SQLITE or In_MEMORY)

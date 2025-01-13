@@ -3,7 +3,7 @@ sem_sim_join
 
 Overview
 ---------
-The similairty join matches tuples from the right and left table according to their semantic similarity, rather than an arbitrary 
+The similarity join matches tuples from the right and left table according to their semantic similarity, rather than an arbitrary 
 natural-language predicate. Akin to an equi-join in standard relational algebra, the semantic similarity 
 join is a specialized semantic join, can be heavily optimized using the semantic index.
 

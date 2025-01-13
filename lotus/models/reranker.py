@@ -19,6 +19,6 @@ class Reranker(ABC):
             K (int): The number of documents to keep after reranking.
 
         Returns:
-            RerankerOutput: The indicies of the reranked documents.
+            RerankerOutput: The indices of the reranked documents.
         """
         pass

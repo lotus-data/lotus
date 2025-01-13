@@ -75,3 +75,9 @@ line-ending = "auto"
 python_version = "3.10"
 strict = true
 ignore_missing_imports = true
+[tool.codespell]
+# Ref: https://github.com/codespell-project/codespell#using-a-config-file
+skip = '.git*'
+check-hidden = true
+ignore-regex = '\bParth\b'
+ignore-words-list = 'ans'

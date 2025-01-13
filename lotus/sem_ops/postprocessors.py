@@ -61,7 +61,7 @@ def extract_postprocess(llm_answers: list[str]) -> SemanticExtractPostprocessOut
     Postprocess the output of the extract operator to extract the schema.
 
     Args:
-        llm_answers (list[str]): The list of llm answers containging the extract.
+        llm_answers (list[str]): The list of llm answers containing the extract.
 
     Returns:
         SemanticExtractPostprocessOutput
