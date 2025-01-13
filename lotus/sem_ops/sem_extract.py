@@ -6,7 +6,11 @@ import lotus
 from lotus.cache import operator_cache
 from lotus.models import LM
 from lotus.templates import task_instructions
-from lotus.types import LMOutput, SemanticExtractOutput, SemanticExtractPostprocessOutput
+from lotus.types import (
+    LMOutput,
+    SemanticExtractOutput,
+    SemanticExtractPostprocessOutput,
+)
 from lotus.utils import show_safe_mode
 
 from .postprocessors import extract_postprocess
@@ -17,7 +21,9 @@ def sem_extract(
     model: LM,
     output_cols: dict[str, str | None],
     extract_quotes: bool = False,
-    postprocessor: Callable[[list[str]], SemanticExtractPostprocessOutput] = extract_postprocess,
+    postprocessor: Callable[
+        [list[str]], SemanticExtractPostprocessOutput
+    ] = extract_postprocess,
     safe_mode: bool = False,
     progress_bar_desc: str = "Extracting",
 ) -> SemanticExtractOutput:
@@ -39,7 +45,9 @@ def sem_extract(
     for doc in docs:
         prompt = task_instructions.extract_formatter(doc, output_cols, extract_quotes)
         lotus.logger.debug(f"input to model: {prompt}")
-        lotus.logger.debug(f"inputs content to model: {[x.get('content') for x in prompt]}")
+        lotus.logger.debug(
+            f"inputs content to model: {[x.get('content') for x in prompt]}"
+        )
         inputs.append(prompt)
 
     # check if safe_mode is enabled
@@ -49,7 +57,11 @@ def sem_extract(
         show_safe_mode(estimated_cost, estimated_LM_calls)
 
     # call model
-    lm_output: LMOutput = model(inputs, response_format={"type": "json_object"}, progress_bar_desc=progress_bar_desc)
+    lm_output: LMOutput = model(
+        inputs,
+        response_format={"type": "json_object"},
+        progress_bar_desc=progress_bar_desc,
+    )
 
     # post process results
     postprocess_output = postprocessor(lm_output.outputs)
@@ -78,8 +90,11 @@ class SemExtractDataFrame:
         input_cols: list[str],
         output_cols: dict[str, str | None],
         extract_quotes: bool = False,
-        postprocessor: Callable[[list[str]], SemanticExtractPostprocessOutput] = extract_postprocess,
+        postprocessor: Callable[
+            [list[str]], SemanticExtractPostprocessOutput
+        ] = extract_postprocess,
         return_raw_outputs: bool = False,
+        infer_pdfs: bool = False,
         safe_mode: bool = False,
         progress_bar_desc: str = "Extracting",
     ) -> pd.DataFrame:
@@ -106,7 +121,9 @@ class SemExtractDataFrame:
             if column not in self._obj.columns:
                 raise ValueError(f"Column {column} not found in DataFrame")
 
-        multimodal_data = task_instructions.df2multimodal_info(self._obj, input_cols)
+        multimodal_data = task_instructions.df2multimodal_info(
+            self._obj, input_cols, infer_pdfs
+        )
 
         out = sem_extract(
             docs=multimodal_data,
