@@ -75,8 +75,7 @@ class LM:
         if lotus.settings.enable_cache:
             # Add new responses to cache
             for resp, (_, hash) in zip(uncached_responses, uncached_data):
-                if hash:
-                    self._cache_response(resp, hash)
+                self._cache_response(resp, hash)
 
         # Merge all responses in original order and extract outputs
         all_responses = (

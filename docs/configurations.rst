@@ -28,7 +28,7 @@ Configurable Parameters
         - cache_type: Type of caching (SQLITE or In_MEMORY)
         - max_size: maximum size of cache
         - cache_dir: Directory for where DB file is stored. Default: "~/.lotus/cache"
-    * Note: It is recommended to enable operator level caching
+    * Note: It is recommended to enable caching
 .. code-block:: python
 
     cache_config = CacheConfig(cache_type=CacheType.SQLITE, max_size=1000)

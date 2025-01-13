@@ -37,18 +37,27 @@ def operator_cache(func: Callable) -> Callable:
 
         if use_operator_cache and model.cache:
 
-            def serialize(value):
-                if isinstance(value, pd.DataFrame):
+            def serialize(value: Any) -> Any:
+                """
+                Serialize a value into a JSON-serializable format.
+                Supports basic types, pandas DataFrames, and objects with a `dict` or `__dict__` method.
+                """
+                if value is None or isinstance(value, (str, int, float, bool)):
+                    return value
+                elif isinstance(value, pd.DataFrame):
                     return value.to_json(orient="split")
+                elif isinstance(value, (list, tuple)):
+                    return [serialize(item) for item in value]
+                elif isinstance(value, dict):
+                    return {key: serialize(val) for key, val in value.items()}
                 elif hasattr(value, "dict"):
                     return value.dict()
                 elif hasattr(value, "__dict__"):
-                    return {
-                        key: serialize(val)  # Recursively serialize attributes
-                        for key, val in vars(value).items()
-                        if isinstance(val, (str, int, float, list, dict, pd.DataFrame, type(None)))
-                    }
-                return value
+                    return {key: serialize(val) for key, val in vars(value).items() if not key.startswith("_")}
+                else:
+                    # For unsupported types, convert to string (last resort)
+                    lotus.logger.warning(f"Unsupported type {type(value)} for serialization. Converting to string.")
+                    return str(value)
 
             serialize_self = serialize(self)
             serialized_kwargs = {key: serialize(value) for key, value in kwargs.items()}
