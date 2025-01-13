@@ -2,10 +2,10 @@ Core Concepts
 ==================
 
 LOTUS' implements the semantic operator programming model. Semantic operators are declarative transformations over one or more
-datasets, parameterized by a natural langauge expression (*langex*) that can be implemnted by a variety of AI-based algorithms.
+datasets, parameterized by a natural language expression (*langex*) that can be implemented by a variety of AI-based algorithms.
 Semantic operators seamlessly extend the relational model, operating over datasets that may contain traditional structured data
 as well as unstructured fields, such as free-form text or images. Because semantic operators are composable, modular and declarative, they allow you to write 
-AI-based piplines with intuitive, high-level logic, leaving the rest of the work to the query engine! Each operator can be implmented and 
+AI-based pipelines with intuitive, high-level logic, leaving the rest of the work to the query engine! Each operator can be implemented and 
 optimized in multiple ways, opening a rich space for execution plans, similar to relational operators. Here is a quick example of semantic operators in action:
 
 .. code-block:: python
@@ -28,7 +28,7 @@ Here are some key semantic operators:
 +--------------+----------------------------------------------------------+
 | sem_agg      | Aggregate across all records (e.g. for summarization)    |
 +--------------+----------------------------------------------------------+
-| sem_topk     | Order records by the natural langauge ranking criteria   |
+| sem_topk     | Order records by the natural language ranking criteria   |
 +--------------+----------------------------------------------------------+
 | sem_join     | Join two datasets based on a natural language predicate  |
 +--------------+----------------------------------------------------------+

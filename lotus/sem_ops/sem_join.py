@@ -384,7 +384,7 @@ def join_optimizer(
         int: The number of LM calls from optimizing join plan.
     """
 
-    # Helper is currently default to similiarity join
+    # Helper is currently default to similarity join
     if lotus.settings.helper_lm is not None:
         lotus.logger.debug("Helper model is not supported yet. Default to similarity join.")
 

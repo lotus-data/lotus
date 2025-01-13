@@ -11,7 +11,7 @@ PIL images, numpy arrays, base64 strings, and image URLs
 Initializing ImageArray
 -----------------------
 The ImageArray class is an extension array designed to handle images as data types in pandas. 
-You can initilize an ImageArray with a list of supported image formats
+You can initialize an ImageArray with a list of supported image formats
 
 .. code-block:: python
 

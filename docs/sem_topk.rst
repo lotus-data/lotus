@@ -59,7 +59,7 @@ Required Parameters
 - **user_instruction** : The user instruction for sorting.
 - **K**: The number of rows to return.
 
-Optional Paramaters
+Optional Parameters
 ---------------------
 - **method** : The method to use for sorting. Options are "quick", "heap", "naive", "quick-sem".
 - **group_by** : The columns to group by before sorting. Each group will be sorted separately.
