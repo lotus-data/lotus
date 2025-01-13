@@ -60,7 +60,7 @@ Required Parameters
 - **K**: The number of rows to return.
 
 Optional Parameters
----------------------
+--------------------
 - **method** : The method to use for sorting. Options are "quick", "heap", "naive", "quick-sem".
 - **group_by** : The columns to group by before sorting. Each group will be sorted separately.
 - **cascade_threshold**: The confidence threshold for cascading to a larger model.
