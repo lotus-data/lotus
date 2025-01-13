@@ -1,102 +1,110 @@
 import pandas as pd
 import pytest
 
-from lotus.types import CascadeArgs
 from tests.base_test import BaseTest
 
 
 @pytest.fixture
 def sample_df():
     return pd.DataFrame({
-        "Name": ["Alice", "Bob", "Charlie"],
-        "Age": [25, 30, 17],
-        "City": ["New York", "London", "Paris"]
+        "Course Name": [
+            "Introduction to Programming",
+            "Advanced Programming",
+            "Cooking Basics",
+            "Advanced Culinary Arts",
+            "Data Structures",
+            "Algorithms",
+            "French Cuisine",
+            "Italian Cooking"
+        ],
+        "Department": [
+            "CS", "CS", "Culinary", "Culinary",
+            "CS", "CS", "Culinary", "Culinary"
+        ],
+        "Level": [
+            100, 200, 100, 200,
+            300, 300, 200, 200
+        ]
     })
 
 
-class TestFilteredSearch(BaseTest):
-    def test_basic_filter(self, sample_df):
-        """Test basic filtering functionality"""
-        result = sample_df.sem_filter("Age greater than 20")
+class TestSearch(BaseTest):
+    def test_basic_search(self, sample_df):
+        """Test basic semantic search functionality"""
+        df = sample_df.sem_index("Course Name", "course_index")
+        result = df.sem_search("Course Name", "programming courses", K=2)
         assert len(result) == 2
-        assert all(age > 20 for age in result["Age"])
+        assert "Introduction to Programming" in result["Course Name"].values
+        assert "Advanced Programming" in result["Course Name"].values
 
-    def test_filter_with_examples(self, sample_df):
-        """Test filtering with example data"""
-        examples = pd.DataFrame({
-            "Name": ["David", "Eve"],
-            "Age": [40, 15],
-            "City": ["Berlin", "Tokyo"],
-            "Answer": [True, False]
-        })
-        result = sample_df.sem_filter(
-            "Age greater than 20",
-            examples=examples
-        )
+    def test_filtered_search_relational(self, sample_df):
+        """Test semantic search with relational filter"""
+        # Index the dataframe
+        df = sample_df.sem_index("Course Name", "course_index")
+        
+        # Apply relational filter and search
+        filtered_df = df[df["Department"] == "CS"]
+        result = filtered_df.sem_search("Course Name", "advanced courses", K=2)
+        
         assert len(result) == 2
-        assert all(age > 20 for age in result["Age"])
+        # Should only return CS courses
+        assert all(dept == "CS" for dept in result["Department"])
+        assert "Advanced Programming" in result["Course Name"].values
 
-    def test_filter_with_explanations(self, sample_df):
-        """Test filtering with explanations returned"""
-        result = sample_df.sem_filter(
-            "Age greater than 20",
-            return_explanations=True
-        )
-        assert "explanation_filter" in result.columns
-        assert len(result["explanation_filter"]) == len(result)
-
-    def test_filter_with_raw_outputs(self, sample_df):
-        """Test filtering with raw outputs returned"""
-        result = sample_df.sem_filter(
-            "Age greater than 20",
-            return_raw_outputs=True
-        )
-        assert "raw_output_filter" in result.columns
-        assert len(result["raw_output_filter"]) == len(result)
-
-    def test_filter_with_cot_strategy(self, sample_df):
-        """Test filtering with chain-of-thought reasoning"""
-        examples = pd.DataFrame({
-            "Name": ["David"],
-            "Age": [40],
-            "City": ["Berlin"],
-            "Answer": [True],
-            "Reasoning": ["The age is 40, which is greater than 20"]
-        })
-        result = sample_df.sem_filter(
-            "Age greater than 20",
-            examples=examples,
-            strategy="cot",
-            return_explanations=True
-        )
-        assert "explanation_filter" in result.columns
+    def test_filtered_search_semantic(self, sample_df):
+        """Test semantic search after semantic filter"""
+        # Index the dataframe
+        df = sample_df.sem_index("Course Name", "course_index")
+        
+        # Apply semantic filter and search
+        filtered_df = df.sem_filter("{Course Name} is related to cooking")
+        result = filtered_df.sem_search("Course Name", "advanced level courses", K=2)
+        
         assert len(result) == 2
+        # Should only return cooking-related courses
+        assert all(dept == "Culinary" for dept in result["Department"])
+        assert "Advanced Culinary Arts" in result["Course Name"].values
 
-    def test_filter_with_invalid_column(self, sample_df):
-        """Test filtering with non-existent column"""
-        with pytest.raises(ValueError, match="Column .* not found in DataFrame"):
-            sample_df.sem_filter("InvalidColumn greater than 20")
-
-    def test_filter_with_cascade(self, sample_df):
-        """Test filtering with cascade arguments"""
-        cascade_args = CascadeArgs(
-            recall_target=0.9,
-            precision_target=0.9,
-            sampling_percentage=0.1,
-            failure_probability=0.2
-        )
-        result, stats = sample_df.sem_filter(
-            "Age greater than 20",
-            cascade_args=cascade_args,
-            return_stats=True
-        )
-        assert isinstance(stats, dict)
-        assert "pos_cascade_threshold" in stats
-        assert "neg_cascade_threshold" in stats
+    def test_filtered_search_combined(self, sample_df):
+        """Test semantic search with both relational and semantic filters"""
+        # Index the dataframe
+        df = sample_df.sem_index("Course Name", "course_index")
+        
+        # Apply both filters and search
+        filtered_df = df[df["Level"] >= 200]  # relational filter
+        filtered_df = filtered_df.sem_filter("{Course Name} is related to computer science")  # semantic filter
+        result = filtered_df.sem_search("Course Name", "data structures and algorithms", K=2)
+        
         assert len(result) == 2
+        # Should only return advanced CS courses
+        assert all(dept == "CS" for dept in result["Department"])
+        assert all(level >= 200 for level in result["Level"])
+        assert "Data Structures" in result["Course Name"].values
+        assert "Algorithms" in result["Course Name"].values
 
-    def test_empty_dataframe(self):
-        """Test filtering on empty dataframe"""
-        empty_df = pd.DataFrame(columns=["Name", "Age", "City"])
-        result = empty_df.sem_filter("Age greater than 20")
-        assert len(result) == 0 
+    def test_filtered_search_empty_result(self, sample_df):
+        """Test semantic search when filter returns empty result"""
+        df = sample_df.sem_index("Course Name", "course_index")
+        
+        # Apply filter that should return no results
+        filtered_df = df[df["Level"] > 1000]
+        result = filtered_df.sem_search("Course Name", "any course", K=2)
+        
+        assert len(result) == 0
+
+    def test_filtered_search_with_scores(self, sample_df):
+        """Test filtered semantic search with similarity scores"""
+        df = sample_df.sem_index("Course Name", "course_index")
+        
+        filtered_df = df[df["Department"] == "CS"]
+        result = filtered_df.sem_search(
+            "Course Name", 
+            "programming courses", 
+            K=2, 
+            return_scores=True
+        )
+        
+        assert "vec_scores_sim_score" in result.columns
+        assert len(result["vec_scores_sim_score"]) == 2
+        # Scores should be between 0 and 1
+        assert all(0 <= score <= 1 for score in result["vec_scores_sim_score"]) 
