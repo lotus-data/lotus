@@ -17,7 +17,7 @@ except ImportError as err:
     raise ImportError("Please install the weaviate client") from err 
 
 class WeaviateVS(VS):
-    def __init__(self, weaviate_client: Union[weaviate.WeaviateClient, weaviate.Client], embedding_model: Callable[[pd.Series | list], NDArray[np.float64]], max_batch_size: int = 64):
+    def __init__(self, weaviate_client: weaviate.WeaviateClient, embedding_model: Callable[[pd.Series | list], NDArray[np.float64]], max_batch_size: int = 64):
         """Initialize with Weaviate client and embedding model"""
         super().__init__(embedding_model)
         self.client = weaviate_client

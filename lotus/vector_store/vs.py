@@ -18,7 +18,8 @@ class VS(ABC):
     def __init__(self, embedding_model: Callable[[pd.Series | list], NDArray[np.float64]]) -> None:
         self.collection_name: str | None = None 
         self._embed: Callable[[pd.Series | list], NDArray[np.float64]] = embedding_model
-        pass
+        self.max_batch_size:int = 64 
+        
 
     @abstractmethod
     def index(self, docs: pd.Series, collection_name: str):
