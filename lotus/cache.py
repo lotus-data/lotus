@@ -20,7 +20,7 @@ def require_cache_enabled(func: Callable) -> Callable:
 
     @wraps(func)
     def wrapper(self, *args, **kwargs):
-        if not lotus.settings.enable_message_cache:
+        if not lotus.settings.enable_cache:
             return None
         return func(self, *args, **kwargs)
 
@@ -33,21 +33,39 @@ def operator_cache(func: Callable) -> Callable:
     @wraps(func)
     def wrapper(self, *args, **kwargs):
         model = lotus.settings.lm
-        use_operator_cache = lotus.settings.enable_operator_cache
+        use_operator_cache = lotus.settings.enable_cache
 
         if use_operator_cache and model.cache:
 
-            def serialize(value):
-                if isinstance(value, pd.DataFrame):
-                    return value.to_json()
+            def serialize(value: Any) -> Any:
+                """
+                Serialize a value into a JSON-serializable format.
+                Supports basic types, pandas DataFrames, and objects with a `dict` or `__dict__` method.
+                """
+                if value is None or isinstance(value, (str, int, float, bool)):
+                    return value
+                elif isinstance(value, pd.DataFrame):
+                    return value.to_json(orient="split")
+                elif isinstance(value, (list, tuple)):
+                    return [serialize(item) for item in value]
+                elif isinstance(value, dict):
+                    return {key: serialize(val) for key, val in value.items()}
                 elif hasattr(value, "dict"):
                     return value.dict()
-                return value
+                elif hasattr(value, "__dict__"):
+                    return {key: serialize(val) for key, val in vars(value).items() if not key.startswith("_")}
+                else:
+                    # For unsupported types, convert to string (last resort)
+                    lotus.logger.warning(f"Unsupported type {type(value)} for serialization. Converting to string.")
+                    return str(value)
 
+            serialize_self = serialize(self)
             serialized_kwargs = {key: serialize(value) for key, value in kwargs.items()}
             serialized_args = [serialize(arg) for arg in args]
             cache_key = hashlib.sha256(
-                json.dumps({"args": serialized_args, "kwargs": serialized_kwargs}, sort_keys=True).encode()
+                json.dumps(
+                    {"self": serialize_self, "args": serialized_args, "kwargs": serialized_kwargs}, sort_keys=True
+                ).encode()
             ).hexdigest()
 
             cached_result = model.cache.get(cache_key)
@@ -134,7 +152,6 @@ class SQLiteCache(Cache):
     def _get_time(self):
         return int(time.time())
 
-    @require_cache_enabled
     def get(self, key: str) -> Any | None:
         with self.conn:
             cursor = self.conn.execute("SELECT value FROM cache WHERE key = ?", (key,))
@@ -152,7 +169,6 @@ class SQLiteCache(Cache):
                 return value
         return None
 
-    @require_cache_enabled
     def insert(self, key: str, value: Any):
         pickled_value = pickle.dumps(value)
         with self.conn:
@@ -196,14 +212,12 @@ class InMemoryCache(Cache):
         super().__init__(max_size)
         self.cache: OrderedDict[str, Any] = OrderedDict()
 
-    @require_cache_enabled
     def get(self, key: str) -> Any | None:
         if key in self.cache:
             lotus.logger.debug(f"Cache hit for {key}")
 
         return self.cache.get(key)
 
-    @require_cache_enabled
     def insert(self, key: str, value: Any):
         self.cache[key] = value
 

@@ -24,9 +24,18 @@ Configurable Parameters
 1. enable_message_cache: 
     * Description: Enables or Disables cahcing mechanisms
     * Default: False
+    * Parameters: 
+        - cache_type: Type of caching (SQLITE or In_MEMORY)
+        - max_size: maximum size of cache
+        - cache_dir: Directory for where DB file is stored. Default: "~/.lotus/cache"
+    * Note: It is recommended to enable caching
 .. code-block:: python
 
-    lotus.settings.configure(enable_message_cache=True)
+    cache_config = CacheConfig(cache_type=CacheType.SQLITE, max_size=1000)
+    cache = CacheFactory.create_cache(cache_config)
+
+    lm = LM(model='gpt-4o-mini', cache=cache)
+    lotus.settings.configure(lm=lm, enable_cache=True)
 
 2. setting RM:
     * Description: Configures the retrieval model
