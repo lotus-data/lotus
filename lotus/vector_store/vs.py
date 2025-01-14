@@ -1,26 +1,38 @@
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from typing import Any
 
 import numpy as np
 import pandas as pd
+import tqdm
 from numpy.typing import NDArray
 from PIL import Image
 
+from lotus.dtype_extensions import convert_to_base_data
 from lotus.types import RMOutput
 
 
 class VS(ABC):
     """Abstract class for vector stores."""
 
-    def __init__(self) -> None:
+    def __init__(self, embedding_model: Callable[[pd.Series | list], NDArray[np.float64]]) -> None:
+        self.collection_name: str | None = None 
+        self._embed: Callable[[pd.Series | list], NDArray[np.float64]] = embedding_model
         pass
 
     @abstractmethod
-    def index(self, docs: pd.Series, index_dir):
+    def index(self, docs: pd.Series, collection_name: str):
+        """
+        Create index and store it in vector store 
+        """
         pass
 
+    @abstractmethod
+    def load_index(self, collection_name: str):
+        """Load the index from the vector store into memory ?? (not sure if this is needed )"""
+
     @abstractmethod 
-    def search(self,
+    def __call__(self,
     queries: pd.Series | str | Image.Image | list | NDArray[np.float64],
     K:int,
     **kwargs: dict[str, Any],
@@ -30,3 +42,13 @@ class VS(ABC):
     @abstractmethod
     def get_vectors_from_index(self, collection_name:str, ids: list[int]) -> NDArray[np.float64]:
         pass 
+
+    def _batch_embed(self, docs: pd.Series | list) -> NDArray[np.float64]:
+        """Create embeddings using the provided embedding model with batching"""
+        all_embeddings = []
+        for i in tqdm(range(0, len(docs), self.max_batch_size), desc="Creating embeddings"):
+            batch = docs[i : i + self.max_batch_size]
+            _batch = convert_to_base_data(batch)
+            embeddings = self._embed(_batch)
+            all_embeddings.append(embeddings)
+        return np.vstack(all_embeddings)
