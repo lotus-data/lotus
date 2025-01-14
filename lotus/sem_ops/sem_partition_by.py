@@ -2,6 +2,8 @@ from typing import Any, Callable
 
 import pandas as pd
 
+from lotus.cache import operator_cache
+
 
 @pd.api.extensions.register_dataframe_accessor("sem_partition_by")
 class SemPartitionByDataframe:
@@ -16,6 +18,7 @@ class SemPartitionByDataframe:
         if not isinstance(obj, pd.DataFrame):
             raise AttributeError("Must be a DataFrame")
 
+    @operator_cache
     def __call__(
         self,
         partition_fn: Callable[[pd.DataFrame], list[int]],
