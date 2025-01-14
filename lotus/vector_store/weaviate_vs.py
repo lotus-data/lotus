@@ -12,6 +12,7 @@ try:
     from uuid import uuid4
 
     import weaviate
+    from weaviate.classes.config import Configure, DataType, Property
     from weaviate.util import get_valid_uuid
 except ImportError as err:
     raise ImportError("Please install the weaviate client") from err 
@@ -27,29 +28,21 @@ class WeaviateVS(VS):
         """Create a collection and add documents with their embeddings"""
         self.collection_name = collection_name
         
-        # Get sample embedding to determine vector dimension
-        sample_embedding = self._embed([docs.iloc[0]])
-        vector_dim = sample_embedding.shape[1]
-        
         # Create collection without vectorizer config (we'll provide vectors directly)
         collection = self.client.collections.create(
             name=collection_name,
             properties=[
-                {
-                    "name": "content",
-                    "dataType": ["text"],
-                },
-                {
-                    "name": "doc_id",
-                    "dataType": ["int"],
-                }
+                Property(
+                    name='content', 
+                    data_type=DataType.TEXT
+                ),
+                Property(
+                    name='doc_id',
+                    data_type=DataType.INT,
+                )
             ],
             vectorizer_config=None,  # No vectorizer needed as we provide vectors
-            vector_index_config={"distance": "cosine"},
-            vectorIndexConfig={
-                "distance": "cosine",
-                "dimension": vector_dim
-            }
+            vector_index_config=Configure.VectorIndex.dynamic()
         )
 
         # Generate embeddings for all documents
