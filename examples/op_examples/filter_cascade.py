@@ -8,7 +8,6 @@ gpt_4o_mini = LM("gpt-4o-mini")
 gpt_4o = LM("gpt-4o")
 
 lotus.settings.configure(lm=gpt_4o, helper_lm=gpt_4o_mini)
-
 data = {
     "Course Name": [
         "Probability and Random Processes",

@@ -108,10 +108,10 @@ def filter_formatter(
         assert examples_answer is not None
         assert isinstance(examples_multimodal_data, list) and isinstance(examples_answer, list)
         assert len(examples_multimodal_data) == len(examples_answer)
-    
+
         if cot_reasoning:
-             # users don't have to provide cot reasoning examples
-             # but if they do, the number of examples must match
+            # users don't have to provide cot reasoning examples
+            # but if they do, the number of examples must match
             assert isinstance(cot_reasoning, list)
             assert len(examples_multimodal_data) == len(examples_answer) == len(cot_reasoning)
 
@@ -128,7 +128,7 @@ def filter_formatter(
                 content = cot_formatter("Reasoning omitted", str(ex_ans))
             else:
                 content = answer_only_formatter(str(ex_ans))
-           
+
             messages.extend(
                 [
                     user_message_formatter(ex_multimodal_data, f"Claim: {user_instruction}"),

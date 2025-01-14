@@ -27,7 +27,7 @@ def sem_filter(
     safe_mode: bool = False,
     show_progress_bar: bool = True,
     progress_bar_desc: str = "Filtering",
-    additional_cot_instructions: str = ""
+    additional_cot_instructions: str = "",
 ) -> SemanticFilterOutput:
     """
     Filters a list of documents based on a given user instruction using a language model.
@@ -49,7 +49,13 @@ def sem_filter(
     inputs = []
     for doc in docs:
         prompt = lotus.templates.task_instructions.filter_formatter(
-            doc, user_instruction, examples_multimodal_data, examples_answers, cot_reasoning, strategy, reasoning_instructions=additional_cot_instructions
+            doc,
+            user_instruction,
+            examples_multimodal_data,
+            examples_answers,
+            cot_reasoning,
+            strategy,
+            reasoning_instructions=additional_cot_instructions,
         )
         lotus.logger.debug(f"input to model: {prompt}")
         inputs.append(prompt)
