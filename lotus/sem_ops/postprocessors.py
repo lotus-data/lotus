@@ -12,32 +12,18 @@ def cot_postprocessor(llm_answers: list[str]):
     outputs: list[str | None] = []
     explanations: list[str | None] = []
     for llm_answer in llm_answers:
-        import xml.etree.ElementTree as ET
+        reasoning_idx = llm_answer.find("Reasoning:\n")
+        if reasoning_idx == -1:
+            reasoning_idx = 0
+        else:
+            reasoning_idx += len("Reasoning:\n")
 
-        try:
-            root = ET.fromstring(f"<root>{llm_answer}</root>")
-            reasoning = root.find(".//Reasoning")
-            answer = root.find(".//Answer")
+        answer_idx = llm_answer.find("Answer:")
+        reasoning = llm_answer[reasoning_idx:answer_idx].rstrip("\n").lstrip("\n")
+        answer = llm_answer[answer_idx + len("Answer:") :]
 
-            if answer is not None and answer.text:
-                answer_str = answer.text.strip()
-            else:
-                lotus.logger.error(f"\t Failed to parse answer from: {llm_answer}")
-                answer_str = ""
-
-            if reasoning is not None and reasoning.text:
-                reasoning_str= reasoning.text.strip()
-            else:
-                lotus.logger.debug(f"\t Unable to extract reasoning from: {llm_answer}. Was CoT used?")
-                reasoning_str = None
-
-            explanations.append(reasoning_str)
-            outputs.append(answer_str)
-
-        except ET.ParseError:
-            lotus.logger.debug(f"\t XML error parsing: {llm_answer}")
-            explanations.append(None)
-            outputs.append("")
+        explanations.append(reasoning)
+        outputs.append(answer)
 
     return outputs, explanations
 

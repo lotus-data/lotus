@@ -9,29 +9,26 @@ from lotus.types import SerializationFormat
 
 
 def cot_formatter(reasoning, answer):
-    return f"""<Reasoning>{reasoning}</Reasoning><Answer>{answer}</Answer>"""
+    return f"""Reasoning:\n{reasoning}\n\nAnswer: {answer}"""
 
 
 def answer_only_formatter(answer):
-    return f"""<Answer>{answer}</Answer>"""
+    return f"""Answer: {answer}"""
 
 
 def cot_prompt_formatter(reasoning_instructions: str = "", answer_instructions: str = "") -> str:
-    reasoning_instructions = f"Provide your reasoning here. {reasoning_instructions}"
-    answer_instructions = f"Provide your answer here. {answer_instructions}"
+    reasoning_instructions = f"<Your reasoning here. {reasoning_instructions}>"
+    answer_instructions = f"<Your answer here. {answer_instructions}>"
     return f"""Let's think step by step. Use the following format to provide your answer:
         {cot_formatter(reasoning_instructions, answer_instructions)}
-
-        Your response must be valid XML format.
         """
 
 
 def non_cot_prompt_formatter(answer_instructions: str = "") -> str:
-    answer_instructions = f"Provide your answer here. {answer_instructions}"
+    answer_instructions = f"<Your answer here. {answer_instructions}>"
     return f"""Use the following format to provide your answer:
             {answer_only_formatter(answer_instructions)}
-            
-            Your response must be valid XML format."""
+            """
 
 
 def context_formatter(
