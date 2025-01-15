@@ -3,7 +3,7 @@ import pandas as pd
 import lotus
 from lotus.models import LM
 
-lm = LM(model="gpt-4o-mini")
+lm = LM(model="ollama/llama3.2", api_base="http://localhost:11434")
 
 lotus.settings.configure(lm=lm)
 data = {
