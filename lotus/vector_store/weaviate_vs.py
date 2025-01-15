@@ -134,7 +134,7 @@ class WeaviateVS(VS):
             indices=np.array(all_indices, dtype=np.int64).tolist()
         )
 
-    def get_vectors_from_index(self, collection_name: str, ids: list[any]) -> NDArray[np.float64]:
+    def get_vectors_from_index(self, collection_name: str, ids: list[Any]) -> NDArray[np.float64]:
         """Retrieve vectors for specific document IDs"""
         collection = self.client.collections.get(collection_name)
         
