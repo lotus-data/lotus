@@ -41,7 +41,7 @@ class VS(ABC):
         pass 
     
     @abstractmethod
-    def get_vectors_from_index(self, collection_name:str, ids: list[int]) -> NDArray[np.float64]:
+    def get_vectors_from_index(self, collection_name:str, ids: list[any]) -> NDArray[np.float64]:
         pass 
 
     def _batch_embed(self, docs: pd.Series | list) -> NDArray[np.float64]:

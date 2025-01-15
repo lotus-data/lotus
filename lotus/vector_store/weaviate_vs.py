@@ -1,4 +1,4 @@
-from typing import Any, Callable, Union
+from typing import Any, Callable, List, Union
 
 import numpy as np
 import pandas as pd
@@ -103,6 +103,7 @@ class WeaviateVS(VS):
                     limit=K,
                     return_metadata=MetadataQuery(distance=True)
                     ))
+            response.objects[0].metadata.distance
             results.append(response)
 
         # Process results into expected format
@@ -112,12 +113,12 @@ class WeaviateVS(VS):
         for result in results:
             objects = result.objects 
             
-            distances = []
+            distances:List[float] = []
             indices = []
             for obj in objects:
                 indices.append(obj.properties.get('content'))
                 # Convert cosine distance to similarity score
-                distance = obj.metadata.distance
+                distance:float = obj.metadata.distance
                 distances.append(1 - distance)  # Convert distance to similarity
                 
             # Pad results if fewer than K matches
@@ -133,21 +134,19 @@ class WeaviateVS(VS):
             indices=np.array(all_indices, dtype=np.int64).tolist()
         )
 
-    def get_vectors_from_index(self, collection_name: str, ids: list[str]) -> NDArray[np.float64]:
+    def get_vectors_from_index(self, collection_name: str, ids: list[any]) -> NDArray[np.float64]:
         """Retrieve vectors for specific document IDs"""
         collection = self.client.collections.get(collection_name)
         
         # Query for documents with specific doc_ids
         vectors = []
 
-        response = collection.query.fetch_objects_by_ids(ids=ids)
         for id in ids:
             response = collection.query.fetch_object_by_id(uuid=id)
             if response:
                 vectors.append(response.vector)
             else:
                 raise ValueError(f'{id} does not exist in {collection_name}')
-                
         return np.array(vectors, dtype=np.float64)
         
         
