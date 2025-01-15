@@ -13,6 +13,7 @@ try:
 
     import weaviate
     from weaviate.classes.config import Configure, DataType, Property
+    from weaviate.classes.query import MetadataQuery
     from weaviate.util import get_valid_uuid
 except ImportError as err:
     raise ImportError("Please install the weaviate client") from err 
@@ -58,7 +59,7 @@ class WeaviateVS(VS):
                 }
                 batch.add_object(
                     properties=properties,
-                    vector=embedding.tolist(),  # Provide pre-computed vector
+                     vector=embedding.tolist(),  # Provide pre-computed vector
                     uuid=get_valid_uuid(str(uuid4()))
                 )
 
@@ -97,13 +98,11 @@ class WeaviateVS(VS):
         results = []
         for query_vector in query_vectors:
             response = (collection.query
-                .near_vector({
-                    "vector": query_vector.tolist()
-                })
-                .with_limit(K)
-                .with_additional(['distance'])
-                .with_fields(['doc_id'])
-                .do())
+                .near_vector(
+                    near_vector=query_vector.tolist(),
+                    limit=K,
+                    return_metadata=MetadataQuery(distance=True)
+                    ))
             results.append(response)
 
         # Process results into expected format
@@ -111,14 +110,14 @@ class WeaviateVS(VS):
         all_indices = []
         
         for result in results:
-            objects = result.get('data', {}).get('Get', {}).get(self.collection_name, [])
+            objects = result.objects 
             
             distances = []
             indices = []
             for obj in objects:
-                indices.append(obj['doc_id'])
+                indices.append(obj.properties.get('content'))
                 # Convert cosine distance to similarity score
-                distance = obj.get('_additional', {}).get('distance', 0)
+                distance = obj.metadata.distance
                 distances.append(1 - distance)  # Convert distance to similarity
                 
             # Pad results if fewer than K matches
@@ -130,8 +129,8 @@ class WeaviateVS(VS):
             all_indices.append(indices)
 
         return RMOutput(
-            distances=np.array(all_distances, dtype=np.float32),
-            indices=np.array(all_indices, dtype=np.int64)
+            distances=np.array(all_distances, dtype=np.float32).tolist(),
+            indices=np.array(all_indices, dtype=np.int64).tolist()
         )
 
     def get_vectors_from_index(self, collection_name: str, ids: list[int]) -> NDArray[np.float64]:
@@ -140,23 +139,14 @@ class WeaviateVS(VS):
         
         # Query for documents with specific doc_ids
         vectors = []
-        for doc_id in ids:
-            response = (collection.query
-                .with_fields(['_additional {vector}'])
-                .with_where({
-                    'path': ['doc_id'],
-                    'operator': 'Equal',
-                    'valueNumber': doc_id
-                })
-                .do())
-            
-            # Extract vector from response
-            objects = response.get('data', {}).get('Get', {}).get(collection_name, [])
-            if objects:
-                vector = objects[0].get('_additional', {}).get('vector', [])
-                vectors.append(vector)
+
+        response = collection.query.fetch_objects_by_ids(ids=ids)
+        for id in ids:
+            response = collection.query.fetch_object_by_id(uuid=id)
+            if response:
+                vectors.append(response.vector)
             else:
-                raise ValueError(f"Document with id {doc_id} not found")
+                raise ValueError(f'{id} does not exist in {collection_name}')
                 
         return np.array(vectors, dtype=np.float64)
         
