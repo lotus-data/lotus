@@ -118,9 +118,8 @@ class WeaviateVS(VS):
             for obj in objects:
                 indices.append(obj.properties.get('content'))
                 # Convert cosine distance to similarity score
-                distance:float = obj.metadata.distance
-                distances.append(1 - distance)  # Convert distance to similarity
-                
+                distance = obj.metadata.distance if obj.metadata and obj.metadata.distance is not None else 1.0
+                distances.append(1 - distance)  # Convert distance to similarity                
             # Pad results if fewer than K matches
             while len(indices) < K:
                 indices.append(-1)
