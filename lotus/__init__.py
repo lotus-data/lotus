@@ -2,6 +2,7 @@ import logging
 import lotus.dtype_extensions
 import lotus.models
 import lotus.vector_store
+import lotus.databases
 import lotus.nl_expression
 import lotus.templates
 import lotus.utils
@@ -48,4 +49,5 @@ __all__ = [
     "vector_store",
     "utils",
     "dtype_extensions",
+    "databases",
 ]
