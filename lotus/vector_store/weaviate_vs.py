@@ -9,6 +9,7 @@ from lotus.types import RMOutput
 from lotus.vector_store.vs import VS
 
 try:
+    import uuid
     from uuid import uuid4
 
     import weaviate
@@ -122,7 +123,7 @@ class WeaviateVS(VS):
                 distances.append(1 - distance)  # Convert distance to similarity                
             # Pad results if fewer than K matches
             while len(indices) < K:
-                indices.append(-1)
+                indices.append(uuid.UUID(0))
                 distances.append(0.0)
                 
             all_distances.append(distances)
