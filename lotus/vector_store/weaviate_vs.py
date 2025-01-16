@@ -103,7 +103,7 @@ class WeaviateVS(VS):
                     limit=K,
                     return_metadata=MetadataQuery(distance=True)
                     ))
-            response.objects[0].metadata.distance
+            response.objects[0].uuid
             results.append(response)
 
         # Process results into expected format
@@ -116,7 +116,7 @@ class WeaviateVS(VS):
             distances:List[float] = []
             indices = []
             for obj in objects:
-                indices.append(obj.properties.get('content'))
+                indices.append(obj.uuid)
                 # Convert cosine distance to similarity score
                 distance = obj.metadata.distance if obj.metadata and obj.metadata.distance is not None else 1.0
                 distances.append(1 - distance)  # Convert distance to similarity                

@@ -113,7 +113,7 @@ class QdrantVS(VS):
             indices = []
             
             for result in results:
-                indices.append(result.payload["doc_id"])
+                indices.append(result.id)
                 distances.append(result.score)  # Qdrant returns cosine similarity directly
 
             # Pad results if fewer than K matches
@@ -125,8 +125,8 @@ class QdrantVS(VS):
             all_indices.append(indices)
 
         return RMOutput(
-            distances=np.array(all_distances, dtype=np.float32),
-            indices=np.array(all_indices, dtype=np.int64)
+            distances=np.array(all_distances, dtype=np.float32).tolist(),
+            indices=np.array(all_indices, dtype=np.int64).tolist()
         )
 
     def get_vectors_from_index(self, collection_name: str, ids: list[int]) -> NDArray[np.float64]:
