@@ -21,7 +21,7 @@ class PineconeVS(VS):
         """Initialize Pinecone client with API key and environment"""
         super().__init__(embedding_model)
         self.pinecone = Pinecone(api_key=api_key)
-        self.index = None
+        self.pc_index = None
         self.max_batch_size = max_batch_size
 
 
@@ -107,7 +107,7 @@ class PineconeVS(VS):
 
         for query_vector in query_vectors:
             # Query Pinecone
-            results = self.index.query(
+            results = self.pc_index.query(
                 vector=query_vector.tolist(),
                 top_k=K,
                 include_metadata=True,
@@ -131,8 +131,8 @@ class PineconeVS(VS):
             all_indices.append(indices)
 
         return RMOutput(
-            distances=np.array(all_distances, dtype=np.float32),
-            indices=np.array(all_indices, dtype=np.int64)
+            distances=np.array(all_distances, dtype=np.float32).tolist(),
+            indices=np.array(all_indices, dtype=np.int64).tolist()
         )
 
     def get_vectors_from_index(self, collection_name: str, ids: list[int]) -> NDArray[np.float64]:
