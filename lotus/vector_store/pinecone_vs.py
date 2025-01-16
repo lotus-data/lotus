@@ -10,7 +10,7 @@ from lotus.types import RMOutput
 from lotus.vector_store.vs import VS
 
 try:
-    from pinecone import Pinecone
+    from pinecone import Index, Pinecone
 except ImportError as err:
     raise ImportError(
         "The pinecone library is required to use PineconeVS. Install it with `pip install pinecone`",
@@ -21,7 +21,7 @@ class PineconeVS(VS):
         """Initialize Pinecone client with API key and environment"""
         super().__init__(embedding_model)
         self.pinecone = Pinecone(api_key=api_key)
-        self.pc_index = None
+        self.pc_index:Index | None = None 
         self.max_batch_size = max_batch_size
 
 
@@ -139,6 +139,11 @@ class PineconeVS(VS):
         """Retrieve vectors for specific document IDs"""
         if self.pc_index is None or self.collection_name != collection_name:
             self.load_index(collection_name)
+
+        if self.pc_index is None:  # Add this check after load_index
+            raise ValueError("Failed to initialize Pinecone index")
+
+
 
         # Fetch vectors from Pinecone
         vectors = []
