@@ -10,10 +10,9 @@ from lotus.types import RMOutput
 from lotus.vector_store.vs import VS
 
 try:
-    import chromadb
-    from chromadb import ClientAPI 
+    from chromadb import ClientAPI
     from chromadb.api import Collection
-    from chromadb.api.types import IncludeEnum 
+    from chromadb.api.types import IncludeEnum
 except ImportError as err:
     raise ImportError(
         "The chromadb library is required to use ChromaVS. Install it with `pip install chromadb`"
