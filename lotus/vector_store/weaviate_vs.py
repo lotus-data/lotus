@@ -123,7 +123,7 @@ class WeaviateVS(VS):
                 distances.append(1 - distance)  # Convert distance to similarity                
             # Pad results if fewer than K matches
             while len(indices) < K:
-                indices.append(uuid.UUID(0))
+                indices.append(uuid.UUID(int=0))
                 distances.append(0.0)
                 
             all_distances.append(distances)
