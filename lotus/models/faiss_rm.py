@@ -23,6 +23,7 @@ class FaissRM(RM):
         self.vecs: NDArray[np.float64] | None = None
 
     def index(self, docs: pd.Series, index_dir: str, **kwargs: dict[str, Any]) -> None:
+        self.__update_attrs__(docs, index_dir)
         vecs = self._embed(docs)
         self.faiss_index = faiss.index_factory(vecs.shape[1], self.factory_string, self.metric)
         self.faiss_index.add(vecs)
