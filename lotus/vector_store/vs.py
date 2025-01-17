@@ -1,24 +1,39 @@
 from abc import ABC, abstractmethod
-from collections.abc import Callable
 from typing import Any
 
 import numpy as np
 import pandas as pd
 import tqdm
+from litellm import embedding
 from numpy.typing import NDArray
 from PIL import Image
+from sentence_transformers import CrossEncoder, SentenceTransformer
 
 from lotus.dtype_extensions import convert_to_base_data
 from lotus.types import RMOutput
+
+MODEL_NAME_TO_CLS = {
+    "intfloat/e5-small-v2": lambda model: SentenceTransformer(model_name_or_path=model),
+    "mixedbread-ai/mxbai-rerank-xsmall-v1": lambda model: CrossEncoder(model_name=model),
+    "text-embedding-3-small": lambda model: lambda batch: embedding(model=model, input=batch),
+}
+
+
+def initialize(model_name):
+    if model_name == 'intfloat/e5-small-v2':
+        return SentenceTransformer(model_name=model_name) 
+    elif model_name== 'mixedbread-ai/mxbai-rerank-xsmall-v1':
+        return CrossEncoder(model_name=model_name) 
+    return lambda batch: embedding(model=model_name, input=batch) 
 
 
 class VS(ABC):
     """Abstract class for vector stores."""
 
-    def __init__(self, embedding_model: Callable[[pd.Series | list], NDArray[np.float64]]) -> None:
+    def __init__(self, embedding_model: str) -> None:
         self.collection_name: str | None = None 
-        self._embed: Callable[[pd.Series | list], NDArray[np.float64]] = embedding_model
-        self.max_batch_size:int = 64 
+        self._embed = initialize(embedding_model) 
+        self.max_batch_size:int = 64
         
 
     @abstractmethod

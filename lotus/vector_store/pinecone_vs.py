@@ -1,4 +1,4 @@
-from typing import Any, Callable, Union
+from typing import Any, Union
 
 import numpy as np
 import pandas as pd
@@ -17,7 +17,7 @@ except ImportError as err:
     ) from err
 
 class PineconeVS(VS):
-    def __init__(self, api_key: str, embedding_model: Callable[[pd.Series | list], NDArray[np.float64]], max_batch_size: int = 64):
+    def __init__(self, api_key: str, embedding_model: str, max_batch_size: int = 64):
         """Initialize Pinecone client with API key and environment"""
         super().__init__(embedding_model)
         self.pinecone = Pinecone(api_key=api_key)

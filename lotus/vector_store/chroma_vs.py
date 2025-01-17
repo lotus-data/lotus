@@ -1,4 +1,4 @@
-from typing import Any, Callable, Mapping, Union
+from typing import Any, Mapping, Union
 
 import numpy as np
 import pandas as pd
@@ -19,7 +19,7 @@ except ImportError as err:
     ) from err 
 
 class ChromaVS(VS):
-    def __init__(self, client: ClientAPI, embedding_model: Callable[[pd.Series | list], NDArray[np.float64]], max_batch_size: int = 64):
+    def __init__(self, client: ClientAPI, embedding_model: str, max_batch_size: int = 64):
         """Initialize with ChromaDB client and embedding model"""
         super().__init__(embedding_model)
         self.client = client

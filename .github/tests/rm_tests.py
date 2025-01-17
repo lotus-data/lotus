@@ -41,8 +41,14 @@ def setup_models():
 
     for model_name in ENABLED_MODEL_NAMES:
         models[model_name] = MODEL_NAME_TO_CLS[model_name](model=model_name)
+
+
     return models
 
+
+@pytest.fixture(scope='session')
+def setup_vs():
+    pass 
 
 ################################################################################
 # RM Only Tests
