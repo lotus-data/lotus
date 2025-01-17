@@ -66,3 +66,7 @@ class RM(ABC):
             RMOutput: An RMOutput object containing the distances and indices of the top-k vectors.
         """
         pass
+    
+    def __update_attrs__(self, queries: pd.Series | str | Image.Image | list | NDArray[np.float64], index_dir: str) -> None:
+        """Default implementation that does nothing"""
+        pass
