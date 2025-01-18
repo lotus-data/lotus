@@ -1,31 +1,24 @@
-from pymongo import MongoClient
+import pandas as pd
 from sqlalchemy import create_engine
+from sqlalchemy.exc import OperationalError
 
 
 class DatabaseConnector:
-    def __init__(self):
-        self.sql_engine = None
-        self.nosql_client = None
+    @staticmethod
+    def load_from_db(connection_url: str, query: str) -> pd.DataFrame:
+        """
+        Executes SQl query and returns a pandas dataframe
 
-    def connect_sql(self, connection_url: str):
-        """Connect to SQL database"""
+        Args:
+            connection_url (str): The connection url for the database
+            query (str): The query to execute
+
+        Returns:
+            pd.DataFrame: The result of the query
+        """
         try:
-            self.sql_engine = create_engine(connection_url)
-            return self
-        except Exception as e:
-            raise ConnectionError(f"Error connecting to SQL database: {e}")
-
-    def connect_nosql(self, connection_url: str):
-        """Connect to MongoDB NoSQL database"""
-        try:
-            self.nosql_client = MongoClient(connection_url)
-            return self
-        except Exception as e:
-            raise ConnectionError(f"Error connecting to NoSQL database: {e}")
-
-    def close_connections(self):
-        """Close SQL and NoSQL connections"""
-        if self.sql_engine:
-            self.sql_engine.dispose()
-        if self.nosql_client:
-            self.nosql_client.close()
+            engine = create_engine(connection_url)
+            with engine.connect() as conn:
+                return pd.read_sql(query, conn)
+        except OperationalError as e:
+            raise ValueError(f"Error connecting to database: {e}")

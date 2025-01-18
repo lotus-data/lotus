@@ -5,7 +5,7 @@ import pandas as pd
 import pytest
 
 import lotus
-from lotus.databases import DatabaseConnector, LotusDB
+from lotus.databases import DatabaseConnector
 from lotus.models import LM
 
 ################################################################################
@@ -83,11 +83,8 @@ def test_SQL_db(setup_models, model):
     lm = setup_models[model]
     lotus.settings.configure(lm=lm)
 
-    connector = DatabaseConnector()
-    connector.connect_sql("sqlite:///:memory:")
-    lotus_db = LotusDB(connector)
-
-    df = lotus_db.query("SELECT * FROM test_table")
+    query = "SELECT * FROM movies"
+    df = DatabaseConnector.load_from_db("sqlite:///example_movies.db", query=query)
     assert len(df) > 0
 
     filtered_df = df.sem_filter("{name} is an adult")
