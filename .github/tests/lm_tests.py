@@ -260,7 +260,7 @@ def test_filter_operation_cot_fewshot(setup_models, model):
     examples_df = pd.DataFrame(examples)
 
     user_instruction = "{Sequence} is increasing"
-    filtered_df = df.sem_filter(user_instruction, strategy="cot", examples=examples_df)
+    filtered_df = df.sem_filter(user_instruction, strategy="cot", examples=examples_df, additional_cot_instructions="Assume the most typical or logical case.")
     expected_df = pd.DataFrame(
         {
             "Sequence": [
