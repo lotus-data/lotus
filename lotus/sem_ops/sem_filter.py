@@ -210,7 +210,7 @@ class SemFilterDataframe:
             examples_multimodal_data = task_instructions.df2multimodal_info(examples, col_li)
             examples_answers = examples["Answer"].tolist()
 
-            if strategy == "cot":
+            if strategy == "cot" and "Reasoning" in examples.columns:
                 cot_reasoning = examples["Reasoning"].tolist()
 
         pos_cascade_threshold, neg_cascade_threshold = None, None
@@ -224,8 +224,8 @@ class SemFilterDataframe:
                 helper_examples_multimodal_data = task_instructions.df2multimodal_info(helper_examples, col_li)
                 helper_examples_answers = helper_examples["Answer"].tolist()
 
-                if helper_strategy == "cot":
-                    helper_cot_reasoning = examples["Reasoning"].tolist()
+                if helper_strategy == "cot" and "Reasoning" in helper_examples.columns:
+                    helper_cot_reasoning = helper_examples["Reasoning"].tolist()
 
         if cascade_args and lotus.settings.helper_lm:
             if helper_strategy == "cot":

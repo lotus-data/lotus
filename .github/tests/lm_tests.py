@@ -272,6 +272,38 @@ def test_filter_operation_cot_fewshot(setup_models, model):
     )
     assert filtered_df.equals(expected_df)
 
+@pytest.mark.parametrize("model", get_enabled("gpt-4o-mini", "ollama/llama3.1"))
+def test_filter_operation_cot_fewshot_no_reasoning(setup_models, model):
+    lm = setup_models[model]
+    lotus.settings.configure(lm=lm)
+
+    # Test filter operation on an easy dataframe
+    data = {
+        "Sequence": [
+            "Five, Four, Three",
+            "A, B, C",
+            "Pond, Lake, Ocean",
+        ]
+    }
+    df = pd.DataFrame(data)
+    examples = {
+        "Sequence": ["1, 2, 3", "penny, nickel, dime, quarter", "villiage, town, city"],
+        "Answer": [True, True, True],
+    }
+    examples_df = pd.DataFrame(examples)
+
+    user_instruction = "{Sequence} is increasing"
+    filtered_df = df.sem_filter(user_instruction, strategy="cot", examples=examples_df)
+    expected_df = pd.DataFrame(
+        {
+            "Sequence": [
+                "A, B, C",
+                "Pond, Lake, Ocean",
+            ]
+        },
+        index=[1, 2],
+    )
+    assert filtered_df.equals(expected_df)
 
 ################################################################################
 # Cascade tests
