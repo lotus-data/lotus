@@ -211,7 +211,6 @@ class SemFilterDataframe:
             examples_answers = examples["Answer"].tolist()
 
             if strategy == "cot":
-                return_explanations = True
                 cot_reasoning = examples["Reasoning"].tolist()
 
         pos_cascade_threshold, neg_cascade_threshold = None, None
