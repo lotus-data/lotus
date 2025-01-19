@@ -53,16 +53,13 @@ def operator_cache(func: Callable) -> Callable:
                 elif hasattr(value, "dict"):
                     return value.dict()
                 elif hasattr(value, "__dict__"):
-                    return {
-                        "class_name": type(value).__name__,
-                        "attributes": {k: serialize(v) for k, v in vars(value).items()},
-                    }
+                    return {key: serialize(val) for key, val in vars(value).items() if not key.startswith("_")}
                 else:
                     # For unsupported types, convert to string (last resort)
                     lotus.logger.warning(f"Unsupported type {type(value)} for serialization. Converting to string.")
                     return str(value)
 
-            serialize_self = serialize(self)
+            serialize_self = serialize(self._obj)
             serialized_kwargs = {key: serialize(value) for key, value in kwargs.items()}
             serialized_args = [serialize(arg) for arg in args]
             cache_key = hashlib.sha256(
