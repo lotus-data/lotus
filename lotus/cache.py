@@ -59,7 +59,7 @@ def operator_cache(func: Callable) -> Callable:
                     lotus.logger.warning(f"Unsupported type {type(value)} for serialization. Converting to string.")
                     return str(value)
 
-            serialize_self = serialize(self)
+            serialize_self = serialize(self._obj)
             serialized_kwargs = {key: serialize(value) for key, value in kwargs.items()}
             serialized_args = [serialize(arg) for arg in args]
             cache_key = hashlib.sha256(
