@@ -1,7 +1,7 @@
 import sqlite3
 
 import lotus
-from lotus.databases import DatabaseConnector
+from lotus.data_connectors import DataConnector
 from lotus.models import LM
 
 conn = sqlite3.connect("example_movies.db")
@@ -45,7 +45,7 @@ lm = LM(model="gpt-4o-mini")
 lotus.settings.configure(lm=lm)
 
 query = "SELECT * FROM movies"
-df = DatabaseConnector.load_from_db("sqlite:///example_movies.db", query=query)
+df = DataConnector.load_from_db("sqlite:///example_movies.db", query=query)
 
 user_instruction = "{title} that are science fiction"
 df = df.sem_filter(user_instruction)
