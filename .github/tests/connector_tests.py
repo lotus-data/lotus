@@ -1,6 +1,7 @@
 import os
 import sqlite3
 
+import boto3
 import pandas as pd
 import pytest
 
@@ -62,6 +63,45 @@ def setup_sqlite_db():
     conn.close()
 
 
+@pytest.fixture(scope="session")
+def setup_minio():
+    minio_config = {
+        "aws_access_key": "accesskey",
+        "aws_secret_key": "secretkey",
+        "region": None,
+        "bucket": "test-bucket",
+        "file_path": "data/test.csv",
+        "protocol": "http",
+        "endpoint_url": "http://localhost:9000",
+    }
+
+    session = boto3.Session(
+        aws_access_key_id=minio_config["aws_access_key"],
+        aws_secret_access_key=minio_config["aws_secret_key"],
+    )
+
+    s3 = session.resource("s3", endpoint_url=minio_config["endpoint_url"])
+
+    try:
+        s3.create_bucket(Bucket=minio_config["bucket"])
+    except s3.meta.client.exceptions.BucketAlreadyOwnedByYou:
+        pass
+
+    # Upload test file
+    test_data = pd.DataFrame(
+        {
+            "id": [1, 2, 3],
+            "name": ["Alice", "Bob", "Charlie"],
+            "score": [85, 90, 88],
+        }
+    )
+    csv_data = test_data.to_csv(index=False)
+
+    s3.Bucket(minio_config["bucket"]).put_object(Key="test_data.csv", Body=csv_data)
+
+    return minio_config
+
+
 @pytest.fixture(autouse=True)
 def print_usage_after_each_test(setup_models):
     yield  # this runs the test
@@ -89,3 +129,24 @@ def test_SQL_db(setup_models, model):
 
     filtered_df = df.sem_filter("{name} is an adult")
     assert isinstance(filtered_df, pd.DataFrame)
+
+
+@pytest.mark.parametrize("model", get_enabled("gpt-4o-mini"))
+def test_minio(setup_models, setup_minio, model):
+    lm = setup_models[model]
+    lotus.settings.configure(lm=lm)
+    minio_config = setup_minio
+
+    df = DataConnector.load_from_s3(
+        aws_access_key=minio_config["aws_access_key"],
+        aws_secret_key=minio_config["aws_secret_key"],
+        region=minio_config["region"],
+        bucket=minio_config["bucket"],
+        file_path="test_data.csv",
+        endpoint_url=minio_config["endpoint_url"],
+        protocol="http",
+    )
+
+    assert not df.empty
+    assert df.shape[0] == 3
+    assert set(df.columns) == {"id", "name", "score"}

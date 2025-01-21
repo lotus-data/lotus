@@ -13,7 +13,7 @@ service_configs = {
     "aws": {
         "aws_access_key": "your_aws_access_key",
         "aws_secret_key": "your_aws_secret_key",
-        "region": "us-west-2",
+        "region": "us-east-1",
         "bucket": "your-aws-bucket",
         "file_path": "data/test.csv",
         "protocol": "s3",
@@ -83,14 +83,14 @@ except Exception as e:
 
 # loading data from s3
 df = DataConnector.load_from_s3(
-    aws_access_key=str(service_config["aws_access_key"]),
-    aws_secret_key=str(service_config["aws_secret_key"]),
+    aws_access_key=(service_config["aws_access_key"]),
+    aws_secret_key=(service_config["aws_secret_key"]),
     region=str(service_config["region"]),
     bucket=str(service_config["bucket"]),
     file_path=str(service_config["file_path"]),
-    endpoint_url=str(service_config["endpoint_url"]),
+    endpoint_url=(service_config["endpoint_url"]),
     protocol=str(service_config["protocol"]),
 )
-user_instruction = "{title} is scienece fiction movie"
+user_instruction = "{title} is science fiction movie"
 df = df.sem_filter(user_instruction)
 print(df)

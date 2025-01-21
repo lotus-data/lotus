@@ -29,8 +29,8 @@ class DataConnector:
 
     @staticmethod
     def load_from_s3(
-        aws_access_key: str,
-        aws_secret_key: str,
+        aws_access_key: Optional[str],
+        aws_secret_key: Optional[str],
         region: str,
         bucket: str,
         file_path: str,
@@ -41,24 +41,27 @@ class DataConnector:
         Loads a pandas DataFrame from an S3-compatible service.
 
         Args:
-            aws_access_key (str): The AWS access key
-            aws_secret_key (str): The AWS secret key
+            aws_access_key (str): The AWS access key (None for Public Access)
+            aws_secret_key (str): The AWS secret key (None for Public Access)
             region (str): The AWS region
             bucket (str): The S3 bucket
             file_path (str): The path to the file in S3
             endpoint_url (str): The Minio endpoint URL. Default is None for AWS s3
-            prtocol (str): The protocol to use (http for Minio and https for R2). Default is "s3"
+            protocol (str): The protocol to use (http for Minio and https for R2). Default is "s3"
 
         Returns:
             pd.DataFrame: The loaded DataFrame
 
         """
         try:
-            session = boto3.Session(
-                aws_access_key_id=aws_access_key,
-                aws_secret_access_key=aws_secret_key,
-                region_name=region if protocol == "s3" and endpoint_url is None else None,
-            )
+            if aws_access_key is None and aws_secret_key is None:
+                session = boto3.Session(region_name=region)
+            else:
+                session = boto3.Session(
+                    aws_access_key_id=aws_access_key,
+                    aws_secret_access_key=aws_secret_key,
+                    region_name=region if protocol == "s3" and endpoint_url is None else None,
+                )
         except Exception as e:
             raise ValueError(f"Error creating boto3 session: {e}")
 
