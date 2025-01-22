@@ -35,7 +35,7 @@ class SemIndexDataframe:
                 "The retrieval model must be an instance of RM. Please configure a valid retrieval model using lotus.settings.configure()"
             )
 
-        rm = lotus.settings.rm
+        rm = lotus.settings.get_rm_or_vs() 
         rm.index(self._obj[col_name], index_dir)
         self._obj.attrs["index_dirs"][col_name] = index_dir
         return self._obj

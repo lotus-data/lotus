@@ -10,7 +10,7 @@ from lotus.types import RMOutput
 from lotus.vector_store.vs import VS
 
 try:
-    from chromadb import ClientAPI
+    from chromadb import Client, ClientAPI
     from chromadb.api import Collection
     from chromadb.api.types import IncludeEnum
 except ImportError as err:
@@ -19,22 +19,27 @@ except ImportError as err:
     ) from err 
 
 class ChromaVS(VS):
-    def __init__(self, client: ClientAPI, embedding_model: str, max_batch_size: int = 64):
+    def __init__(self, embedding_model: str, max_batch_size: int = 64):
+
+        client: ClientAPI = Client()
+
         """Initialize with ChromaDB client and embedding model"""
         super().__init__(embedding_model)
         self.client = client
         self.collection: Collection | None = None
-        self.collection_name = None
+        self.index_dir = None
         self.max_batch_size = max_batch_size
 
+    def __del__(self):
+        return
 
-    def index(self, docs: pd.Series, collection_name: str):
+    def index(self, docs: pd.Series, index_dir: str):
         """Create a collection and add documents with their embeddings"""
-        self.collection_name = collection_name
+        self.index_dir = index_dir
         
         # Create collection without embedding function (we'll provide embeddings directly)
         self.collection = self.client.create_collection(
-            name=collection_name,
+            name=index_dir,
             metadata={"hnsw:space": "cosine"}  # Use cosine similarity for consistency
         )
         
@@ -59,13 +64,13 @@ class ChromaVS(VS):
                 metadatas=metadatas[i:end_idx]
             )
 
-    def load_index(self, collection_name: str):
+    def load_index(self, index_dir: str):
         """Load an existing collection"""
         try:
-            self.collection = self.client.get_collection(collection_name)
-            self.collection_name = collection_name
+            self.collection = self.client.get_collection(index_dir)
+            self.index_dir = index_dir
         except ValueError as e:
-            raise ValueError(f"Collection {collection_name} not found") from e
+            raise ValueError(f"Collection {index_dir} not found") from e
 
     def __call__(
         self,
@@ -126,14 +131,14 @@ class ChromaVS(VS):
             indices=np.array(all_indices, dtype=np.int64).tolist()
         )
 
-    def get_vectors_from_index(self, collection_name: str, ids: list[int]) -> NDArray[np.float64]:
+    def get_vectors_from_index(self, index_dir: str, ids: list[int]) -> NDArray[np.float64]:
         """Retrieve vectors for specific document IDs"""
-        if self.collection is None or self.collection_name != collection_name:
-            self.load_index(collection_name)
+        if self.collection is None or self.index_dir != index_dir:
+            self.load_index(index_dir)
 
 
         if self.collection is None:  # Add this check after load_index
-            raise ValueError(f"Failed to load collection {collection_name}")
+            raise ValueError(f"Failed to load collection {index_dir}")
 
 
         # Convert integer ids to strings for ChromaDB

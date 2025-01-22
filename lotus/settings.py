@@ -13,6 +13,7 @@ class Settings:
     reranker: lotus.models.Reranker | None = None
     vs: lotus.vector_store.VS | None = None 
 
+
     # Cache settings
     enable_cache: bool = False
 
@@ -26,10 +27,16 @@ class Settings:
         for key, value in kwargs.items():
             if not hasattr(self, key):
                 raise ValueError(f"Invalid setting: {key}")
+            if (key == 'vs' and hasattr(self, 'rm')) or (key == 'rm' and hasattr(self, 'vs')):
+                raise ValueError('Invalid settings: you can only set a retriever module or a vector store, but not both')
+
             setattr(self, key, value)
 
     def __str__(self):
         return str(vars(self))
+    
+    def get_rm_or_vs(self):
+        return self.rm or self.vs 
 
 
 settings = Settings()

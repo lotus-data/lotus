@@ -6,6 +6,7 @@ import lotus
 from lotus.cache import operator_cache
 from lotus.models import RM
 from lotus.types import RMOutput
+from lotus.vector_store import VS
 
 
 @pd.api.extensions.register_dataframe_accessor("sem_sim_join")
@@ -51,10 +52,10 @@ class SemSimJoinDataframe:
                 raise ValueError("Other Series must have a name")
             other = pd.DataFrame({other.name: other})
 
-        rm = lotus.settings.rm
-        if not isinstance(rm, RM):
+        rm = lotus.settings.get_rm_or_vs() 
+        if not isinstance(rm, RM) and not isinstance(rm, VS):
             raise ValueError(
-                "The retrieval model must be an instance of RM. Please configure a valid retrieval model using lotus.settings.configure()"
+                "The retrieval model must be an instance of RM or VS. Please configure a valid retrieval model or vector store using lotus.settings.configure()"
             )
 
         # load query embeddings from index if they exist

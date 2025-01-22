@@ -14,25 +14,42 @@ try:
 
     import weaviate
     from weaviate.classes.config import Configure, DataType, Property
+    from weaviate.classes.init import Auth
     from weaviate.classes.query import MetadataQuery
     from weaviate.util import get_valid_uuid
 except ImportError as err:
     raise ImportError("Please install the weaviate client") from err 
 
 class WeaviateVS(VS):
-    def __init__(self, weaviate_client: weaviate.WeaviateClient, embedding_model: str, max_batch_size: int = 64):
+    def __init__(self, embedding_model: str, max_batch_size: int = 64):
+
+        REST_URL = 'https://dovieiknqr20pmgoticrmw.c0.us-west3.gcp.weaviate.cloud'
+
+        API_KEY = 'nwRhjKLulSWbhPjX67WBklmJs7dgUS9XGWrZ'
+
+        weaviate_client: weaviate.WeaviateClient = None #  need to set this up 
+
+
+        weaviate_client = weaviate.connect_to_weaviate_cloud(
+            cluster_url=REST_URL,                                    # Replace with your Weaviate Cloud URL
+            auth_credentials=Auth.api_key(API_KEY),             # Replace with your Weaviate Cloud key
+        )
+
         """Initialize with Weaviate client and embedding model"""
         super().__init__(embedding_model)
         self.client = weaviate_client
         self.max_batch_size = max_batch_size
 
-    def index(self, docs: pd.Series, collection_name: str):
+    def __del__(self):
+        self.client.close()
+
+    def index(self, docs: pd.Series, index_dir: str):
         """Create a collection and add documents with their embeddings"""
-        self.collection_name = collection_name
+        self.index_dir = index_dir
         
         # Create collection without vectorizer config (we'll provide vectors directly)
         collection = self.client.collections.create(
-            name=collection_name,
+            name=index_dir,
             properties=[
                 Property(
                     name='content', 
@@ -64,14 +81,14 @@ class WeaviateVS(VS):
                     uuid=get_valid_uuid(str(uuid4()))
                 )
 
-    def load_index(self, collection_name: str):
+    def load_index(self, index_dir: str):
         """Load/set the collection name to use"""
-        self.collection_name = collection_name
+        self.index_dir = index_dir
         # Verify collection exists
         try:
-            self.client.collections.get(collection_name)
+            self.client.collections.get(index_dir)
         except weaviate.exceptions.UnexpectedStatusCodeException:
-            raise ValueError(f"Collection {collection_name} not found")
+            raise ValueError(f"Collection {index_dir} not found")
 
     def __call__(self,
         queries: Union[pd.Series, str, Image.Image, list, NDArray[np.float64]],
@@ -79,10 +96,10 @@ class WeaviateVS(VS):
         **kwargs: dict[str, Any]
     ) -> RMOutput:
         """Perform vector search using pre-computed query vectors"""
-        if self.collection_name is None:
+        if self.index_dir is None:
             raise ValueError("No collection loaded. Call load_index first.")
 
-        collection = self.client.collections.get(self.collection_name)
+        collection = self.client.collections.get(self.index_dir)
 
         # Convert single query to list
         if isinstance(queries, (str, Image.Image)):
@@ -134,9 +151,9 @@ class WeaviateVS(VS):
             indices=np.array(all_indices, dtype=np.int64).tolist()
         )
 
-    def get_vectors_from_index(self, collection_name: str, ids: list[Any]) -> NDArray[np.float64]:
+    def get_vectors_from_index(self, index_dir: str, ids: list[Any]) -> NDArray[np.float64]:
         """Retrieve vectors for specific document IDs"""
-        collection = self.client.collections.get(collection_name)
+        collection = self.client.collections.get(index_dir)
         
         # Query for documents with specific doc_ids
         vectors = []
@@ -146,7 +163,7 @@ class WeaviateVS(VS):
             if response:
                 vectors.append(response.vector)
             else:
-                raise ValueError(f'{id} does not exist in {collection_name}')
+                raise ValueError(f'{id} does not exist in {index_dir}')
         return np.array(vectors, dtype=np.float64)
         
         

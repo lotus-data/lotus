@@ -47,10 +47,10 @@ class SemSearchDataframe:
         assert not (K is None and n_rerank is None), "K or n_rerank must be provided"
         if K is not None:
             # get retriever model and index
-            rm = lotus.settings.rm
+            rm = lotus.settings.get_rm_or_vs()
             if rm is None:
                 raise ValueError(
-                    "The retrieval model must be an instance of RM. Please configure a valid retrieval model using lotus.settings.configure()"
+                    "The retrieval model must be an instance of RM or VS. Please configure a valid retrieval model pr vector store using lotus.settings.configure()"
                 )
 
             col_index_dir = self._obj.attrs["index_dirs"][col_name]

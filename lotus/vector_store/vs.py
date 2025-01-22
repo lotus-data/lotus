@@ -3,11 +3,11 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-import tqdm
 from litellm import embedding
 from numpy.typing import NDArray
 from PIL import Image
 from sentence_transformers import CrossEncoder, SentenceTransformer
+from tqdm import tqdm
 
 from lotus.dtype_extensions import convert_to_base_data
 from lotus.types import RMOutput
@@ -31,7 +31,7 @@ class VS(ABC):
     """Abstract class for vector stores."""
 
     def __init__(self, embedding_model: str) -> None:
-        self.collection_name: str | None = None 
+        self.index_dir: str | None = None 
         self._embed = initialize(embedding_model) 
         self.max_batch_size:int = 64
         
@@ -44,8 +44,9 @@ class VS(ABC):
         pass
 
     @abstractmethod
-    def load_index(self, collection_name: str):
-        """Load the index from the vector store into memory ?? (not sure if this is needed )"""
+    def load_index(self, index_dir: str):
+        """Load the index from the vector store into memory if needed"""
+        pass 
 
     @abstractmethod 
     def __call__(self,
@@ -56,7 +57,7 @@ class VS(ABC):
         pass 
     
     @abstractmethod
-    def get_vectors_from_index(self, collection_name:str, ids: list[Any]) -> NDArray[np.float64]:
+    def get_vectors_from_index(self, index_dir:str, ids: list[Any]) -> NDArray[np.float64]:
         pass 
 
     def _batch_embed(self, docs: pd.Series | list) -> NDArray[np.float64]:

@@ -17,33 +17,39 @@ except ImportError as err:
     ) from err
 
 class PineconeVS(VS):
-    def __init__(self, api_key: str, embedding_model: str, max_batch_size: int = 64):
+    def __init__(self, embedding_model: str, max_batch_size: int = 64):
+
+        api_key = 'pcsk_45ecSY_CW62eJeL4jwj6dUfaqM6j9dL3uwK12rudednzGisWMxJv9bHH2DLz6tWoY91W84' 
+
         """Initialize Pinecone client with API key and environment"""
         super().__init__(embedding_model)
         self.pinecone = Pinecone(api_key=api_key)
         self.pc_index:Index | None = None 
         self.max_batch_size = max_batch_size
 
+    def __del__(self):  
+        return 
 
-    def index(self, docs: pd.Series, collection_name: str):
+
+    def index(self, docs: pd.Series, index_dir: str):
         """Create an index and add documents to it"""
-        self.collection_name = collection_name
+        self.index_dir = index_dir
         
         # Get sample embedding to determine vector dimension
         sample_embedding = self._embed([docs.iloc[0]])
         dimension = sample_embedding.shape[1]
         
         # Check if index already exists
-        if collection_name not in self.pinecone.list_indexes():
+        if index_dir not in self.pinecone.list_indexes():
             # Create new index with the correct dimension
             self.pinecone.create_index(
-                name=collection_name,
+                name=index_dir,
                 dimension=dimension,
                 metric="cosine"
             )
         
         # Connect to index
-        self.pc_index = self.pinecone.Index(collection_name)
+        self.pc_index = self.pinecone.Index(index_dir)
         
         # Convert docs to list if it's a pandas Series
         docs_list = docs.tolist() if isinstance(docs, pd.Series) else docs
@@ -69,13 +75,13 @@ class PineconeVS(VS):
             batch = vectors[i:i + batch_size]
             self.pc_index.upsert(vectors=batch)
 
-    def load_index(self, collection_name: str):
+    def load_index(self, index_dir: str):
         """Connect to an existing Pinecone index"""
-        if collection_name not in self.pinecone.list_indexes():
-            raise ValueError(f"Index {collection_name} not found")
+        if index_dir not in self.pinecone.list_indexes():
+            raise ValueError(f"Index {index_dir} not found")
         
-        self.collection_name = collection_name
-        self.pc_index = self.pinecone.Index(collection_name)
+        self.index_dir = index_dir
+        self.pc_index = self.pinecone.Index(index_dir)
 
     def __call__(
         self,
@@ -135,10 +141,10 @@ class PineconeVS(VS):
             indices=np.array(all_indices, dtype=np.int64).tolist()
         )
 
-    def get_vectors_from_index(self, collection_name: str, ids: list[int]) -> NDArray[np.float64]:
+    def get_vectors_from_index(self, index_dir: str, ids: list[int]) -> NDArray[np.float64]:
         """Retrieve vectors for specific document IDs"""
-        if self.pc_index is None or self.collection_name != collection_name:
-            self.load_index(collection_name)
+        if self.pc_index is None or self.index_dir != index_dir:
+            self.load_index(index_dir)
 
         if self.pc_index is None:  # Add this check after load_index
             raise ValueError("Failed to initialize Pinecone index")
