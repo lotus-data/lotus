@@ -27,7 +27,7 @@ class Settings:
         for key, value in kwargs.items():
             if not hasattr(self, key):
                 raise ValueError(f"Invalid setting: {key}")
-            if (key == 'vs' and hasattr(self, 'rm')) or (key == 'rm' and hasattr(self, 'vs')):
+            if (key == 'vs' and getattr(self, 'rm') is not None) or (key == 'rm' and getattr(self, 'vs') is not None):
                 raise ValueError('Invalid settings: you can only set a retriever module or a vector store, but not both')
 
             setattr(self, key, value)
