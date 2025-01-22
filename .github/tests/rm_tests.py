@@ -149,41 +149,7 @@ def test_dedup(setup_models):
         "Text": [
             "Probability and Random Processes",
             "Probability and Markov Chains",
-            "Harry Potter",3
-            +
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-            +
+            "Harry Potter",
             "Harry James Potter",
         ]
     }
