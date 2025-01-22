@@ -21,7 +21,7 @@ MODEL_NAME_TO_CLS = {
 
 def initialize(model_name):
     if model_name == 'intfloat/e5-small-v2':
-        return SentenceTransformer(model_name=model_name) 
+        return SentenceTransformer(model_name_or_path=model_name) 
     elif model_name== 'mixedbread-ai/mxbai-rerank-xsmall-v1':
         return CrossEncoder(model_name=model_name) 
     return lambda batch: embedding(model=model_name, input=batch) 
