@@ -60,7 +60,7 @@ Output:
 
 
 Example of Join with Approximation
-----------------------
+------------------------------------
 .. code-block:: python
 
     import pandas as pd

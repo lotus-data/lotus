@@ -52,7 +52,7 @@ Output:
 
 
 Example of Filter with Approximation
------------------------
+-------------------------------------
 .. code-block:: python
 
     import pandas as pd
