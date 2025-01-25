@@ -29,7 +29,7 @@ class QdrantVS(VS):
 
         """Initialize with Qdrant client and embedding model"""
         super().__init__(embedding_model)  # Fixed the super() call syntax
-        self.client = client
+        self.client: QdrantClient = client
         self.max_batch_size = max_batch_size
 
     def __del__(self):
@@ -75,7 +75,7 @@ class QdrantVS(VS):
         for i in tqdm(range(0, len(points), batch_size), desc="Uploading to Qdrant"):
             batch = points[i:i + batch_size]
             self.client.upsert(
-                index_dir=index_dir,
+                collection_name=index_dir,
                 points=batch
             )
 

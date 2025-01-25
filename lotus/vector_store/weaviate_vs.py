@@ -27,7 +27,7 @@ class WeaviateVS(VS):
 
         API_KEY = 'nwRhjKLulSWbhPjX67WBklmJs7dgUS9XGWrZ'
 
-        weaviate_client: weaviate.WeaviateClient = None #  need to set this up 
+        weaviate_client: weaviate.WeaviateClient | None = None #  need to set this up 
 
 
         weaviate_client = weaviate.connect_to_weaviate_cloud(
