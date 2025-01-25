@@ -24,10 +24,15 @@ class Settings:
     parallel_groupby_max_threads: int = 8
 
     def configure(self, **kwargs):
+        
+        if 'rm' in kwargs and 'vs' in kwargs:
+            raise ValueError('Invalid settings: you can only set a retriever module or a vector store, but not both')
+
+        
         for key, value in kwargs.items():
             if not hasattr(self, key):
                 raise ValueError(f"Invalid setting: {key}")
-            if (key == 'vs' and getattr(self, 'rm') is not None) or (key == 'rm' and getattr(self, 'vs') is not None):
+            if (key == 'vs' and (getattr(self, 'rm') is not None)) or (key == 'rm' and (getattr(self, 'vs') is not None)):
                 raise ValueError('Invalid settings: you can only set a retriever module or a vector store, but not both')
 
             setattr(self, key, value)
