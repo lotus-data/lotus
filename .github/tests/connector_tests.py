@@ -43,20 +43,36 @@ def setup_models():
 
 @pytest.fixture(scope="session")
 def setup_sqlite_db():
-    conn = sqlite3.connect(":memory:")
+    conn = sqlite3.connect("example_movies.db")
     cursor = conn.cursor()
 
     cursor.execute("""
-        CREATE TABLE test_table (
+    CREATE TABLE IF NOT EXISTS movies (
         id INTEGER PRIMARY KEY,
-        name TEXT,
-        age INTEGER
-        )
+        title TEXT,
+        director TEXT,
+        rating REAL,
+        release_year INTEGER,
+        description TEXT
+    )
     """)
 
+    cursor.execute("DELETE FROM movies")
+
+    # Insert sample data
     cursor.executemany(
-        """INSERT INTO test_table (name, age) VALUES (?, ?)""",
-        [("Alice", 8), ("Bob", 14), ("Charlie", 35), ("Dave", 42)],
+        """
+    INSERT INTO movies (title, director, rating, release_year, description)
+    VALUES (?, ?, ?, ?, ?)
+    """,
+        [
+            ("The Matrix", "Wachowskis", 8.7, 1999, "A hacker discovers the reality is simulated."),
+            ("The Godfather", "Francis Coppola", 9.2, 1972, "The rise and fall of a powerful mafia family."),
+            ("Inception", "Christopher Nolan", 8.8, 2010, "A thief enters dreams to steal secrets."),
+            ("Parasite", "Bong Joon-ho", 8.6, 2019, "A poor family schemes to infiltrate a rich household."),
+            ("Interstellar", "Christopher Nolan", 8.6, 2014, "A team travels through a wormhole to save humanity."),
+            ("Titanic", "James Cameron", 7.8, 1997, "A love story set during the Titanic tragedy."),
+        ],
     )
 
     conn.commit()
@@ -90,9 +106,18 @@ def setup_minio():
     # Upload test file
     test_data = pd.DataFrame(
         {
-            "id": [1, 2, 3],
-            "name": ["Alice", "Bob", "Charlie"],
-            "score": [85, 90, 88],
+            "id": [1, 2, 3, 4, 5],
+            "title": ["The Matrix", "The Godfather", "Inception", "Parasite", "Interstellar"],
+            "director": ["Wachowskis", "Francis Coppola", "Christopher Nolan", "Bong Joon-ho", "Christopher Nolan"],
+            "rating": [8.7, 9.2, 8.8, 8.6, 8.6],
+            "release_year": [1999, 1972, 2010, 2019, 2014],
+            "description": [
+                "A hacker discovers the reality is simulated.",
+                "The rise and fall of a powerful mafia family.",
+                "A thief enters dreams to steal secrets.",
+                "A poor family schemes to infiltrate a rich household.",
+                "A team travels through a wormhole to save humanity.",
+            ],
         }
     )
     csv_data = test_data.to_csv(index=False)
@@ -119,7 +144,7 @@ def print_usage_after_each_test(setup_models):
 
 
 @pytest.mark.parametrize("model", get_enabled("gpt-4o-mini"))
-def test_SQL_db(setup_models, model):
+def test_SQL_db(setup_models, setup_sqlite_db, model):
     lm = setup_models[model]
     lotus.settings.configure(lm=lm)
 
@@ -127,8 +152,26 @@ def test_SQL_db(setup_models, model):
     df = DataConnector.load_from_db("sqlite:///example_movies.db", query=query)
     assert len(df) > 0
 
-    filtered_df = df.sem_filter("{name} is an adult")
+    filtered_df = df.sem_filter("{title} that are science fiction")
+    filtered_df = filtered_df.reset_index(drop=True)
     assert isinstance(filtered_df, pd.DataFrame)
+
+    Expected_df = pd.DataFrame(
+        {
+            "id": [1, 3, 5],
+            "title": ["The Matrix", "Inception", "Interstellar"],
+            "director": ["Wachowskis", "Christopher Nolan", "Christopher Nolan"],
+            "rating": [8.7, 8.8, 8.6],
+            "release_year": [1999, 2010, 2014],
+            "description": [
+                "A hacker discovers the reality is simulated.",
+                "A thief enters dreams to steal secrets.",
+                "A team travels through a wormhole to save humanity.",
+            ],
+        }
+    ).reset_index(drop=True)
+
+    assert filtered_df.equals(Expected_df)
 
 
 @pytest.mark.parametrize("model", get_enabled("gpt-4o-mini"))
@@ -148,5 +191,25 @@ def test_minio(setup_models, setup_minio, model):
     )
 
     assert not df.empty
-    assert df.shape[0] == 3
-    assert set(df.columns) == {"id", "name", "score"}
+    assert df.shape[0] == 5
+    assert set(df.columns) == {"id", "title", "director", "rating", "release_year", "description"}
+
+    filtered_df = df.sem_filter("{title} that are science fiction")
+    filtered_df = filtered_df.reset_index(drop=True)
+
+    Expected_df = pd.DataFrame(
+        {
+            "id": [1, 3, 5],
+            "title": ["The Matrix", "Inception", "Interstellar"],
+            "director": ["Wachowskis", "Christopher Nolan", "Christopher Nolan"],
+            "rating": [8.7, 8.8, 8.6],
+            "release_year": [1999, 2010, 2014],
+            "description": [
+                "A hacker discovers the reality is simulated.",
+                "A thief enters dreams to steal secrets.",
+                "A team travels through a wormhole to save humanity.",
+            ],
+        }
+    ).reset_index(drop=True)
+
+    assert filtered_df.equals(Expected_df)
