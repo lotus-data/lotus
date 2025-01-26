@@ -3,18 +3,17 @@ import json
 import os
 import pickle
 import sqlite3
+import threading
 import time
 from abc import ABC, abstractmethod
 from collections import OrderedDict
 from enum import Enum
 from functools import wraps
 from typing import Any, Callable
-import threading
 
 import pandas as pd
 
 import lotus
-
 
 
 def require_cache_enabled(func: Callable) -> Callable:
@@ -114,21 +113,24 @@ class CacheFactory:
     def create_default_cache(max_size: int = 1024) -> Cache:
         return CacheFactory.create_cache(CacheConfig(CacheType.IN_MEMORY, max_size))
 
+
 class ThreadLocalConnection:
     """Wrapper that automatically closes connection when thread dies"""
+
     def __init__(self, db_path: str):
         self._db_path = db_path
         self._conn = None
-    
+
     @property
     def connection(self) -> sqlite3.Connection:
         if self._conn is None:
             self._conn = sqlite3.connect(self._db_path)
         return self._conn
-    
+
     def __del__(self):
         if self._conn is not None:
             self._conn.close()
+
 
 class SQLiteCache(Cache):
     def __init__(self, max_size: int, cache_dir=os.path.expanduser("~/.lotus/cache")):
@@ -137,9 +139,9 @@ class SQLiteCache(Cache):
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
         self._local = threading.local()
         self._create_table()
-    
+
     def _get_connection(self) -> sqlite3.Connection:
-        if not hasattr(self._local, 'conn_wrapper'):
+        if not hasattr(self._local, "conn_wrapper"):
             self._local.conn_wrapper = ThreadLocalConnection(self.db_path)
         return self._local.conn_wrapper.connection
 
@@ -209,6 +211,7 @@ class SQLiteCache(Cache):
             conn.execute("DELETE FROM cache")
         if max_size is not None:
             self.max_size = max_size
+
 
 class InMemoryCache(Cache):
     def __init__(self, max_size: int):
