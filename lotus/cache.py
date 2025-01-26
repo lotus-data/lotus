@@ -119,7 +119,7 @@ class ThreadLocalConnection:
 
     def __init__(self, db_path: str):
         self._db_path = db_path
-        self._conn = None
+        self._conn: sqlite3.Connection | None = None
 
     @property
     def connection(self) -> sqlite3.Connection:
