@@ -42,7 +42,7 @@ class FaissVS(VS):
         return vecs[ids]
 
     def __call__(
-        self, embedded_queries, K: int, **kwargs: dict[str, Any]
+        self, query_vectors, K: int, **kwargs: dict[str, Any]
     ) -> RMOutput:
         
         """
@@ -58,6 +58,6 @@ class FaissVS(VS):
         if self.faiss_index is None:
             raise ValueError("Index not loaded")
 
-        distances, indices = self.faiss_index.search(embedded_queries, K)
+        distances, indices = self.faiss_index.search(query_vectors, K)
         return RMOutput(distances=distances, indices=indices)
 

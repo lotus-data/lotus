@@ -42,7 +42,7 @@ class WeaviateVS(VS):
     def __del__(self):
         self.client.close()
 
-    def index(self, docs: pd.Series, embeddings, index_dir: str):
+    def index(self, docs: pd.Series, embeddings, index_dir: str, **kwargs: dict[str, Any]):
         """Create a collection and add documents with their embeddings"""
         self.index_dir = index_dir
         

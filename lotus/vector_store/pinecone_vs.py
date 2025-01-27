@@ -30,7 +30,7 @@ class PineconeVS(VS):
         return 
 
 
-    def index(self, docs: pd.Series, embeddings: Any,  index_dir: str):
+    def index(self, docs: pd.Series, embeddings: Any,  index_dir: str, **kwargs: dict[str, Any]):
         """Create an index and add documents to it"""
         self.index_dir = index_dir
         

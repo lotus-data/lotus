@@ -18,7 +18,7 @@ class LiteLLMRM(RM):
         factory_string: str = "Flat",
         metric=faiss.METRIC_INNER_PRODUCT,
     ):
-        super().__init__(factory_string, metric)
+        super()
         self.model: str = model
         self.max_batch_size: int = max_batch_size
 

@@ -32,7 +32,7 @@ class ChromaVS(VS):
     def __del__(self):
         return
 
-    def index(self, docs: Any, embeddings: Any, index_dir: str):
+    def index(self, docs: Any, embeddings: Any, index_dir: str, **kwargs: dict[str, Any]):
         """Create a collection and add documents with their embeddings"""
         self.index_dir = index_dir
         

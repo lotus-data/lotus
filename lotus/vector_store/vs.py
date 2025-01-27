@@ -30,7 +30,7 @@ class VS(ABC):
         self.max_batch_size:int = 64
 
     @abstractmethod
-    def index(self, docs, embeddings: Any, collection_name: str):
+    def index(self, docs, embeddings: Any, index_dir: str, **kwargs: dict[str, Any]):
         """
         Create index and store it in vector store 
         """
