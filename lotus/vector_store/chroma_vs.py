@@ -3,7 +3,6 @@ from typing import Any, Mapping, Union
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
-from PIL import Image
 from tqdm import tqdm
 
 from lotus.types import RMOutput
@@ -19,12 +18,12 @@ except ImportError as err:
     ) from err 
 
 class ChromaVS(VS):
-    def __init__(self, embedding_model: str, max_batch_size: int = 64):
+    def __init__(self, max_batch_size: int = 64):
 
         client: ClientAPI = Client()
 
         """Initialize with ChromaDB client and embedding model"""
-        super().__init__(embedding_model)
+        super()
         self.client = client
         self.collection: Collection | None = None
         self.index_dir = None
@@ -33,7 +32,7 @@ class ChromaVS(VS):
     def __del__(self):
         return
 
-    def index(self, docs: pd.Series, index_dir: str):
+    def index(self, docs: Any, embeddings: Any, index_dir: str):
         """Create a collection and add documents with their embeddings"""
         self.index_dir = index_dir
         
@@ -45,9 +44,6 @@ class ChromaVS(VS):
         
         # Convert docs to list if it's a pandas Series
         docs_list = docs.tolist() if isinstance(docs, pd.Series) else docs
-        
-        # Generate embeddings
-        embeddings = self._batch_embed(docs_list)
         
         # Prepare documents for addition
         ids = [str(i) for i in range(len(docs_list))]
@@ -74,7 +70,7 @@ class ChromaVS(VS):
 
     def __call__(
         self,
-        queries: Union[pd.Series, str, Image.Image, list, NDArray[np.float64]],
+        query_vectors,
         K: int,
         **kwargs: dict[str, Any]
     ) -> RMOutput:
@@ -82,6 +78,8 @@ class ChromaVS(VS):
         if self.collection is None:
             raise ValueError("No collection loaded. Call load_index first.")
 
+
+        """
         # Convert single query to list
         if isinstance(queries, (str, Image.Image)):
             queries = [queries]
@@ -95,6 +93,8 @@ class ChromaVS(VS):
                 queries = queries.tolist()
             # Create embeddings for text queries
             query_vectors = self._batch_embed(queries)
+
+        """
 
         # Perform searches
         all_distances = []

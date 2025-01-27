@@ -1,19 +1,17 @@
 import os
 import pickle
-from abc import abstractmethod
 from typing import Any
 
 import faiss
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
-from PIL import Image
 
-from lotus.models.rm import RM
 from lotus.types import RMOutput
+from lotus.vector_store.vs import VS
 
 
-class FaissRM(RM):
+class FaissVS(VS):
     def __init__(self, factory_string: str = "Flat", metric=faiss.METRIC_INNER_PRODUCT):
         super().__init__()
         self.factory_string = factory_string
@@ -22,15 +20,14 @@ class FaissRM(RM):
         self.faiss_index: faiss.Index | None = None
         self.vecs: NDArray[np.float64] | None = None
 
-    def index(self, docs: pd.Series, index_dir: str, **kwargs: dict[str, Any]) -> None:
-        vecs = self._embed(docs)
-        self.faiss_index = faiss.index_factory(vecs.shape[1], self.factory_string, self.metric)
-        self.faiss_index.add(vecs)
+    def index(self, docs: pd.Series, embeddings, index_dir: str, **kwargs: dict[str, Any]) -> None:
+        self.faiss_index = faiss.index_factory(embeddings.shape[1], self.factory_string, self.metric)
+        self.faiss_index.add(embeddings)
         self.index_dir = index_dir
 
         os.makedirs(index_dir, exist_ok=True)
         with open(f"{index_dir}/vecs", "wb") as fp:
-            pickle.dump(vecs, fp)
+            pickle.dump(embeddings, fp)
         faiss.write_index(self.faiss_index, f"{index_dir}/index")
 
     def load_index(self, index_dir: str) -> None:
@@ -45,8 +42,11 @@ class FaissRM(RM):
         return vecs[ids]
 
     def __call__(
-        self, queries: pd.Series | str | Image.Image | list | NDArray[np.float64], K: int, **kwargs: dict[str, Any]
+        self, embedded_queries, K: int, **kwargs: dict[str, Any]
     ) -> RMOutput:
+        
+        """
+        do this processing in the rm 
         if isinstance(queries, str) or isinstance(queries, Image.Image):
             queries = [queries]
 
@@ -54,13 +54,10 @@ class FaissRM(RM):
             embedded_queries = self._embed(queries)
         else:
             embedded_queries = np.asarray(queries, dtype=np.float32)
-
+        """
         if self.faiss_index is None:
             raise ValueError("Index not loaded")
 
         distances, indices = self.faiss_index.search(embedded_queries, K)
         return RMOutput(distances=distances, indices=indices)
 
-    @abstractmethod
-    def _embed(self, docs: pd.Series | list) -> NDArray[np.float64]:
-        pass

@@ -1,9 +1,8 @@
-from typing import Any, Union
+from typing import Any
 
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
-from PIL import Image
 from tqdm import tqdm
 
 from lotus.types import RMOutput
@@ -16,7 +15,7 @@ except ImportError as err:
     raise ImportError("Please install the qdrant client") from err
 
 class QdrantVS(VS):
-    def __init__(self, embedding_model: str, max_batch_size: int = 64):
+    def __init__(self, max_batch_size: int = 64):
 
         API_KEY = '_Mic3dVln2gAkS6NLyia6p-CCyMScK42ayuq8Rapm5-xsV5j5_UlIA'
 
@@ -28,20 +27,19 @@ class QdrantVS(VS):
         ) 
 
         """Initialize with Qdrant client and embedding model"""
-        super().__init__(embedding_model)  # Fixed the super() call syntax
+        super() # Fixed the super() call syntax
         self.client: QdrantClient = client
         self.max_batch_size = max_batch_size
 
     def __del__(self):
         self.client.close()
 
-    def index(self, docs: pd.Series, index_dir: str):
+    def index(self, docs:pd.Series, embeddings, index_dir: str):
         """Create a collection and add documents with their embeddings"""
         self.index_dir = index_dir
 
         # Get sample embedding to determine vector dimension
-        sample_embedding = self._embed([docs.iloc[0]])
-        dimension = sample_embedding.shape[1]
+        dimension = embeddings.shape[1]
         
         # Create collection if it doesn't exist
         if not self.client.collection_exists(index_dir):
@@ -53,9 +51,6 @@ class QdrantVS(VS):
         # Convert docs to list if it's a pandas Series
         docs_list = docs.tolist() if isinstance(docs, pd.Series) else docs
         
-        # Generate embeddings
-        embeddings = self._batch_embed(docs_list)
-
         # Prepare points for upload
         points = []
         for idx, (doc, embedding) in enumerate(zip(docs_list, embeddings)):
@@ -87,13 +82,17 @@ class QdrantVS(VS):
 
     def __call__(
         self,
-        queries: Union[pd.Series, str, Image.Image, list, NDArray[np.float64]],
+        query_vectors,
         K: int,
         **kwargs: dict[str, Any]
     ) -> RMOutput:
         """Perform vector search using Qdrant"""
         if self.index_dir is None:
             raise ValueError("No collection loaded. Call load_index first.")
+
+        """
+
+        do this in retriever module before passing into here 
 
         # Convert single query to list
         if isinstance(queries, (str, Image.Image)):
@@ -108,6 +107,7 @@ class QdrantVS(VS):
                 queries = queries.tolist()
             # Create embeddings for text queries
             query_vectors = self._batch_embed(queries)
+        """
 
         # Perform searches
         all_distances = []

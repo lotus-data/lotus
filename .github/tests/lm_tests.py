@@ -8,6 +8,7 @@ import lotus
 from lotus.cache import CacheConfig, CacheFactory, CacheType
 from lotus.models import LM, SentenceTransformersRM
 from lotus.types import CascadeArgs
+from lotus.vector_store import FaissVS
 
 ################################################################################
 # Setup
@@ -289,7 +290,8 @@ def test_filter_cascade(setup_models):
 def test_join_cascade(setup_models):
     models = setup_models
     rm = SentenceTransformersRM(model="intfloat/e5-base-v2")
-    lotus.settings.configure(lm=models["gpt-4o-mini"], rm=rm)
+    vs = FaissVS() 
+    lotus.settings.configure(lm=models["gpt-4o-mini"], rm=rm, vs=vs)
 
     data1 = {
         "School": [

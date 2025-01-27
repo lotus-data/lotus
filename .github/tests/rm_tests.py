@@ -5,7 +5,7 @@ import pytest
 
 import lotus
 from lotus.models import CrossEncoderReranker, LiteLLMRM, SentenceTransformersRM
-from lotus.vector_store import ChromaVS, PineconeVS, QdrantVS, WeaviateVS
+from lotus.vector_store import ChromaVS, FaissVS, PineconeVS, QdrantVS, WeaviateVS
 
 ################################################################################
 # Setup
@@ -32,6 +32,7 @@ MODEL_NAME_TO_CLS = {
 }
 
 VECTOR_STORE_TO_CLS = {
+    'local': FaissVS,
     'weaviate':WeaviateVS,
     'pinecone': PineconeVS,
     'chroma': ChromaVS,
@@ -56,13 +57,13 @@ def setup_models():
 
 @pytest.fixture(scope='session')
 def setup_vs():
-    vs_and_embed_model = {}
+    vs_model = {}
 
     for vs in VECTOR_STORE_TO_CLS:
         for model_name in ENABLED_MODEL_NAMES:
-            vs_and_embed_model[(vs, model_name)] = VECTOR_STORE_TO_CLS[vs](embedding_model=model_name)
+            vs_model[model_name] = VECTOR_STORE_TO_CLS[vs]()
 
-    return vs_and_embed_model
+    return vs_model
 
 ################################################################################
 # RM Only Tests
@@ -70,7 +71,8 @@ def setup_vs():
 @pytest.mark.parametrize("model", get_enabled("intfloat/e5-small-v2", "text-embedding-3-small"))
 def test_cluster_by(setup_models, model):
     rm = setup_models[model]
-    lotus.settings.configure(rm=rm)
+    vs = FaissVS()
+    lotus.settings.configure(rm=rm, vs=vs)
 
     data = {
         "Course Name": [
@@ -99,7 +101,9 @@ def test_cluster_by(setup_models, model):
 @pytest.mark.parametrize("model", get_enabled("intfloat/e5-small-v2", "text-embedding-3-small"))
 def test_search_rm_only(setup_models, model):
     rm = setup_models[model]
-    lotus.settings.configure(rm=rm)
+    vs = FaissVS()
+
+    lotus.settings.configure(rm=rm, vs=vs)
 
     data = {
         "Course Name": [
@@ -118,7 +122,8 @@ def test_search_rm_only(setup_models, model):
 @pytest.mark.parametrize("model", get_enabled("intfloat/e5-small-v2", "text-embedding-3-small"))
 def test_sim_join(setup_models, model):
     rm = setup_models[model]
-    lotus.settings.configure(rm=rm)
+    vs = FaissVS() 
+    lotus.settings.configure(rm=rm, vs=vs)
 
     data1 = {
         "Course Name": [
@@ -144,7 +149,8 @@ def test_sim_join(setup_models, model):
 )
 def test_dedup(setup_models):
     rm = setup_models["intfloat/e5-small-v2"]
-    lotus.settings.configure(rm=rm)
+    vs = FaissVS() 
+    lotus.settings.configure(rm=rm,vs=vs)
     data = {
         "Text": [
             "Probability and Random Processes",
@@ -171,8 +177,9 @@ def test_dedup(setup_models):
 @pytest.mark.parametrize("vs", VECTOR_STORE_TO_CLS.keys())
 @pytest.mark.parametrize("model", get_enabled("intfloat/e5-small-v2", "text-embedding-3-small"))
 def test_vs_cluster_by(setup_vs, vs, model):
-    my_vs = setup_vs[(vs, model)]
-    lotus.settings.configure(vs=my_vs)
+    rm = setup_models[model]
+    my_vs = setup_vs[vs]
+    lotus.settings.configure(rm=rm, vs=my_vs)
 
     data = {
         "Course Name": [
@@ -200,8 +207,9 @@ def test_vs_cluster_by(setup_vs, vs, model):
 @pytest.mark.parametrize("vs", VECTOR_STORE_TO_CLS.keys())
 @pytest.mark.parametrize("model", get_enabled("intfloat/e5-small-v2", "text-embedding-3-small"))
 def test_vs_search_rm_only(setup_vs, vs, model):
-    my_vs = setup_vs[(vs, model)]
-    lotus.settings.configure(vs=my_vs)
+    rm = setup_models[model]
+    my_vs = setup_vs[vs]
+    lotus.settings.configure(rm=rm, vs=my_vs)
 
     data = {
         "Course Name": [
@@ -219,8 +227,9 @@ def test_vs_search_rm_only(setup_vs, vs, model):
 @pytest.mark.parametrize("vs", VECTOR_STORE_TO_CLS.keys())
 @pytest.mark.parametrize("model", get_enabled("intfloat/e5-small-v2", "text-embedding-3-small"))
 def test_vs_sim_join(setup_vs, vs, model):
-    my_vs = setup_vs[(vs, model)]
-    lotus.settings.configure(vs=my_vs)
+    rm = setup_models[model]
+    my_vs = setup_vs[vs]
+    lotus.settings.configure(rm=rm, vs=my_vs)
 
     data1 = {
         "Course Name": [
@@ -246,8 +255,9 @@ def test_vs_sim_join(setup_vs, vs, model):
 )
 @pytest.mark.parametrize("vs", VECTOR_STORE_TO_CLS.keys())
 def test_vs_dedup(setup_vs, vs):
-    my_vs = setup_vs[(vs ,"intfloat/e5-small-v2")]
-    lotus.settings.configure(vs=my_vs)
+    rm = setup_models["intfloat/e5-small-v2"]
+    my_vs = setup_vs[vs]
+    lotus.settings.configure(rm=rm, vs=my_vs)
     data = {
         "Text": [
             "Probability and Random Processes",
@@ -294,8 +304,9 @@ def test_search_reranker_only(setup_models, model):
 def test_search(setup_models):
     models = setup_models
     rm = models["intfloat/e5-small-v2"]
+    vs = FaissVS() 
     reranker = models["mixedbread-ai/mxbai-rerank-xsmall-v1"]
-    lotus.settings.configure(rm=rm, reranker=reranker)
+    lotus.settings.configure(rm=rm, vs = vs, reranker=reranker)
 
     data = {
         "Course Name": [

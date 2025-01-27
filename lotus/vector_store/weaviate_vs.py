@@ -1,9 +1,8 @@
-from typing import Any, List, Union
+from typing import Any, List
 
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
-from PIL import Image
 
 from lotus.types import RMOutput
 from lotus.vector_store.vs import VS
@@ -21,7 +20,7 @@ except ImportError as err:
     raise ImportError("Please install the weaviate client") from err 
 
 class WeaviateVS(VS):
-    def __init__(self, embedding_model: str, max_batch_size: int = 64):
+    def __init__(self, max_batch_size: int = 64):
 
         REST_URL = 'https://dovieiknqr20pmgoticrmw.c0.us-west3.gcp.weaviate.cloud'
 
@@ -36,14 +35,14 @@ class WeaviateVS(VS):
         )
 
         """Initialize with Weaviate client and embedding model"""
-        super().__init__(embedding_model)
+        super()
         self.client = weaviate_client
         self.max_batch_size = max_batch_size
 
     def __del__(self):
         self.client.close()
 
-    def index(self, docs: pd.Series, index_dir: str):
+    def index(self, docs: pd.Series, embeddings, index_dir: str):
         """Create a collection and add documents with their embeddings"""
         self.index_dir = index_dir
         
@@ -66,7 +65,6 @@ class WeaviateVS(VS):
 
         # Generate embeddings for all documents
         docs_list = docs.tolist() if isinstance(docs, pd.Series) else docs
-        embeddings = self._batch_embed(docs_list)
 
         # Add documents to collection with their embeddings
         with collection.batch.dynamic() as batch:
@@ -91,7 +89,7 @@ class WeaviateVS(VS):
             raise ValueError(f"Collection {index_dir} not found")
 
     def __call__(self,
-        queries: Union[pd.Series, str, Image.Image, list, NDArray[np.float64]],
+        query_vectors,
         K: int,
         **kwargs: dict[str, Any]
     ) -> RMOutput:
@@ -101,6 +99,9 @@ class WeaviateVS(VS):
 
         collection = self.client.collections.get(self.index_dir)
 
+        """
+
+        do this in the retriever module
         # Convert single query to list
         if isinstance(queries, (str, Image.Image)):
             queries = [queries]
@@ -111,6 +112,7 @@ class WeaviateVS(VS):
         else:
             # Generate embeddings for text queries
             query_vectors = self._batch_embed(queries)
+        """
 
         # Perform searches
         results = []

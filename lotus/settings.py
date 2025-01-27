@@ -8,7 +8,7 @@ from lotus.types import SerializationFormat
 class Settings:
     # Models
     lm: lotus.models.LM | None = None
-    rm: lotus.models.RM | None = None
+    rm: lotus.models.RM | None = None # supposed to only generate embeddings 
     helper_lm: lotus.models.LM | None = None
     reranker: lotus.models.Reranker | None = None
     vs: lotus.vector_store.VS | None = None 
@@ -25,10 +25,7 @@ class Settings:
 
     def configure(self, **kwargs):
         
-        if 'rm' in kwargs and 'vs' in kwargs:
-            raise ValueError('Invalid settings: you can only set a retriever module or a vector store, but not both')
 
-        
         for key, value in kwargs.items():
             if not hasattr(self, key):
                 raise ValueError(f"Invalid setting: {key}")
@@ -37,8 +34,6 @@ class Settings:
     def __str__(self):
         return str(vars(self))
     
-    def get_rm_or_vs(self):
-        return self.rm or self.vs 
 
 
 settings = Settings()

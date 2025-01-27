@@ -47,25 +47,27 @@ class SemSearchDataframe:
         assert not (K is None and n_rerank is None), "K or n_rerank must be provided"
         if K is not None:
             # get retriever model and index
-            rm = lotus.settings.get_rm_or_vs()
-            if rm is None:
+            rm = lotus.settings.rm
+            vs = lotus.settings.vs 
+            if rm is None or vs is None :
                 raise ValueError(
-                    "The retrieval model must be an instance of RM or VS. Please configure a valid retrieval model pr vector store using lotus.settings.configure()"
+                    "The retrieval model must be an instance of RM, and the vector store should be an instance of VS. Please configure a valid retrieval model and vector store using lotus.settings.configure()"
                 )
 
             col_index_dir = self._obj.attrs["index_dirs"][col_name]
-            if rm.index_dir != col_index_dir:
-                rm.load_index(col_index_dir)
-            assert rm.index_dir == col_index_dir
+            if vs.index_dir != col_index_dir:
+                vs.load_index(col_index_dir)
+            assert vs.index_dir == col_index_dir
 
             df_idxs = self._obj.index
             K = min(K, len(df_idxs))
 
             search_K = K
             while True:
-                rm_output: RMOutput = rm(query, search_K)
-                doc_idxs = rm_output.indices[0]
-                scores = rm_output.distances[0]
+                query_vectors = rm.convert_query_to_query_vector(query)
+                vs_output: RMOutput = vs(query_vectors, search_K)
+                doc_idxs = vs_output.indices[0]
+                scores = vs_output.distances[0]
                 assert len(doc_idxs) == len(scores)
 
                 postfiltered_doc_idxs = []

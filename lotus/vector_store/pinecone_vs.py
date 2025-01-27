@@ -1,9 +1,8 @@
-from typing import Any, Union
+from typing import Any
 
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
-from PIL import Image
 from tqdm import tqdm
 
 from lotus.types import RMOutput
@@ -17,12 +16,12 @@ except ImportError as err:
     ) from err
 
 class PineconeVS(VS):
-    def __init__(self, embedding_model: str, max_batch_size: int = 64):
+    def __init__(self, max_batch_size: int = 64):
 
         api_key = 'pcsk_45ecSY_CW62eJeL4jwj6dUfaqM6j9dL3uwK12rudednzGisWMxJv9bHH2DLz6tWoY91W84' 
 
         """Initialize Pinecone client with API key and environment"""
-        super().__init__(embedding_model)
+        super()
         self.pinecone = Pinecone(api_key=api_key)
         self.pc_index:Index | None = None 
         self.max_batch_size = max_batch_size
@@ -31,13 +30,11 @@ class PineconeVS(VS):
         return 
 
 
-    def index(self, docs: pd.Series, index_dir: str):
+    def index(self, docs: pd.Series, embeddings: Any,  index_dir: str):
         """Create an index and add documents to it"""
         self.index_dir = index_dir
         
-        # Get sample embedding to determine vector dimension
-        sample_embedding = self._embed([docs.iloc[0]])
-        dimension = sample_embedding.shape[1]
+        dimension = embeddings.shape[1]
         
         # Check if index already exists
         if index_dir not in self.pinecone.list_indexes():
@@ -53,9 +50,6 @@ class PineconeVS(VS):
         
         # Convert docs to list if it's a pandas Series
         docs_list = docs.tolist() if isinstance(docs, pd.Series) else docs
-        
-        # Create embeddings using the provided embedding model
-        embeddings = self._batch_embed(docs_list)
         
         # Prepare vectors for upsert
         vectors = []
@@ -85,7 +79,7 @@ class PineconeVS(VS):
 
     def __call__(
         self,
-        queries: Union[pd.Series, str, Image.Image, list, NDArray[np.float64]],
+        query_vectors,
         K: int,
         **kwargs: dict[str, Any]
     ) -> RMOutput:
@@ -93,6 +87,7 @@ class PineconeVS(VS):
         if self.pc_index is None:
             raise ValueError("No index loaded. Call load_index first.")
 
+        """
         # Convert single query to list
         if isinstance(queries, (str, Image.Image)):
             queries = [queries]
@@ -106,6 +101,7 @@ class PineconeVS(VS):
                 queries = queries.tolist()
             # Create embeddings for text queries
             query_vectors = self._batch_embed(queries)
+        """
 
         # Perform searches
         all_distances = []
