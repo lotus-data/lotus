@@ -176,7 +176,7 @@ def test_dedup(setup_models):
 
 @pytest.mark.parametrize("vs", VECTOR_STORE_TO_CLS.keys())
 @pytest.mark.parametrize("model", get_enabled("intfloat/e5-small-v2", "text-embedding-3-small"))
-def test_vs_cluster_by(setup_vs, vs, model):
+def test_vs_cluster_by(setup_models, setup_vs, vs, model):
     rm = setup_models[model]
     my_vs = setup_vs[vs]
     lotus.settings.configure(rm=rm, vs=my_vs)
@@ -206,7 +206,7 @@ def test_vs_cluster_by(setup_vs, vs, model):
 
 @pytest.mark.parametrize("vs", VECTOR_STORE_TO_CLS.keys())
 @pytest.mark.parametrize("model", get_enabled("intfloat/e5-small-v2", "text-embedding-3-small"))
-def test_vs_search_rm_only(setup_vs, vs, model):
+def test_vs_search_rm_only(setup_models, setup_vs, vs, model):
     rm = setup_models[model]
     my_vs = setup_vs[vs]
     lotus.settings.configure(rm=rm, vs=my_vs)
@@ -226,7 +226,7 @@ def test_vs_search_rm_only(setup_vs, vs, model):
 
 @pytest.mark.parametrize("vs", VECTOR_STORE_TO_CLS.keys())
 @pytest.mark.parametrize("model", get_enabled("intfloat/e5-small-v2", "text-embedding-3-small"))
-def test_vs_sim_join(setup_vs, vs, model):
+def test_vs_sim_join(setup_models, setup_vs, vs, model):
     rm = setup_models[model]
     my_vs = setup_vs[vs]
     lotus.settings.configure(rm=rm, vs=my_vs)
@@ -254,7 +254,7 @@ def test_vs_sim_join(setup_vs, vs, model):
     reason="Skipping test because intfloat/e5-small-v2 is not enabled",
 )
 @pytest.mark.parametrize("vs", VECTOR_STORE_TO_CLS.keys())
-def test_vs_dedup(setup_vs, vs):
+def test_vs_dedup(setup_models, setup_vs, vs):
     rm = setup_models["intfloat/e5-small-v2"]
     my_vs = setup_vs[vs]
     lotus.settings.configure(rm=rm, vs=my_vs)
