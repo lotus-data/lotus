@@ -60,8 +60,7 @@ def setup_vs():
     vs_model = {}
 
     for vs in VECTOR_STORE_TO_CLS:
-        for model_name in ENABLED_MODEL_NAMES:
-            vs_model[model_name] = VECTOR_STORE_TO_CLS[vs]()
+        vs_model[vs] = VECTOR_STORE_TO_CLS[vs]()
 
     return vs_model
 
