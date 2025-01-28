@@ -9,7 +9,7 @@ from lotus.types import RMOutput
 from lotus.vector_store.vs import VS
 
 try:
-    from pinecone import Index, Pinecone
+    from pinecone import Index, Pinecone, ServerlessSpec
 except ImportError as err:
     raise ImportError(
         "The pinecone library is required to use PineconeVS. Install it with `pip install pinecone`",
@@ -42,7 +42,11 @@ class PineconeVS(VS):
             self.pinecone.create_index(
                 name=index_dir,
                 dimension=dimension,
-                metric="cosine"
+                metric="cosine",
+                spec=ServerlessSpec(
+                    cloud='aws', 
+                    region='us-west-1'
+                )
             )
         
         # Connect to index

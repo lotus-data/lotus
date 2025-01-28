@@ -39,7 +39,7 @@ class QdrantVS(VS):
         self.index_dir = index_dir
 
         # Get sample embedding to determine vector dimension
-        dimension = embeddings.shape[1]
+        dimension = embeddings.reshape((len(embeddings), -1)).shape()[1]
         
         # Create collection if it doesn't exist
         if not self.client.collection_exists(index_dir):

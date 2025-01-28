@@ -150,8 +150,8 @@ class ChromaVS(VS):
             include=[IncludeEnum.embeddings]
         )
 
-        if not results['embeddings']:
-            raise ValueError("No vectors found for the given ids")
+        if not results['embeddings'].all():
+            raise ValueError("No vectors found for the given ids", results['embeddings'])
 
         return np.array(results['embeddings'], dtype=np.float64)
         

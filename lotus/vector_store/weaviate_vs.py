@@ -8,14 +8,10 @@ from lotus.types import RMOutput
 from lotus.vector_store.vs import VS
 
 try:
-    import uuid
-    from uuid import uuid4
-
     import weaviate
     from weaviate.classes.config import Configure, DataType, Property
     from weaviate.classes.init import Auth
     from weaviate.classes.query import MetadataQuery
-    from weaviate.util import get_valid_uuid
 except ImportError as err:
     raise ImportError("Please install the weaviate client") from err 
 
@@ -47,21 +43,24 @@ class WeaviateVS(VS):
         self.index_dir = index_dir
         
         # Create collection without vectorizer config (we'll provide vectors directly)
-        collection = self.client.collections.create(
-            name=index_dir,
-            properties=[
-                Property(
-                    name='content', 
-                    data_type=DataType.TEXT
-                ),
-                Property(
-                    name='doc_id',
-                    data_type=DataType.INT,
-                )
-            ],
-            vectorizer_config=None,  # No vectorizer needed as we provide vectors
-            vector_index_config=Configure.VectorIndex.dynamic()
-        )
+        if not self.client.collections.exists(index_dir):
+            collection = self.client.collections.create(
+                name=index_dir,
+                properties=[
+                    Property(
+                        name='content', 
+                        data_type=DataType.TEXT
+                    ),
+                    Property(
+                        name='doc_id',
+                        data_type=DataType.INT,
+                    )
+                ],
+                vectorizer_config=None,  # No vectorizer needed as we provide vectors
+                vector_index_config=Configure.VectorIndex.dynamic()
+            )
+        else:
+            collection = self.client.collections.get(index_dir)
 
         # Generate embeddings for all documents
         docs_list = docs.tolist() if isinstance(docs, pd.Series) else docs
@@ -76,7 +75,6 @@ class WeaviateVS(VS):
                 batch.add_object(
                     properties=properties,
                      vector=embedding.tolist(),  # Provide pre-computed vector
-                    uuid=get_valid_uuid(str(uuid4()))
                 )
 
     def load_index(self, index_dir: str):
@@ -123,7 +121,6 @@ class WeaviateVS(VS):
                     limit=K,
                     return_metadata=MetadataQuery(distance=True)
                     ))
-            response.objects[0].uuid
             results.append(response)
 
         # Process results into expected format
@@ -136,13 +133,13 @@ class WeaviateVS(VS):
             distances:List[float] = []
             indices = []
             for obj in objects:
-                indices.append(obj.uuid)
+                indices.append(obj.properties.get('doc_id', -1))
                 # Convert cosine distance to similarity score
                 distance = obj.metadata.distance if obj.metadata and obj.metadata.distance is not None else 1.0
                 distances.append(1 - distance)  # Convert distance to similarity                
             # Pad results if fewer than K matches
             while len(indices) < K:
-                indices.append(uuid.UUID(int=0))
+                indices.append(-1)
                 distances.append(0.0)
                 
             all_distances.append(distances)
@@ -161,10 +158,12 @@ class WeaviateVS(VS):
         vectors = []
 
         for id in ids:
-            response = collection.query.fetch_object_by_id(uuid=id)
-            if response:
-                vectors.append(response.vector)
-            else:
+            exists = False 
+            for obj in collection.query.fetch_objects().objects:
+                if id == obj.properties.get('doc_id', -1):
+                    exists = True
+                    vectors.append(obj.vector)             
+            if not exists:
                 raise ValueError(f'{id} does not exist in {index_dir}')
         return np.array(vectors, dtype=np.float64)
         
