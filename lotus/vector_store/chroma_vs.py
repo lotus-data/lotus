@@ -37,7 +37,7 @@ class ChromaVS(VS):
         self.index_dir = index_dir
         
         # Create collection without embedding function (we'll provide embeddings directly)
-        self.collection = self.client.create_collection(
+        self.collection = self.client.get_or_create_collection(
             name=index_dir,
             metadata={"hnsw:space": "cosine"}  # Use cosine similarity for consistency
         )
