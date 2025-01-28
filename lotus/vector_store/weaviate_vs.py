@@ -9,7 +9,7 @@ from lotus.vector_store.vs import VS
 
 try:
     import weaviate
-    from weaviate.classes.config import DataType, Property
+    from weaviate.classes.config import Configure, DataType, Property
     from weaviate.classes.init import Auth
     from weaviate.classes.query import MetadataQuery
 except ImportError as err:
@@ -57,7 +57,7 @@ class WeaviateVS(VS):
                     )
                 ],
                 vectorizer_config=None,  # No vectorizer needed as we provide vectors
-                #vector_index_config=Configure.VectorIndex.dynamic()
+                vector_index_config=Configure.VectorIndex.hnsw()
             )
         else:
             collection = self.client.collections.get(index_dir)
