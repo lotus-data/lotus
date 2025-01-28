@@ -45,7 +45,7 @@ class PineconeVS(VS):
                 metric="cosine",
                 spec=ServerlessSpec(
                     cloud='aws', 
-                    region='us-west-1'
+                    region='us-west-2'
                 )
             )
         
