@@ -48,6 +48,18 @@ class PineconeVS(VS):
                     region='us-east-1'
                 )
             )
+        elif self.pinecone.describe_index(index_dir).dimension != dimension:
+            # resolve any potential dimension-mismatch errors
+            self.pinecone.delete_index(index_dir) 
+            self.pinecone.create_index(
+                name=index_dir,
+                dimension=dimension,
+                metric="cosine",
+                spec=ServerlessSpec(
+                    cloud='aws', 
+                    region='us-east-1'
+                )
+            )
         
         # Connect to index
         self.pc_index = self.pinecone.Index(index_dir)

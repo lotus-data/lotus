@@ -38,9 +38,17 @@ class WeaviateVS(VS):
     def __del__(self):
         self.client.close()
 
+    def get_collection_dimension(self, index_dir):
+        schema = self.client.schema.get()
+        for cls in schema['classes']:
+            if cls['class'] == index_dir:
+                return cls['vectorizer']['config']['dimensions']
+
     def index(self, docs: pd.Series, embeddings, index_dir: str, **kwargs: dict[str, Any]):
         """Create a collection and add documents with their embeddings"""
         self.index_dir = index_dir
+
+        embedding_dim = np.reshape(embeddings, (len(embeddings), -1)).shape[1]
         
         # Create collection without vectorizer config (we'll provide vectors directly)
         if not self.client.collections.exists(index_dir):
@@ -61,9 +69,28 @@ class WeaviateVS(VS):
             )
         else:
             collection = self.client.collections.get(index_dir)
+            if self.get_collection_dimension(index_dir) != embedding_dim:
+                self.client.collections.delete(index_dir)
+                collection = self.client.collections.create(
+                    name=index_dir,
+                    properties=[
+                        Property(
+                            name='content', 
+                            data_type=DataType.TEXT
+                        ),
+                        Property(
+                            name='doc_id',
+                            data_type=DataType.INT,
+                        )
+                    ],
+                    vectorizer_config=None,  # No vectorizer needed as we provide vectors
+                    vector_index_config=Configure.VectorIndex.hnsw()
+                )
 
+        
         # Generate embeddings for all documents
         docs_list = docs.tolist() if isinstance(docs, pd.Series) else docs
+
 
         # Add documents to collection with their embeddings
         with collection.batch.dynamic() as batch:
@@ -162,8 +189,8 @@ class WeaviateVS(VS):
             for obj in collection.query.fetch_objects().objects:
                 if id == obj.properties.get('doc_id', -1):
                     exists = True
-                    print(f'vector example {obj.vector}')
-                    vectors.append(obj.vector)             
+                    print(f'vector example {obj.vector} {obj.vector.values()}')
+                    vectors.append(obj.vector.values())             
             if not exists:
                 raise ValueError(f'{id} does not exist in {index_dir}')
         return np.array(vectors, dtype=np.float64)
