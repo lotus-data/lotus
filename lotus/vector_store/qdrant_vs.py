@@ -48,7 +48,7 @@ class QdrantVS(VS):
                 vectors_config=VectorParams(size=dimension, distance=Distance.COSINE)
             )
         collection_info = self.client.get_collection(index_dir)
-        if collection_info['vectors']['size'] != dimension:
+        if collection_info.config.params.vectors.size != dimension:
             # if there's a discrepency, create a new version of that collection 
             self.client.delete_collection(index_dir)
             self.client.create_collection(

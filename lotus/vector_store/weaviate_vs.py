@@ -39,10 +39,7 @@ class WeaviateVS(VS):
         self.client.close()
 
     def get_collection_dimension(self, index_dir):
-        schema = self.client.schema.get()
-        for cls in schema['classes']:
-            if cls['class'] == index_dir:
-                return cls['vectorizer']['config']['dimensions']
+        self.client.collections.get(index_dir).config
 
     def index(self, docs: pd.Series, embeddings, index_dir: str, **kwargs: dict[str, Any]):
         """Create a collection and add documents with their embeddings"""
@@ -69,7 +66,9 @@ class WeaviateVS(VS):
             )
         else:
             collection = self.client.collections.get(index_dir)
-            if self.get_collection_dimension(index_dir) != embedding_dim:
+            print(self.client.collections.get(index_dir).config)
+            """
+              if self.get_collection_dimension(index_dir) != embedding_dim:
                 self.client.collections.delete(index_dir)
                 collection = self.client.collections.create(
                     name=index_dir,
@@ -86,6 +85,7 @@ class WeaviateVS(VS):
                     vectorizer_config=None,  # No vectorizer needed as we provide vectors
                     vector_index_config=Configure.VectorIndex.hnsw()
                 )
+            """
 
         
         # Generate embeddings for all documents
