@@ -58,7 +58,7 @@ def sem_extract(
     if safe_mode:
         model.print_total_usage()
 
-    return SemanticExtractOutput(**postprocess_output.model_dump())
+    return SemanticExtractOutput(raw_outputs=postprocess_output.raw_outputs, outputs=postprocess_output.outputs)
 
 
 @pd.api.extensions.register_dataframe_accessor("sem_extract")

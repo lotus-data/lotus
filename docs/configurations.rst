@@ -21,8 +21,8 @@ Using the Settings module
 Configurable Parameters
 --------------------------
 
-1. enable_message_cache: 
-    * Description: Enables or Disables cahcing mechanisms
+1. enable_cache: 
+    * Description: Enables or Disables caching mechanisms
     * Default: False
     * Parameters: 
         - cache_type: Type of caching (SQLITE or In_MEMORY)
@@ -31,6 +31,12 @@ Configurable Parameters
     * Note: It is recommended to enable caching
 .. code-block:: python
 
+    import pandas as pd
+
+    import lotus
+    from lotus.models import LM
+    from lotus.cache import CacheFactory, CacheConfig, CacheType
+    
     cache_config = CacheConfig(cache_type=CacheType.SQLITE, max_size=1000)
     cache = CacheFactory.create_cache(cache_config)
 

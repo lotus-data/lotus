@@ -92,7 +92,6 @@ class LM:
 
     def _process_uncached_messages(self, uncached_data, all_kwargs, show_progress_bar, progress_bar_desc):
         """Processes uncached messages in batches and returns responses."""
-        uncached_responses = []
         total_calls = len(uncached_data)
 
         pbar = tqdm(
@@ -101,11 +100,13 @@ class LM:
             disable=not show_progress_bar,
             bar_format="{l_bar}{bar} {n}/{total} LM calls [{elapsed}<{remaining}, {rate_fmt}{postfix}]",
         )
-        for i in range(0, total_calls, self.max_batch_size):
-            batch = [msg for msg, _ in uncached_data[i : i + self.max_batch_size]]
-            uncached_responses.extend(batch_completion(self.model, batch, drop_params=True, **all_kwargs))
 
-            pbar.update(len(batch))
+        batch = [msg for msg, _ in uncached_data]
+        uncached_responses = batch_completion(
+            self.model, batch, drop_params=True, max_workers=self.max_batch_size, **all_kwargs
+        )
+
+        pbar.update(total_calls)
         pbar.close()
 
         return uncached_responses

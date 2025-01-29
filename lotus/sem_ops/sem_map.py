@@ -65,7 +65,11 @@ def sem_map(
     if safe_mode:
         model.print_total_usage()
 
-    return SemanticMapOutput(**postprocess_output.model_dump())
+    return SemanticMapOutput(
+        raw_outputs=postprocess_output.raw_outputs,
+        outputs=postprocess_output.outputs,
+        explanations=postprocess_output.explanations,
+    )
 
 
 @pd.api.extensions.register_dataframe_accessor("sem_map")

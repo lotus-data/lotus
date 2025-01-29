@@ -72,7 +72,12 @@ def sem_filter(
     if safe_mode:
         model.print_total_usage()
 
-    return SemanticFilterOutput(**postprocess_output.model_dump(), logprobs=lm_output.logprobs if logprobs else None)
+    return SemanticFilterOutput(
+        raw_outputs=postprocess_output.raw_outputs,
+        outputs=postprocess_output.outputs,
+        explanations=postprocess_output.explanations,
+        logprobs=lm_output.logprobs if logprobs else None,
+    )
 
 
 def learn_filter_cascade_thresholds(
