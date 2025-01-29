@@ -12,6 +12,7 @@ try:
     from chromadb import Client, ClientAPI
     from chromadb.api import Collection
     from chromadb.api.types import IncludeEnum
+    from chromadb.errors import InvalidDimensionException
 except ImportError as err:
     raise ImportError(
         "The chromadb library is required to use ChromaVS. Install it with `pip install chromadb`"
@@ -53,12 +54,27 @@ class ChromaVS(VS):
         batch_size = 100
         for i in tqdm(range(0, len(docs_list), batch_size), desc="Uploading to ChromaDB"):
             end_idx = min(i + batch_size, len(docs_list))
-            self.collection.add(
-                ids=ids[i:end_idx],
-                documents=docs_list[i:end_idx],
-                embeddings=embeddings[i:end_idx].tolist(),
-                metadatas=metadatas[i:end_idx]
-            )
+            try:
+                self.collection.add(
+                    ids=ids[i:end_idx],
+                    documents=docs_list[i:end_idx],
+                    embeddings=embeddings[i:end_idx].tolist(),
+                    metadatas=metadatas[i:end_idx]
+                )
+            except InvalidDimensionException:
+                # delete, recreate, then add 
+                self.client.delete_collection(index_dir)
+                        # Create collection without embedding function (we'll provide embeddings directly)
+                self.collection = self.client.get_or_create_collection(
+                    name=index_dir,
+                    metadata={"hnsw:space": "cosine"}  # Use cosine similarity for consistency
+                )
+                self.collection.add(
+                    ids=ids[i:end_idx],
+                    documents=docs_list[i:end_idx],
+                    embeddings=embeddings[i:end_idx].tolist(),
+                    metadatas=metadatas[i:end_idx]
+                )
 
     def load_index(self, index_dir: str):
         """Load an existing collection"""

@@ -37,7 +37,7 @@ class PineconeVS(VS):
         dimension = embeddings.shape[1]
         
         # Check if index already exists
-        if index_dir not in self.pinecone.list_indexes():
+        if index_dir not in self.pinecone.list_indexes().names():
             # Create new index with the correct dimension
             self.pinecone.create_index(
                 name=index_dir,
