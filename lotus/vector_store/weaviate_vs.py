@@ -162,6 +162,7 @@ class WeaviateVS(VS):
             for obj in collection.query.fetch_objects().objects:
                 if id == obj.properties.get('doc_id', -1):
                     exists = True
+                    print(f'vector example {obj.vector}')
                     vectors.append(obj.vector)             
             if not exists:
                 raise ValueError(f'{id} does not exist in {index_dir}')
