@@ -77,36 +77,44 @@ def sem_join(
             desc=progress_bar_desc,
             bar_format="{l_bar}{bar} {n}/{total} LM Calls [{elapsed}<{remaining}, {rate_fmt}{postfix}]",
         )
-    # for i1 in enumerate(l1):
+
+    all_docs = []
+    all_ids1 = []
+    all_ids2 = []
     for id1, i1 in zip(ids1, left_multimodal_data):
-        # perform llm filter
         modified_docs = task_instructions.merge_multimodal_info([i1], right_multimodal_data)
-        output = sem_filter(
-            modified_docs,
-            model,
-            user_instruction,
-            examples_multimodal_data=examples_multimodal_data,
-            examples_answers=examples_answers,
-            cot_reasoning=cot_reasoning,
-            default=default,
-            strategy=strategy,
-            show_progress_bar=False,
-        )
-        outputs = output.outputs
-        raw_outputs = output.raw_outputs
-        explanations = output.explanations
+        all_docs.extend(modified_docs)
+        all_ids1.extend([id1] * len(modified_docs))
+        all_ids2.extend(ids2)
 
-        filter_outputs.extend(outputs)
-        all_raw_outputs.extend(raw_outputs)
-        all_explanations.extend(explanations)
+    output = sem_filter(
+        all_docs,
+        model,
+        user_instruction,
+        examples_multimodal_data=examples_multimodal_data,
+        examples_answers=examples_answers,
+        cot_reasoning=cot_reasoning,
+        default=default,
+        strategy=strategy,
+        show_progress_bar=False,
+    )
 
-        join_results.extend(
-            [
-                (id1, ids2[i], explanation)
-                for i, (output, explanation) in enumerate(zip(outputs, explanations))
-                if output
-            ]
-        )
+    outputs = output.outputs
+    raw_outputs = output.raw_outputs
+    explanations = output.explanations
+
+    filter_outputs.extend(outputs)
+    all_raw_outputs.extend(raw_outputs)
+    all_explanations.extend(explanations)
+
+    join_results.extend(
+        [
+            (all_ids1[i], all_ids2[i], explanation)
+            for i, (output, explanation) in enumerate(zip(outputs, explanations))
+            if output
+        ]
+    )
+
     if show_progress_bar:
         pbar.update(len(l1) * len(l2))
         pbar.close()
@@ -217,28 +225,44 @@ def sem_join_cascade(
         bar_format="{l_bar}{bar} {n}/{total} LM calls [{elapsed}<{remaining}, {rate_fmt}{postfix}]",
     )
     # Send low confidence rows to large LM
-    for unique_l1 in helper_low_conf[col1_label].unique():
-        unique_l1_id = helper_low_conf[helper_low_conf[col1_label] == unique_l1]["_left_id"].iloc[0]
-        l2_for_l1 = helper_low_conf[helper_low_conf[col1_label] == unique_l1][col2_label]
-        l2_for_l1_index = helper_low_conf[helper_low_conf[col1_label] == unique_l1]["_right_id"]
-        large_join_output = sem_join(
-            pd.Series([unique_l1]),
-            l2_for_l1,
-            [unique_l1_id],
-            l2_for_l1_index.tolist(),
-            col1_label,
-            col2_label,
-            model,
-            user_instruction,
-            examples_multimodal_data=examples_multimodal_data,
-            examples_answers=examples_answers,
-            cot_reasoning=cot_reasoning,
-            default=default,
-            strategy=strategy,
+    left_multimodal_data = task_instructions.df2multimodal_info(
+        helper_low_conf[[col1_label]].drop_duplicates(), [col1_label]
+    )
+
+    all_docs = []
+    all_ids1 = []
+    all_ids2 = []
+    for id1, i1 in zip(helper_low_conf["_left_id"].unique(), left_multimodal_data):
+        rows_for_l1 = helper_low_conf[helper_low_conf["_left_id"] == id1]
+        modified_docs = task_instructions.merge_multimodal_info(
+            [i1], task_instructions.df2multimodal_info(rows_for_l1[[col2_label]], [col2_label])
         )
-        pbar.update(num_large)
-        pbar.close()
-        join_results.extend(large_join_output.join_results)
+        all_docs.extend(modified_docs)
+        all_ids1.extend([id1] * len(modified_docs))
+        all_ids2.extend(rows_for_l1["_right_id"].tolist())
+
+    output = sem_filter(
+        all_docs,
+        model,
+        user_instruction,
+        examples_multimodal_data=examples_multimodal_data,
+        examples_answers=examples_answers,
+        cot_reasoning=cot_reasoning,
+        default=default,
+        strategy=strategy,
+        show_progress_bar=True,
+    )
+
+    pbar.update(num_large)
+    pbar.close()
+
+    join_results.extend(
+        [
+            (all_ids1[i], all_ids2[i], explanation)
+            for i, (output, explanation) in enumerate(zip(output.outputs, output.explanations))
+            if output
+        ]
+    )
 
     lotus.logger.debug(f"outputs: {filter_outputs}")
     lotus.logger.debug(f"explanations: {all_explanations}")
@@ -286,7 +310,7 @@ def run_sem_sim_join(l1: pd.Series, l2: pd.Series, col1_label: str, col2_label: 
     l2_df = l2.to_frame(name=col2_label)
     l2_df = l2_df.sem_index(col2_label, f"{col2_label}_index")
 
-    K = len(l2) * len(l1)
+    K = len(l2)
     # Run sem_sim_join as helper on the sampled data
     out = l1_df.sem_sim_join(l2_df, left_on=col1_label, right_on=col2_label, K=K, keep_index=True)
 

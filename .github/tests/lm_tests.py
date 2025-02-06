@@ -540,6 +540,9 @@ def test_disable_operator_cache(setup_models, model):
     lm = LM(model="gpt-4o-mini", cache=cache)
     lotus.settings.configure(lm=lm, enable_cache=False)
 
+    lm.reset_cache()
+    lm.reset_stats()
+
     data = {
         "Course Name": [
             "Dynamics and Control of Chemical Processes",
