@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 import requests  # type: ignore
 from PIL import Image
+from pymupdf import Document
 
 import lotus
 
@@ -29,8 +30,6 @@ def cluster(col_name: str, ncentroids: int) -> Callable[[pd.DataFrame, int, bool
         verbose: bool = False,
         method: str = "kmeans",
     ) -> list[int]:
-        
-        
         import faiss
 
         """Cluster by column, and return a series in the dataframe with cluster-ids"""
@@ -64,13 +63,31 @@ def cluster(col_name: str, ncentroids: int) -> Callable[[pd.DataFrame, int, bool
 
         # get nearest centroid to each vector
         scores, indices = kmeans.index.search(vec_set, 1)
-        
+
         # get the cluster centroids
         # centroids = kmeans.centroids
         # return indices.flatten(), scores.flatten(), centroids
         return indices.flatten()
 
     return ret
+
+
+def fetch_document(document: Document | str, doc_type: str = "Document") -> Document | str | None:
+    if document is None:
+        return None
+
+    document_obj = None
+    if isinstance(document, Document):
+        document_obj = document
+    elif isinstance(document, str):
+        document_obj = Document(document)
+
+    if doc_type == "string":
+        res = document_obj.metadata.__str__() + "\n"
+        for page in document_obj.pages:
+            res += page.extract_text() + "\n"
+        return res
+    return document_obj
 
 
 def fetch_image(image: str | np.ndarray | Image.Image | None, image_type: str = "Image") -> Image.Image | str | None:
