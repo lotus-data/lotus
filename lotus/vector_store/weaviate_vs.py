@@ -184,7 +184,7 @@ class WeaviateVS(VS):
         for id in ids:
             exists = False 
             for obj in collection.query.fetch_objects().objects:
-                print(f'object properties: {object.properties}')
+                print(f'object properties: {obj.properties}')
                 if id == obj.properties.get('doc_id', -1):
                     exists = True
                     print(f'vector example {obj.vector} {obj.vector.values()}')
