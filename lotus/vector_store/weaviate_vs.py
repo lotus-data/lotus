@@ -18,9 +18,9 @@ except ImportError as err:
 class WeaviateVS(VS):
     def __init__(self, max_batch_size: int = 64):
 
-        REST_URL = 'https://dovieiknqr20pmgoticrmw.c0.us-west3.gcp.weaviate.cloud'
+        REST_URL = 'https://aliugucnqnkzihdc3jqdig.c0.us-west3.gcp.weaviate.cloud'
 
-        API_KEY = 'nwRhjKLulSWbhPjX67WBklmJs7dgUS9XGWrZ'
+        API_KEY = 'e1VUifT3atB7PHLB3kXQPYhL2PNXeG0JeGYK'
 
         weaviate_client: weaviate.WeaviateClient | None = None #  need to set this up 
 
