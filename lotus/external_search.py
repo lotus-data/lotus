@@ -1,9 +1,7 @@
 import os
 from enum import Enum
 
-import arxiv
 import pandas as pd
-from serpapi import GoogleSearch
 
 
 class ExternalSearchCorpus(Enum):
@@ -12,6 +10,14 @@ class ExternalSearchCorpus(Enum):
 
 
 def _sem_external_search_google(query: str, K: int) -> pd.DataFrame:
+    try:
+        from serpapi import GoogleSearch
+    except ImportError:
+        raise ImportError(
+            "The 'serpapi' library is required for Google search. "
+            "You can install it with the following command:\n\n"
+            "    pip install 'lotus-ai[serpapi]'"
+        )
     api_key = os.getenv("SERPAPI_API_KEY")
     if not api_key:
         raise ValueError("SERPAPI_API_KEY is not set. It is required to run GoogleSearch.")
@@ -47,6 +53,15 @@ def _sem_external_search_google(query: str, K: int) -> pd.DataFrame:
 
 
 def _sem_external_search_arxiv(query: str, K: int) -> pd.DataFrame:
+    try:
+        import arxiv
+    except ImportError:
+        raise ImportError(
+            "The 'arxiv' library is required for Arxiv search. "
+            "You can install it with the following command:\n\n"
+            "    pip install 'lotus-ai[arxiv]'"
+        )
+
     client = arxiv.Client()
     search = arxiv.Search(query=query, max_results=K, sort_by=arxiv.SortCriterion.Relevance)
     articles = []
