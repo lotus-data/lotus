@@ -20,7 +20,7 @@ from lotus.sem_ops import (
     sem_dedup,
     sem_topk,
 )
-from lotus.external_search import sem_external_search, ExternalSearchCorpus
+from lotus.web_search import web_search, WebSearchCorpus
 from lotus.settings import settings  # type: ignore[attr-defined]
 
 
@@ -49,6 +49,6 @@ __all__ = [
     "vector_store",
     "utils",
     "dtype_extensions",
-    "sem_external_search",
-    "ExternalSearchCorpus",
+    "web_search",
+    "WebSearchCorpus",
 ]

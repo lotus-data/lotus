@@ -4,12 +4,12 @@ from enum import Enum
 import pandas as pd
 
 
-class ExternalSearchCorpus(Enum):
+class WebSearchCorpus(Enum):
     GOOGLE = "google"
     ARXIV = "arxiv"
 
 
-def _sem_external_search_google(query: str, K: int) -> pd.DataFrame:
+def _web_search_google(query: str, K: int) -> pd.DataFrame:
     try:
         from serpapi import GoogleSearch
     except ImportError:
@@ -52,7 +52,7 @@ def _sem_external_search_google(query: str, K: int) -> pd.DataFrame:
     return df
 
 
-def _sem_external_search_arxiv(query: str, K: int) -> pd.DataFrame:
+def _web_search_arxiv(query: str, K: int) -> pd.DataFrame:
     try:
         import arxiv
     except ImportError:
@@ -81,8 +81,8 @@ def _sem_external_search_arxiv(query: str, K: int) -> pd.DataFrame:
     return df
 
 
-def sem_external_search(corpus: ExternalSearchCorpus, query: str, K: int) -> pd.DataFrame:
-    if corpus == ExternalSearchCorpus.GOOGLE:
-        return _sem_external_search_google(query, K)
-    elif corpus == ExternalSearchCorpus.ARXIV:
-        return _sem_external_search_arxiv(query, K)
+def web_search(corpus: WebSearchCorpus, query: str, K: int) -> pd.DataFrame:
+    if corpus == WebSearchCorpus.GOOGLE:
+        return _web_search_google(query, K)
+    elif corpus == WebSearchCorpus.ARXIV:
+        return _web_search_arxiv(query, K)
