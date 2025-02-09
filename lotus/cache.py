@@ -3,6 +3,7 @@ import json
 import os
 import pickle
 import sqlite3
+import threading
 import time
 from abc import ABC, abstractmethod
 from collections import OrderedDict
@@ -131,17 +132,40 @@ class CacheFactory:
         return CacheFactory.create_cache(CacheConfig(CacheType.IN_MEMORY, max_size))
 
 
+class ThreadLocalConnection:
+    """Wrapper that automatically closes connection when thread dies"""
+
+    def __init__(self, db_path: str):
+        self._db_path = db_path
+        self._conn: sqlite3.Connection | None = None
+
+    @property
+    def connection(self) -> sqlite3.Connection:
+        if self._conn is None:
+            self._conn = sqlite3.connect(self._db_path)
+        return self._conn
+
+    def __del__(self):
+        if self._conn is not None:
+            self._conn.close()
+
+
 class SQLiteCache(Cache):
     def __init__(self, max_size: int, cache_dir=os.path.expanduser("~/.lotus/cache")):
         super().__init__(max_size)
         self.db_path = os.path.join(cache_dir, "lotus_cache.db")
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
-        self.conn = sqlite3.connect(self.db_path)
+        self._local = threading.local()
         self._create_table()
 
+    def _get_connection(self) -> sqlite3.Connection:
+        if not hasattr(self._local, "conn_wrapper"):
+            self._local.conn_wrapper = ThreadLocalConnection(self.db_path)
+        return self._local.conn_wrapper.connection
+
     def _create_table(self):
-        with self.conn:
-            self.conn.execute("""
+        with self._get_connection() as conn:
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS cache (
                     key TEXT PRIMARY KEY,
                     value BLOB,
@@ -153,13 +177,13 @@ class SQLiteCache(Cache):
         return int(time.time())
 
     def get(self, key: str) -> Any | None:
-        with self.conn:
-            cursor = self.conn.execute("SELECT value FROM cache WHERE key = ?", (key,))
+        with self._get_connection() as conn:
+            cursor = conn.execute("SELECT value FROM cache WHERE key = ?", (key,))
             result = cursor.fetchone()
             if result:
                 lotus.logger.debug(f"Cache hit for {key}")
                 value = pickle.loads(result[0])
-                self.conn.execute(
+                conn.execute(
                     "UPDATE cache SET last_accessed = ? WHERE key = ?",
                     (
                         self._get_time(),
@@ -167,12 +191,13 @@ class SQLiteCache(Cache):
                     ),
                 )
                 return value
+            cursor.close()
         return None
 
     def insert(self, key: str, value: Any):
         pickled_value = pickle.dumps(value)
-        with self.conn:
-            self.conn.execute(
+        with self._get_connection() as conn:
+            conn.execute(
                 """
                 INSERT OR REPLACE INTO cache (key, value, last_accessed) 
                 VALUES (?, ?, ?)
@@ -182,11 +207,11 @@ class SQLiteCache(Cache):
             self._enforce_size_limit()
 
     def _enforce_size_limit(self):
-        with self.conn:
-            count = self.conn.execute("SELECT COUNT(*) FROM cache").fetchone()[0]
+        with self._get_connection() as conn:
+            count = conn.execute("SELECT COUNT(*) FROM cache").fetchone()[0]
             if count > self.max_size:
                 num_to_delete = count - self.max_size
-                self.conn.execute(
+                conn.execute(
                     """
                     DELETE FROM cache WHERE key IN (
                         SELECT key FROM cache
@@ -198,13 +223,10 @@ class SQLiteCache(Cache):
                 )
 
     def reset(self, max_size: int | None = None):
-        with self.conn:
-            self.conn.execute("DELETE FROM cache")
+        with self._get_connection() as conn:
+            conn.execute("DELETE FROM cache")
         if max_size is not None:
             self.max_size = max_size
-
-    def __del__(self):
-        self.conn.close()
 
 
 class InMemoryCache(Cache):
