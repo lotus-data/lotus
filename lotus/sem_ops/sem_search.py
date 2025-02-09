@@ -5,6 +5,7 @@ import pandas as pd
 import lotus
 from lotus.cache import operator_cache
 from lotus.types import RerankerOutput, RMOutput
+from lotus.vector_store.pinecone_vs import PineconeVS
 
 
 @pd.api.extensions.register_dataframe_accessor("sem_search")
@@ -60,7 +61,10 @@ class SemSearchDataframe:
             assert vs.index_dir == col_index_dir
 
             df_idxs = self._obj.index
-            K = min(K, len(df_idxs))
+            cur_min = len(df_idxs)
+            if isinstance(vs, PineconeVS):
+                cur_min = min(cur_min, 10000) 
+            K = min(K, cur_min)
 
             search_K = K
             while True:
