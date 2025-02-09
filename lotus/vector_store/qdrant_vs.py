@@ -48,13 +48,27 @@ class QdrantVS(VS):
                 vectors_config=VectorParams(size=dimension, distance=Distance.COSINE)
             )
         collection_info = self.client.get_collection(index_dir)
-        if collection_info.config.params.vectors.size != dimension:
-            # if there's a discrepency, create a new version of that collection 
-            self.client.delete_collection(index_dir)
-            self.client.create_collection(
-                collection_name=index_dir,
-                vectors_config=VectorParams(size=dimension, distance=Distance.COSINE)
-            )
+        if (collection_info is not None and collection_info.config is not None and collection_info.config.params and collection_info.config.params.vectors):
+
+            vectors = collection_info.config.params.vectors
+            if isinstance(vectors, dict):
+                # If it's a dict, decide how to handle it.
+                # Here we extract the first vector, but you may need a different logic.
+                vector = next(iter(vectors.values()))
+                size = vector.size
+            elif isinstance(vectors, VectorParams):
+                size = vectors.size
+            else:
+                size = None
+
+            if  size != dimension:
+                # If there's a discrepancy, create a new version of that collection 
+                self.client.delete_collection(index_dir)
+                self.client.create_collection(
+                    collection_name=index_dir,
+                    vectors_config=VectorParams(size=dimension, distance=Distance.COSINE)
+                )
+
         # Convert docs to list if it's a pandas Series
         docs_list = docs.tolist() if isinstance(docs, pd.Series) else docs
         
