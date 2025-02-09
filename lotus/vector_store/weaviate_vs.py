@@ -66,9 +66,7 @@ class WeaviateVS(VS):
             )
         else:
             collection = self.client.collections.get(index_dir)
-            print(self.client.collections.get(index_dir).config)
-            """
-              if self.get_collection_dimension(index_dir) != embedding_dim:
+            if self.get_collection_dimension(index_dir) != embedding_dim:
                 self.client.collections.delete(index_dir)
                 collection = self.client.collections.create(
                     name=index_dir,
@@ -85,7 +83,6 @@ class WeaviateVS(VS):
                     vectorizer_config=None,  # No vectorizer needed as we provide vectors
                     vector_index_config=Configure.VectorIndex.hnsw()
                 )
-            """
 
         
         # Generate embeddings for all documents
