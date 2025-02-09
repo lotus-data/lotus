@@ -180,11 +180,10 @@ class WeaviateVS(VS):
         
         # Query for documents with specific doc_ids
         vectors = []
-
         for id in ids:
             exists = False 
             for obj in collection.query.fetch_objects().objects:
-                print(f'object vector: {obj.vector}')
+                print(f'object vector: {collection.query.__extract_vector_for_object(obj.metadata)}')
                 if id == obj.properties.get('doc_id', -1):
                     exists = True
                     vectors.append((1))
