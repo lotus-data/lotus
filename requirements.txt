@@ -10,6 +10,3 @@ weaviate-client==4.10.2
 pinecone==5.4.2
 chromadb==0.6.2
 qdrant-client==1.12.2
-psycopg2-binary==2.9.10
-SQLAlchemy==2.0.37
-boto3==1.36.2
