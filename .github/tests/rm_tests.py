@@ -219,7 +219,7 @@ def test_vs_search_rm_only(setup_models, setup_vs, vs, model):
         ]
     }
     df = pd.DataFrame(data)
-    df = df.sem_index("Course Name", "indexdir")
+    df = df.sem_index("Course Name", "secondindexdir")
     df = df.sem_search("Course Name", "Optimization", K=1)
     assert df["Course Name"].tolist() == ["Optimization Methods in Engineering"]
 
@@ -240,7 +240,7 @@ def test_vs_sim_join(setup_models, setup_vs, vs, model):
     data2 = {"Skill": ["Math", "History"]}
 
     df1 = pd.DataFrame(data1)
-    df2 = pd.DataFrame(data2).sem_index("Skill", "indexdir")
+    df2 = pd.DataFrame(data2).sem_index("Skill", "thirdindexdir")
     joined_df = df1.sem_sim_join(df2, left_on="Course Name", right_on="Skill", K=1)
     joined_pairs = set(zip(joined_df["Course Name"], joined_df["Skill"]))
     expected_pairs = {("History of the Atlantic World", "History"), ("Riemannian Geometry", "Math")}
@@ -266,7 +266,7 @@ def test_vs_dedup(setup_models, setup_vs, vs):
         ]
     }
     df = pd.DataFrame(data)
-    df = df.sem_index("Text", "indexdir").sem_dedup("Text", threshold=0.85)
+    df = df.sem_index("Text", "fourthindexdir").sem_dedup("Text", threshold=0.85)
     kept = df["Text"].tolist()
     kept.sort()
     assert len(kept) == 2, kept
