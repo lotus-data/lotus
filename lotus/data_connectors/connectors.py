@@ -76,7 +76,6 @@ class DataConnector:
             "json": lambda data: pd.read_json(StringIO(data.decode("utf-8"))),
             "parquet": lambda data: pd.read_parquet(BytesIO(data)),
             "xlsx": lambda data: pd.read_excel(BytesIO(data)),
-            "txt": lambda data: pd.read_csv(StringIO(data.decode("utf-8")), sep="\t"),
         }
 
         try:
