@@ -8,6 +8,29 @@ from lotus.dtype_extensions import ImageDtype
 from lotus.types import SerializationFormat
 
 
+def cot_formatter(reasoning, answer):
+    return f"""Reasoning:\n{reasoning}\n\nAnswer: {answer}"""
+
+
+def answer_only_formatter(answer):
+    return f"""Answer: {answer}"""
+
+
+def cot_prompt_formatter(reasoning_instructions: str = "", answer_instructions: str = "") -> str:
+    reasoning_instructions = f"<Your reasoning here. {reasoning_instructions}>"
+    answer_instructions = f"<Your answer here. {answer_instructions}>"
+    return f"""Let's think step by step. Use the following format to provide your answer:
+        {cot_formatter(reasoning_instructions, answer_instructions)}
+        """
+
+
+def non_cot_prompt_formatter(answer_instructions: str = "") -> str:
+    answer_instructions = f"<Your answer here. {answer_instructions}>"
+    return f"""Use the following format to provide your answer:
+            {answer_only_formatter(answer_instructions)}
+            """
+
+
 def context_formatter(
     multimodal_data: dict[str, Any] | str,
 ) -> tuple[str, list[dict[str, str]]]:
@@ -55,57 +78,6 @@ def user_message_formatter(
     }
 
 
-def filter_formatter_cot(
-    multimodal_data: dict[str, Any],
-    user_instruction: str,
-    examples_multimodal_data: list[dict[str, Any]],
-    examples_answer: list[bool],
-    cot_reasoning: list[str],
-) -> list[dict[str, str]]:
-    sys_instruction = (
-        "The user will provide a claim and some relevant context.\n"
-        "Your job is to determine whether the claim is true for the given context.\n"
-        'First give your reasoning. Then you MUST end your output with "Answer: True or False"'
-    )
-    messages = [
-        {"role": "system", "content": sys_instruction},
-    ]
-
-    for idx in range(len(examples_multimodal_data)):
-        ex_multimodal_data = examples_multimodal_data[idx]
-        ex_ans = examples_answer[idx]
-        cot = cot_reasoning[idx]
-        messages.extend(
-            [
-                user_message_formatter(ex_multimodal_data, f"Claim: {user_instruction}"),
-                {
-                    "role": "assistant",
-                    "content": f"Reasoning:\n{cot}\n\nAnswer: {ex_ans}",
-                },
-            ]
-        )
-
-    messages.append(user_message_formatter(multimodal_data, f"Claim: {user_instruction}"))
-    return messages
-
-
-def filter_formatter_zs_cot(
-    multimodal_data: dict[str, Any],
-    user_instruction: str,
-) -> list[dict[str, str]]:
-    sys_instruction = (
-        "The user will provide a claim and some relevant context.\n"
-        "Your job is to determine whether the claim is true for the given context.\n"
-        'First give your reasoning. Then you MUST end your output with "Answer: True or False"'
-    )
-    messages = [
-        {"role": "system", "content": sys_instruction},
-    ]
-
-    messages.append(user_message_formatter(multimodal_data, f"Claim: {user_instruction}"))
-    return messages
-
-
 def filter_formatter(
     multimodal_data: dict[str, Any],
     user_instruction: str,
@@ -113,20 +85,21 @@ def filter_formatter(
     examples_answer: list[bool] | None = None,
     cot_reasoning: list[str] | None = None,
     strategy: str | None = None,
+    reasoning_instructions: str = "",
 ) -> list[dict[str, str]]:
-    if cot_reasoning:
-        assert examples_multimodal_data is not None and examples_answer is not None
-        return filter_formatter_cot(
-            multimodal_data, user_instruction, examples_multimodal_data, examples_answer, cot_reasoning
-        )
-    elif strategy == "zs-cot":
-        return filter_formatter_zs_cot(multimodal_data, user_instruction)
+    answer_instructions = "The answer should be either True or False"
 
-    sys_instruction = (
-        "The user will provide a claim and some relevant context.\n"
-        "Your job is to determine whether the claim is true for the given context.\n"
-        'You must answer with a single word, "True" or "False".'
-    )
+    sys_instruction = """The user will provide a claim and some relevant context.
+    Your job is to determine whether the claim is true for the given context.
+     """
+
+    if strategy == "cot":
+        sys_instruction += cot_prompt_formatter(
+            reasoning_instructions=reasoning_instructions, answer_instructions=answer_instructions
+        )
+    else:
+        sys_instruction += non_cot_prompt_formatter(answer_instructions=answer_instructions)
+
     messages = [
         {"role": "system", "content": sys_instruction},
     ]
@@ -134,13 +107,35 @@ def filter_formatter(
     if examples_multimodal_data:
         assert examples_answer is not None
         assert isinstance(examples_multimodal_data, list) and isinstance(examples_answer, list)
-        for i in range(len(examples_multimodal_data)):
-            ex_multimodal_data = examples_multimodal_data[i]
-            ex_ans = examples_answer[i]
+        assert len(examples_multimodal_data) == len(examples_answer)
+
+        if cot_reasoning:
+            # users don't have to provide cot reasoning examples
+            # but if they do, the number of examples must match
+            assert isinstance(cot_reasoning, list)
+            assert len(examples_multimodal_data) == len(examples_answer) == len(cot_reasoning)
+
+        for idx in range(len(examples_multimodal_data)):
+            ex_multimodal_data = examples_multimodal_data[idx]
+            ex_ans = examples_answer[idx]
+            content = ""
+
+            # if cot reasoning is provided, use it. Otherwise, supply a default
+            # reasoning as filler if the user wants cot reasoning
+            if cot_reasoning:
+                content = cot_formatter(cot_reasoning[idx], str(ex_ans))
+            elif strategy == "cot":
+                content = cot_formatter("Reasoning omitted", str(ex_ans))
+            else:
+                content = answer_only_formatter(str(ex_ans))
+
             messages.extend(
                 [
                     user_message_formatter(ex_multimodal_data, f"Claim: {user_instruction}"),
-                    {"role": "assistant", "content": str(ex_ans)},
+                    {
+                        "role": "assistant",
+                        "content": content,
+                    },
                 ]
             )
 
