@@ -149,6 +149,7 @@ class SemFilterDataframe:
         user_instruction: str,
         return_raw_outputs: bool = False,
         return_explanations: bool = False,
+        return_all: bool = False,
         default: bool = True,
         suffix: str = "_filter",
         examples: pd.DataFrame | None = None,
@@ -368,19 +369,33 @@ class SemFilterDataframe:
             raw_outputs = output.raw_outputs
             explanations = output.explanations
 
-        # find indices where output is True
-        ids = [i for i, x in enumerate(outputs) if x]
-        idx_ids = [self._obj.index[i] for i, x in enumerate(outputs) if x]
-        lotus.logger.debug(f"ids: {ids}")
-        lotus.logger.debug(f"idx_ids: {idx_ids}")
+        if return_all == False:
+            # find indices where output is True
+            ids = [i for i, x in enumerate(outputs) if x]
+            idx_ids = [self._obj.index[i] for i, x in enumerate(outputs) if x]
+            lotus.logger.debug(f"ids: {ids}")
+            lotus.logger.debug(f"idx_ids: {idx_ids}")
 
-        [outputs[i] for i in ids]
-        filtered_explanations = [explanations[i] for i in ids]
-        filtered_raw_outputs = [raw_outputs[i] for i in ids]
-        lotus.logger.debug(f"filtered_raw_outputs: {filtered_raw_outputs}")
+            [outputs[i] for i in ids]
+            filtered_explanations = [explanations[i] for i in ids]
+            filtered_raw_outputs = [raw_outputs[i] for i in ids]
+            lotus.logger.debug(f"filtered_raw_outputs: {filtered_raw_outputs}")
 
-        new_df = self._obj.iloc[ids]
-        new_df.attrs["index_dirs"] = self._obj.attrs.get("index_dirs", None)
+            new_df = self._obj.iloc[ids]
+            new_df.attrs["index_dirs"] = self._obj.attrs.get("index_dirs", None)
+        else:
+            def get_out_col_name(df, col_name):
+                if col_name in df.columns:
+                    i = 1
+                    while f"{col_name}_{i}" in new_df.columns:
+                        i +=1
+                    return f"{col_name}_{i}"
+                else:
+                    return col_name
+            new_df = self._obj.copy()
+            new_df[get_out_col_name(new_df, "filter_label")] = outputs
+            filtered_explanations = explanations
+            filtered_raw_outputs = raw_outputs
 
         # return rows where output is True
         if return_explanations and return_raw_outputs:
