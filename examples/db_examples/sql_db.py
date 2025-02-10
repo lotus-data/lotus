@@ -47,6 +47,5 @@ lotus.settings.configure(lm=lm)
 query = "SELECT * FROM movies"
 df = DataConnector.load_from_db("sqlite:///example_movies.db", query=query)
 
-user_instruction = "{title} that are science fiction"
-df = df.sem_filter(user_instruction)
+df = df.sem_filter("the {title} is science fiction")
 print(df)

@@ -91,6 +91,5 @@ df = DataConnector.load_from_s3(
     endpoint_url=(service_config["endpoint_url"]),
     protocol=str(service_config["protocol"]),
 )
-user_instruction = "{title} is science fiction movie"
-df = df.sem_filter(user_instruction)
+df = df.sem_filter("the {title} is science fiction")
 print(df)
