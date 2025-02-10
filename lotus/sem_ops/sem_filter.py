@@ -388,7 +388,7 @@ class SemFilterDataframe:
                 if col_name in df.columns:
                     i = 1
                     while f"{col_name}_{i}" in new_df.columns:
-                        i +=1
+                        i += 1
                     return f"{col_name}_{i}"
                 else:
                     return col_name
