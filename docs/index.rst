@@ -45,6 +45,7 @@ LOTUS implements the semantic operator programming model and provides an optimiz
    sem_partition
    sem_index
    sem_dedup
+   web_search
 
 .. toctree::
    :hidden:
