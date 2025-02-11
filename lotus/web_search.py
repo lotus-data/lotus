@@ -9,7 +9,7 @@ class WebSearchCorpus(Enum):
     ARXIV = "arxiv"
 
 
-def _web_search_google(query: str, K: int) -> pd.DataFrame:
+def _web_search_google(query: str, K: int, cols: list[str] | None = None) -> pd.DataFrame:
     try:
         from serpapi import GoogleSearch
     except ImportError:
@@ -29,7 +29,8 @@ def _web_search_google(query: str, K: int) -> pd.DataFrame:
             "num": K,
         }
     )
-    cols = [
+
+    default_cols = [
         "position",
         "title",
         "link",
@@ -43,16 +44,18 @@ def _web_search_google(query: str, K: int) -> pd.DataFrame:
         "favicon",
         "snippet",
     ]
+
     results = search.get_dict()
     if "organic_results" not in results:
         raise ValueError("No organic_results found in the response from GoogleSearch")
 
     df = pd.DataFrame(results["organic_results"])
-    df = df[[col for col in cols if col in df.columns]]
+    columns_to_use = cols if cols is not None else default_cols
+    df = df[[col for col in columns_to_use if col in df.columns]]
     return df
 
 
-def _web_search_arxiv(query: str, K: int) -> pd.DataFrame:
+def _web_search_arxiv(query: str, K: int, cols: list[str] | None = None) -> pd.DataFrame:
     try:
         import arxiv
     except ImportError:
@@ -64,6 +67,8 @@ def _web_search_arxiv(query: str, K: int) -> pd.DataFrame:
 
     client = arxiv.Client()
     search = arxiv.Search(query=query, max_results=K, sort_by=arxiv.SortCriterion.Relevance)
+    default_cols = ["id", "title", "link", "abstract", "published", "authors", "categories"]
+
     articles = []
     for result in client.results(search):
         articles.append(
@@ -78,6 +83,8 @@ def _web_search_arxiv(query: str, K: int) -> pd.DataFrame:
             }
         )
     df = pd.DataFrame(articles)
+    columns_to_use = cols if cols is not None else default_cols
+    df = df[[col for col in columns_to_use if col in df.columns]]
     return df
 
 
