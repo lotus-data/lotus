@@ -1,15 +1,22 @@
 import pandas as pd
 import pytest
+from pymupdf import Document
 
 import lotus
+from lotus.dtype_extensions import ImageDtype, DocumentDtype, DocumentArray
 from lotus.settings import SerializationFormat
-from lotus.templates.task_instructions import df2text
+from lotus.templates.task_instructions import df2text, df2multimodal_info
 from tests.base_test import BaseTest
 
 
 @pytest.fixture
-def sample_df():
-    return pd.DataFrame({"Name": ["Alice", "Bob"], "Age": [25, 30], "City": ["New York", "London"]})
+def sample_df_with_pdfs():
+    return pd.DataFrame(
+        {
+            "Title": ["Propositional Logic"],
+            "Pdf": DocumentArray(["tests/assets/cs70-propositional-logic.pdf"]),
+        }
+    )
 
 
 @pytest.fixture(autouse=True)
@@ -34,7 +41,10 @@ class TestSerialization(BaseTest):
         lotus.settings.serialization_format = SerializationFormat.XML
         result = df2text(sample_df, ["Name", "Age"])
         print(result)
-        expected = ["<row><Name>Alice</Name><Age>25</Age></row>", "<row><Name>Bob</Name><Age>30</Age></row>"]
+        expected = [
+            "<row><Name>Alice</Name><Age>25</Age></row>",
+            "<row><Name>Bob</Name><Age>30</Age></row>",
+        ]
         assert result == expected
 
     def test_df2text_nonexistent_columns(self, sample_df):
@@ -53,3 +63,7 @@ class TestSerialization(BaseTest):
             "[Name]: «Bob»\n[Age]: «30»\n[City]: «London»\n",
         ]
         assert result == expected
+
+    def test_assert_documentdtype_recognition(self, sample_df_with_pdfs):
+        print(sample_df_with_pdfs)
+        assert isinstance(sample_df_with_pdfs["Pdf"].dtype, DocumentDtype)

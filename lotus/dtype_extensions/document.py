@@ -4,6 +4,7 @@ from typing import Sequence, Union
 import numpy as np
 import pandas as pd
 from pandas.api.extensions import ExtensionArray, ExtensionDtype
+import pymupdf
 from pymupdf import Document
 
 from lotus.utils import fetch_document
@@ -24,7 +25,9 @@ class DocumentArray(ExtensionArray):
         self._data = np.asarray(values, dtype=object)
         self._dtype = DocumentDtype()
         self.allowed_document_types = ["Document", "string"]
-        self._cached_documents: dict[tuple[int, str], str | Document | None] = {}  # Cache for loaded documents
+        self._cached_documents: dict[tuple[int, str], str | Document | None] = (
+            {}
+        )  # Cache for loaded documents
 
     def __getitem__(self, item: int | slice | Sequence[int]) -> np.ndarray:
         result = self._data[item]
@@ -60,18 +63,24 @@ class DocumentArray(ExtensionArray):
             if (idx, doc_type) in self._cached_documents:
                 del self._cached_documents[(idx, doc_type)]
 
-    def get_document(self, idx: int, doc_type: str = "Document") -> Union[Document, str, None]:
+    def get_document(
+        self, idx: int, doc_type: str = "Document"
+    ) -> Union[Document, str, None]:
         """Explicit method to fetch and return the actual document"""
         if (idx, doc_type) not in self._cached_documents:
             document_result = fetch_document(self._data[idx], doc_type)
-            assert document_result is None or isinstance(document_result, (Document, str))
+            assert document_result is None or isinstance(
+                document_result, (Document, str)
+            )
             self._cached_documents[(idx, doc_type)] = document_result
         return self._cached_documents[(idx, doc_type)]
 
     def isna(self) -> np.ndarray:
         return pd.isna(self._data)
 
-    def take(self, indices: Sequence[int], allow_fill: bool = False, fill_value=None) -> "DocumentArray":
+    def take(
+        self, indices: Sequence[int], allow_fill: bool = False, fill_value=None
+    ) -> "DocumentArray":
         result = self._data.take(indices, axis=0)
         if allow_fill and fill_value is not None:
             result[indices == -1] = fill_value
@@ -106,13 +115,27 @@ class DocumentArray(ExtensionArray):
 
     def __eq__(self, other) -> np.ndarray:  # type: ignore
         if isinstance(other, DocumentArray):
-            return np.array([_compare_documents(doc1, doc2) for doc1, doc2 in zip(self._data, other._data)], dtype=bool)
+            return np.array(
+                [
+                    _compare_documents(doc1, doc2)
+                    for doc1, doc2 in zip(self._data, other._data)
+                ],
+                dtype=bool,
+            )
 
         if hasattr(other, "__iter__") and not isinstance(other, str):
             if len(other) != len(self):
                 return np.repeat(False, len(self))
-            return np.array([_compare_documents(doc1, doc2) for doc1, doc2 in zip(self._data, other)], dtype=bool)
-        return np.array([_compare_documents(doc, other) for doc in self._data], dtype=bool)
+            return np.array(
+                [
+                    _compare_documents(doc1, doc2)
+                    for doc1, doc2 in zip(self._data, other)
+                ],
+                dtype=bool,
+            )
+        return np.array(
+            [_compare_documents(doc, other) for doc in self._data], dtype=bool
+        )
 
     @property
     def dtype(self) -> DocumentDtype:
@@ -123,10 +146,14 @@ class DocumentArray(ExtensionArray):
         return sum(sys.getsizeof(doc) for doc in self._data if doc)
 
     def __repr__(self) -> str:
-        return f"DocumentArray([{', '.join([f'<Document: {doc.metadata}>' if doc is not None else 'None' for doc in self._data[:5]])}, ...])"
+        return f"DocumentArray([{', '.join([f'<Document: {doc.metadata}>' if isinstance(doc, Document) else f'<Document: {doc}>' for doc in self._data[:5]])}, ...])"
 
     def _formatter(self, boxed: bool = False):
-        return lambda x: f"<Document: {x.metadata}>" if x is not None else "None"
+        return lambda x: (
+            f"<Document: {x.metadata}>"
+            if isinstance(x, Document)
+            else f"<Document: {x}"
+        )
 
     def to_numpy(self, dtype=None, copy=False, na_value=None) -> np.ndarray:
         """Convert the DocumentArray to a numpy array."""
@@ -135,7 +162,13 @@ class DocumentArray(ExtensionArray):
             if isinstance(doc_data, Document):
                 text = doc_data.metadata.__str__() + "\n"
                 for page in doc_data.pages:
-                    text += page.extract_text() + "\n"
+                    text += page.get_text() + "\n"
+                documents.append(text)
+            elif isinstance(doc_data, str):
+                doc = pymupdf.open(doc_data)
+                text = doc.metadata.__str__() + "\n"
+                for page in doc:
+                    text += page.get_text() + "\n"
                 documents.append(text)
         result = np.empty(len(self), dtype=object)
         result[:] = documents
