@@ -18,6 +18,7 @@ def sem_extract(
     output_cols: dict[str, str | None],
     extract_quotes: bool = False,
     postprocessor: Callable[[list[str]], SemanticExtractPostprocessOutput] = extract_postprocess,
+    strategy: str | None = None,
     safe_mode: bool = False,
     progress_bar_desc: str = "Extracting",
 ) -> SemanticExtractOutput:
@@ -37,7 +38,7 @@ def sem_extract(
     # prepare model inputs
     inputs = []
     for doc in docs:
-        prompt = task_instructions.extract_formatter(doc, output_cols, extract_quotes)
+        prompt = task_instructions.extract_formatter(doc, output_cols, extract_quotes, strategy=strategy)
         lotus.logger.debug(f"input to model: {prompt}")
         lotus.logger.debug(f"inputs content to model: {[x.get('content') for x in prompt]}")
         inputs.append(prompt)
@@ -48,11 +49,16 @@ def sem_extract(
         estimated_LM_calls = len(docs)
         show_safe_mode(estimated_cost, estimated_LM_calls)
 
+    # call model with response_format=json_object for all models
+    kwargs = {"response_format": {"type": "json_object"}}
+    if "ollama" not in model.model:  # Only add temperature for non-Ollama models
+        kwargs["temperature"] = 0.0  # Use zero temperature for extractions
+
     # call model
-    lm_output: LMOutput = model(inputs, response_format={"type": "json_object"}, progress_bar_desc=progress_bar_desc)
+    lm_output: LMOutput = model(inputs, progress_bar_desc=progress_bar_desc, **kwargs)
 
     # post process results
-    postprocess_output = postprocessor(lm_output.outputs)
+    postprocess_output = postprocessor(lm_output.outputs, strategy=strategy)
     lotus.logger.debug(f"raw_outputs: {lm_output.outputs}")
     lotus.logger.debug(f"outputs: {postprocess_output.outputs}")
     if safe_mode:
@@ -80,6 +86,7 @@ class SemExtractDataFrame:
         extract_quotes: bool = False,
         postprocessor: Callable[[list[str]], SemanticExtractPostprocessOutput] = extract_postprocess,
         return_raw_outputs: bool = False,
+        strategy: str | None = None,
         safe_mode: bool = False,
         progress_bar_desc: str = "Extracting",
     ) -> pd.DataFrame:
@@ -114,11 +121,13 @@ class SemExtractDataFrame:
             output_cols=output_cols,
             extract_quotes=extract_quotes,
             postprocessor=postprocessor,
+            strategy=strategy,
             safe_mode=safe_mode,
             progress_bar_desc=progress_bar_desc,
         )
 
-        new_df = self._obj.copy()
+        # Create a new DataFrame with just the extracted fields
+        new_df = pd.DataFrame(index=range(len(self._obj)))
         for i, output_dict in enumerate(out.outputs):
             for key, value in output_dict.items():
                 if key not in new_df.columns:

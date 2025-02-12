@@ -36,6 +36,14 @@ class LM:
         self.max_tokens = max_tokens
         self.max_batch_size = max_batch_size
         self.tokenizer = tokenizer
+        
+        # Configure deepseek models
+        self.is_deepseek = "deepseek-r1" in model.lower()
+        if self.is_deepseek:
+            # Set recommended temperature and strategy
+            temperature = 0.6  # Override temperature for deepseek
+            kwargs["strategy"] = kwargs.get("strategy", "deepseek")
+            
         self.kwargs = dict(temperature=temperature, max_tokens=max_tokens, **kwargs)
 
         self.stats: LMStats = LMStats()
@@ -50,6 +58,10 @@ class LM:
         **kwargs: dict[str, Any],
     ) -> LMOutput:
         all_kwargs = {**self.kwargs, **kwargs}
+        
+        # Remove response_format for Ollama models since they don't support function calling
+        if "ollama" in self.model and "response_format" in all_kwargs:
+            del all_kwargs["response_format"]
 
         # Set top_logprobs if logprobs requested
         if all_kwargs.get("logprobs", False):
@@ -144,14 +156,18 @@ class LM:
             # Sometimes the model's pricing information is not available
             lotus.logger.debug(f"Error updating completion cost: {e}")
 
-    def _get_top_choice(self, response: ModelResponse) -> str:
+    def _get_top_choice(self, response: ModelResponse | OpenAIError) -> str:
+        if isinstance(response, OpenAIError):
+            raise response
         choice = response.choices[0]
         assert isinstance(choice, Choices)
         if choice.message.content is None:
             raise ValueError(f"No content in response: {response}")
         return choice.message.content
 
-    def _get_top_choice_logprobs(self, response: ModelResponse) -> list[ChatCompletionTokenLogprob]:
+    def _get_top_choice_logprobs(self, response: ModelResponse | OpenAIError) -> list[ChatCompletionTokenLogprob]:
+        if isinstance(response, OpenAIError):
+            raise response
         choice = response.choices[0]
         assert isinstance(choice, Choices)
         logprobs = choice.logprobs["content"]

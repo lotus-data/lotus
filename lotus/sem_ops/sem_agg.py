@@ -13,6 +13,7 @@ def sem_agg(
     model: lotus.models.LM,
     user_instruction: str,
     partition_ids: list[int],
+    strategy: str | None = None,
     safe_mode: bool = False,
     progress_bar_desc: str = "Aggregating",
 ) -> SemanticAggOutput:
@@ -93,7 +94,6 @@ def sem_agg(
                 partition_id != cur_partition_id and not do_fold
             ):
                 # close the current prompt
-
                 prompt = template.replace("{{docs_str}}", context_str)
                 lotus.logger.debug(f"Prompt added to batch: {prompt}")
                 batch.append([{"role": "user", "content": prompt}])
@@ -146,8 +146,15 @@ class SemAggDataframe:
 
     @staticmethod
     def process_group(args):
-        group, user_instruction, all_cols, suffix, progress_bar_desc = args
-        return group.sem_agg(user_instruction, all_cols, suffix, None, progress_bar_desc=progress_bar_desc)
+        group, user_instruction, all_cols, suffix, strategy, progress_bar_desc = args
+        return group.sem_agg(
+            user_instruction,
+            all_cols=all_cols,
+            suffix=suffix,
+            group_by=None,
+            strategy=strategy,
+            progress_bar_desc=progress_bar_desc
+        )
 
     @operator_cache
     def __call__(
@@ -156,6 +163,7 @@ class SemAggDataframe:
         all_cols: bool = False,
         suffix: str = "_output",
         group_by: list[str] | None = None,
+        strategy: str | None = None,
         safe_mode: bool = False,
         progress_bar_desc: str = "Aggregating",
     ) -> pd.DataFrame:
@@ -190,7 +198,7 @@ class SemAggDataframe:
 
         if group_by:
             grouped = self._obj.groupby(group_by)
-            group_args = [(group, user_instruction, all_cols, suffix, progress_bar_desc) for _, group in grouped]
+            group_args = [(group, user_instruction, all_cols, suffix, strategy, progress_bar_desc) for _, group in grouped]
             from concurrent.futures import ThreadPoolExecutor
 
             with ThreadPoolExecutor(max_workers=lotus.settings.parallel_groupby_max_threads) as executor:
@@ -213,6 +221,7 @@ class SemAggDataframe:
             lotus.settings.lm,
             formatted_usr_instr,
             partition_ids,
+            strategy=strategy,
             safe_mode=safe_mode,
             progress_bar_desc=progress_bar_desc,
         )

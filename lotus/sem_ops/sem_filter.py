@@ -63,7 +63,10 @@ def sem_filter(
     )
 
     postprocess_output = filter_postprocess(
-        lm_output.outputs, default=default, cot_reasoning=strategy in ["cot", "zs-cot"]
+        lm_output.outputs,
+        default=default,
+        strategy=strategy,
+        cot_reasoning=strategy in ["cot", "zs-cot"]
     )
     lotus.logger.debug(f"outputs: {postprocess_output.outputs}")
     lotus.logger.debug(f"raw_outputs: {postprocess_output.raw_outputs}")
