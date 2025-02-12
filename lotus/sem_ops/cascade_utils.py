@@ -59,7 +59,7 @@ def learn_cascade_thresholds(
         pos_threshold: float,
         neg_threshold: float,
         sorted_pairs: list[tuple[float, bool, np.float64]] | list[tuple[float, bool, float]],
-    ) -> float:
+    ) -> float | np.float64:
         helper_accepted = [x for x in sorted_pairs if x[0] >= pos_threshold or x[0] <= neg_threshold]
         sent_to_oracle = [x for x in sorted_pairs if x[0] < pos_threshold and x[0] > neg_threshold]
         total_correct = sum(pair[1] * pair[2] for pair in sorted_pairs)
