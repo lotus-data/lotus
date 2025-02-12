@@ -42,9 +42,10 @@ def cluster(col_name: str, ncentroids: int) -> Callable[[pd.DataFrame, int, bool
 
         # get rmodel and index
         rm = lotus.settings.rm
-        if rm is None:
+        vs = lotus.settings.vs 
+        if rm is None or vs is None:
             raise ValueError(
-                "The retrieval model must be an instance of RM. Please configure a valid retrieval model using lotus.settings.configure()"
+                "The retrieval model must be an instance of RM, and the vector store must be an instance of VS. Please configure a valid retrieval model using lotus.settings.configure()"
             )
 
         try:
@@ -52,12 +53,12 @@ def cluster(col_name: str, ncentroids: int) -> Callable[[pd.DataFrame, int, bool
         except KeyError:
             raise ValueError(f"Index directory for column {col_name} not found in DataFrame")
 
-        if rm.index_dir != col_index_dir:
-            rm.load_index(col_index_dir)
-        assert rm.index_dir == col_index_dir
+        if vs.index_dir != col_index_dir:
+            vs.load_index(col_index_dir)
+        assert vs.index_dir == col_index_dir
 
         ids = df.index.tolist()  # assumes df index hasn't been resest and corresponds to faiss index ids
-        vec_set = rm.get_vectors_from_index(col_index_dir, ids)
+        vec_set = vs.get_vectors_from_index(col_index_dir, ids)
         d = vec_set.shape[1]
         kmeans = faiss.Kmeans(d, ncentroids, niter=niter, verbose=verbose)
         kmeans.train(vec_set)

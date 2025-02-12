@@ -36,9 +36,11 @@ class SemDedupByDataframe:
         Returns:
             pd.DataFrame: The DataFrame with duplicates removed.
         """
-        if lotus.settings.rm is None:
+        rm = lotus.settings.rm
+        vs = lotus.settings.vs 
+        if rm is None or vs is None:
             raise ValueError(
-                "The retrieval model must be an instance of RM. Please configure a valid retrieval model using lotus.settings.configure()"
+                "The retrieval model must be an instance of RM, and the vector store must be an instance of VS. Please configure a valid retrieval model using lotus.settings.configure()"
             )
 
         joined_df = self._obj.sem_sim_join(self._obj, col_name, col_name, len(self._obj), lsuffix="_l", rsuffix="_r")

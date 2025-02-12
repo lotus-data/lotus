@@ -6,6 +6,7 @@ import pytest
 import lotus
 from lotus.dtype_extensions import ImageArray
 from lotus.models import LM, SentenceTransformersRM
+from lotus.vector_store import FaissVS
 
 ################################################################################
 # Setup
@@ -160,7 +161,8 @@ def test_topk_with_groupby_operation(setup_models, model):
 @pytest.mark.parametrize("model", get_enabled("clip-ViT-B-32"))
 def test_search_operation(setup_models, model):
     rm = setup_models[model]
-    lotus.settings.configure(rm=rm)
+    vs = FaissVS() 
+    lotus.settings.configure(rm=rm, vs=vs)
 
     image_url = [
         "https://img.etsystatic.com/il/4bee20/1469037676/il_340x270.1469037676_iiti.jpg?version=0",
@@ -180,7 +182,8 @@ def test_search_operation(setup_models, model):
 @pytest.mark.parametrize("model", get_enabled("clip-ViT-B-32"))
 def test_sim_join_operation_image_index(setup_models, model):
     rm = setup_models[model]
-    lotus.settings.configure(rm=rm)
+    vs = FaissVS() 
+    lotus.settings.configure(rm=rm, vs=vs)
 
     image_url = [
         "https://img.etsystatic.com/il/4bee20/1469037676/il_340x270.1469037676_iiti.jpg?version=0",
@@ -205,7 +208,8 @@ def test_sim_join_operation_image_index(setup_models, model):
 @pytest.mark.parametrize("model", get_enabled("clip-ViT-B-32"))
 def test_sim_join_operation_text_index(setup_models, model):
     rm = setup_models[model]
-    lotus.settings.configure(rm=rm)
+    vs = FaissVS() 
+    lotus.settings.configure(rm=rm, vs=vs)
 
     image_url = [
         "https://img.etsystatic.com/il/4bee20/1469037676/il_340x270.1469037676_iiti.jpg?version=0",
