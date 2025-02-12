@@ -7,7 +7,7 @@ from numpy.typing import NDArray
 import lotus
 from lotus.cache import operator_cache
 from lotus.templates import task_instructions
-from lotus.types import CascadeArgs, LMOutput, LogprobsForFilterCascade, SemanticFilterOutput
+from lotus.types import CascadeArgs, LMOutput, LogprobsForFilterCascade, ProxyModel, SemanticFilterOutput
 from lotus.utils import show_safe_mode
 
 from .cascade_utils import calibrate_llm_logprobs, importance_sampling, learn_cascade_thresholds
@@ -86,7 +86,7 @@ def learn_filter_cascade_thresholds(
     formatted_usr_instr: str,
     default: bool,
     cascade_args: CascadeArgs,
-    helper_true_probs: list[float],
+    proxy_scores: list[float],
     sample_correction_factors: NDArray[np.float64],
     examples_multimodal_data: list[dict[str, Any]] | None = None,
     examples_answers: list[bool] | None = None,
@@ -112,7 +112,7 @@ def learn_filter_cascade_thresholds(
         ).outputs
 
         best_combination, _ = learn_cascade_thresholds(
-            proxy_scores=helper_true_probs,
+            proxy_scores=proxy_scores,
             oracle_outputs=large_outputs,
             sample_correction_factors=sample_correction_factors,
             cascade_args=cascade_args,
@@ -223,47 +223,58 @@ class SemFilterDataframe:
                 if helper_strategy == "cot":
                     helper_cot_reasoning = examples["Reasoning"].tolist()
 
-        if cascade_args and lotus.settings.helper_lm:
-            if helper_strategy == "cot":
-                lotus.logger.error("CoT not supported for helper models in cascades.")
-                raise Exception
-
+        if cascade_args:
+            proxy_model = cascade_args.proxy_model
             if (
                 cascade_args.recall_target is None
                 or cascade_args.precision_target is None
                 or cascade_args.failure_probability is None
             ):
-                lotus.logger.error(
+                raise ValueError(
                     "Recall target, precision target, and confidence need to be specified for learned thresholds."
                 )
-                raise Exception
 
-            # Run small LM and get logits
-            helper_output = sem_filter(
-                multimodal_data,
-                lotus.settings.helper_lm,
-                formatted_usr_instr,
-                default=default,
-                examples_multimodal_data=helper_examples_multimodal_data,
-                examples_answers=helper_examples_answers,
-                cot_reasoning=helper_cot_reasoning,
-                logprobs=True,
-                strategy=helper_strategy,
-                safe_mode=safe_mode,
-                show_progress_bar=True,
-                progress_bar_desc="Running helper LM",
-            )
-            helper_outputs, helper_logprobs = helper_output.outputs, helper_output.logprobs
-            assert helper_logprobs is not None
-            formatted_helper_logprobs: LogprobsForFilterCascade = (
-                lotus.settings.helper_lm.format_logprobs_for_filter_cascade(helper_logprobs)
-            )
-            helper_true_probs = calibrate_llm_logprobs(formatted_helper_logprobs.true_probs, cascade_args)
+            # Get the proxy scores
+            if proxy_model == ProxyModel.HELPER_LM:
+                if not lotus.settings.helper_lm:
+                    raise ValueError("Helper LM must be set in settings")
 
-            sample_indices, correction_factors = importance_sampling(helper_true_probs, cascade_args)
+                if helper_strategy == "cot":
+                    raise ValueError("CoT not supported for helper models in cascades.")
+
+                # Run small LM and get logits
+                helper_output = sem_filter(
+                    multimodal_data,
+                    lotus.settings.helper_lm,
+                    formatted_usr_instr,
+                    default=default,
+                    examples_multimodal_data=helper_examples_multimodal_data,
+                    examples_answers=helper_examples_answers,
+                    cot_reasoning=helper_cot_reasoning,
+                    logprobs=True,
+                    strategy=helper_strategy,
+                    safe_mode=safe_mode,
+                    show_progress_bar=True,
+                    progress_bar_desc="Running helper LM",
+                )
+                _, helper_logprobs = helper_output.outputs, helper_output.logprobs
+                assert helper_logprobs is not None
+                formatted_helper_logprobs: LogprobsForFilterCascade = (
+                    lotus.settings.helper_lm.format_logprobs_for_filter_cascade(helper_logprobs)
+                )
+                proxy_scores = calibrate_llm_logprobs(formatted_helper_logprobs.true_probs, cascade_args)
+            elif proxy_model == ProxyModel.EMBEDDING_MODEL:
+                if not lotus.settings.rm:
+                    raise ValueError("RM must be set in settings")
+
+                # TODO: How to handle multiple columns?
+                search_df = self._obj.sem_search(col_li[0], formatted_usr_instr, K=len(self._obj), return_scores=True)
+                proxy_scores = search_df["vec_scores_sim_score"].tolist()
+
+            sample_indices, correction_factors = importance_sampling(proxy_scores, cascade_args)
             sample_df = self._obj.loc[sample_indices]
             sample_multimodal_data = task_instructions.df2multimodal_info(sample_df, col_li)
-            sample_helper_true_probs = [helper_true_probs[i] for i in sample_indices]
+            sample_proxy_scores = [proxy_scores[i] for i in sample_indices]
             sample_correction_factors = correction_factors[sample_indices]
 
             pos_cascade_threshold, neg_cascade_threshold = learn_filter_cascade_thresholds(
@@ -272,7 +283,7 @@ class SemFilterDataframe:
                 formatted_usr_instr=formatted_usr_instr,
                 default=default,
                 cascade_args=cascade_args,
-                helper_true_probs=sample_helper_true_probs,
+                proxy_scores=sample_proxy_scores,
                 sample_correction_factors=sample_correction_factors,
                 examples_multimodal_data=examples_multimodal_data,
                 examples_answers=examples_answers,
@@ -288,18 +299,19 @@ class SemFilterDataframe:
             stats["filters_resolved_by_large_model"] = 0
 
             high_conf_idxs = set()
+            proxy_outputs = [False] * len(multimodal_data)
 
-            # Find where true/false is said and look at confidence
-            for idx_i in range(len(helper_true_probs)):
-                true_prob = helper_true_probs[idx_i]
+            # Set proxy_outputs where confidence is high
+            for idx_i in range(len(proxy_scores)):
+                true_prob = proxy_scores[idx_i]
                 if true_prob >= pos_cascade_threshold or true_prob <= neg_cascade_threshold:
                     high_conf_idxs.add(idx_i)
-                    helper_outputs[idx_i] = (
+                    proxy_outputs[idx_i] = (
                         True
                         if true_prob >= pos_cascade_threshold
                         else False
                         if true_prob <= neg_cascade_threshold
-                        else helper_outputs[idx_i]
+                        else proxy_outputs[idx_i]
                     )
 
             lotus.logger.info(f"Num routed to smaller model: {len(high_conf_idxs)}")
@@ -309,16 +321,20 @@ class SemFilterDataframe:
             raw_outputs: list[str] = [""] * len(multimodal_data)
             explanations: list[str | None] = [None] * len(multimodal_data)
 
-            assert all(isinstance(x, str) for x in helper_output.explanations) or all(
-                x is None for x in helper_output.explanations
-            )
             for idx in high_conf_idxs:
-                outputs[idx] = helper_outputs[idx]
-                raw_outputs[idx] = helper_output.raw_outputs[idx]
-                explanations[idx] = helper_output.explanations[idx]
+                outputs[idx] = proxy_outputs[idx]
+
+            # If using helper LM, get raw outputs and explanations
+            if proxy_model == ProxyModel.HELPER_LM:
+                assert all(isinstance(x, str) for x in helper_output.explanations) or all(
+                    x is None for x in helper_output.explanations
+                )
+                for idx in high_conf_idxs:
+                    raw_outputs[idx] = helper_output.raw_outputs[idx]
+                    explanations[idx] = helper_output.explanations[idx]
 
             # Send low confidence samples to large LM if any
-            low_conf_idxs = sorted([i for i in range(len(helper_outputs)) if i not in high_conf_idxs])
+            low_conf_idxs = sorted([i for i in range(len(proxy_outputs)) if i not in high_conf_idxs])
             low_conf_multimodal_data = [multimodal_data[idx] for idx in low_conf_idxs]
             if low_conf_idxs:
                 large_output = sem_filter(
