@@ -1,7 +1,10 @@
+import io
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 import pandas as pd
+import requests  # type: ignore
 
 ALLOWED_METADATA_COLUMNS = [
     "format",
@@ -18,12 +21,33 @@ ALLOWED_METADATA_COLUMNS = [
 ]
 
 
+def is_url(path: str | Path) -> bool:
+    try:
+        result = urlparse(str(path))
+        return all([result.scheme, result.netloc])
+    except ValueError:
+        return False
+
+
 def parse_pdf(
     file_paths: list[str] | str | Path | list[Path],
     per_page: bool = True,
     page_separator: str = "\n",
     metadata_columns: list[str] | None = None,
 ) -> pd.DataFrame:
+    """
+    Parse PDF files and return the content in a DataFrame.
+
+    Args:
+        file_paths (list[str] | str | Path | list[Path]): A list of file paths/urls or a single file path/url.
+        per_page (bool): If True, return the content of each page as a separate row. Default is True.
+        page_separator (str): The separator to use when joining the content of each page in case per_page is False. Default is "\n".
+        metadata_columns (list[str] | None): A list of metadata columns to include in the DataFrame. Default is None.
+            Allowed metadata columns: ["format", "title", "author", "subject", "keywords", "creator", "producer", "creationDate", "modDate", "trapped", "encryption"].
+
+    Returns:
+        pd.DataFrame: A DataFrame with columns: ["file_path", "content", *metadata_columns, "page" (if per_page is True)].
+    """
     try:
         import pymupdf
     except ImportError:
@@ -51,7 +75,14 @@ def parse_pdf(
 
     all_data = []
     for file_path in file_paths:
-        opened_doc = pymupdf.open(file_path)
+        if is_url(file_path):
+            response = requests.get(file_path)
+            response.raise_for_status()
+            opened_doc = pymupdf.open(
+                stream=io.BytesIO(response.content), type=response.headers.get("Content-Type", "application/pdf")
+            )
+        else:
+            opened_doc = pymupdf.open(file_path)
         data: dict[str, Any] = {
             "file_path": file_path,
         }
