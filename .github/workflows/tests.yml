@@ -256,6 +256,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install -e .
+          pip install pymupdf
           pip install pytest
 
       - name: Run Utility Operator tests
