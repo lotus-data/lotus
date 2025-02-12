@@ -33,10 +33,6 @@ MODEL_NAME_TO_CLS = {
 
 VECTOR_STORE_TO_CLS = {
     'local': FaissVS,
-    'weaviate':WeaviateVS,
-    'pinecone': PineconeVS,
-    'chroma': ChromaVS,
-    'qdrant': QdrantVS
 }
 
 
