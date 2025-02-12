@@ -46,6 +46,9 @@ serpapi = [
 arxiv = [
     "arxiv",
 ]
+pdf_parser = [
+    "pymupdf",
+]
 
 [tool.ruff]
 line-length = 120
