@@ -1,11 +1,10 @@
 import pandas as pd
 import pytest
-from pymupdf import Document
 
 import lotus
-from lotus.dtype_extensions import ImageDtype, DocumentDtype, DocumentArray
+from lotus.dtype_extensions import DocumentArray, DocumentDtype
 from lotus.settings import SerializationFormat
-from lotus.templates.task_instructions import df2text, df2multimodal_info
+from lotus.templates.task_instructions import df2text
 from tests.base_test import BaseTest
 
 
