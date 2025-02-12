@@ -1,7 +1,8 @@
+import pathlib
+
 import lotus
 from lotus import parse_pdf
 from lotus.models import LM, LiteLLMRM
-import pathlib
 from lotus.types import CascadeArgs, ProxyModel
 
 gpt_4o_mini = LM("gpt-4o-mini")
