@@ -119,7 +119,7 @@ data = {
 df = pd.DataFrame(data)
 user_instruction = "{Course Name} requires a lot of math"
 
-df = df.sem_index("Course Name", "index_dir")
+# We can cascade with a helper LM
 cascade_args = CascadeArgs(
     recall_target=0.9,
     precision_target=0.9,
@@ -128,6 +128,19 @@ cascade_args = CascadeArgs(
     proxy_model=ProxyModel.HELPER_LM,
 )
 
-df, stats = df.sem_filter(user_instruction=user_instruction, cascade_args=cascade_args, return_stats=True)
-print(df)
+filtered_df, stats = df.sem_filter(user_instruction=user_instruction, cascade_args=cascade_args, return_stats=True)
+print(filtered_df)
+print(stats)
+
+# Or we can cascade with an embedding model (just set the proxy model to EMBEDDING_MODEL)
+df = df.sem_index("Course Name", "index_dir")
+cascade_args = CascadeArgs(
+    recall_target=0.9,
+    precision_target=0.9,
+    sampling_percentage=0.5,
+    failure_probability=0.2,
+    proxy_model=ProxyModel.EMBEDDING_MODEL,
+)
+filtered_df, stats = df.sem_filter(user_instruction=user_instruction, cascade_args=cascade_args, return_stats=True)
+print(filtered_df)
 print(stats)
