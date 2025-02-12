@@ -3,6 +3,7 @@ from typing import Any
 import pandas as pd
 
 import lotus
+from lotus.cache import operator_cache
 from lotus.types import RerankerOutput, RMOutput
 
 
@@ -19,6 +20,7 @@ class SemSearchDataframe:
         if not isinstance(obj, pd.DataFrame):
             raise AttributeError("Must be a DataFrame")
 
+    @operator_cache
     def __call__(
         self,
         col_name: str,

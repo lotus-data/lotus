@@ -1,44 +1,6 @@
-Quickstart
-============
-
-LOTUS can be used to easily build LLM applications in a couple steps.
-
-LOTUS Operators and Data Model
-----------------------------------
-
-With LOTUS, applications can be built by chaining together operators. Much like relational operators can be used to transform tables in SQL, LOTUS operators can be used to *semantically* transform Pandas dataframes. Here are some key operators:
-
-+--------------+-----------------------------------------------------+
-| Operator     | Description                                         |
-+==============+=====================================================+
-| Sem_Map      | Map each row of the dataframe                       |
-+--------------+-----------------------------------------------------+
-| Sem_Filter   | Keep rows that match a predicate                    |
-+--------------+-----------------------------------------------------+
-| Sem_Agg      | Aggregate information across all rows               |
-+--------------+-----------------------------------------------------+
-| Sem_TopK     | Order the dataframe by some criteria                |
-+--------------+-----------------------------------------------------+
-| Sem_Join     | Join two dataframes based on a predicate            |
-+--------------+-----------------------------------------------------+
-| Sem_Index    | Create a semantic index over a column               |
-+--------------+-----------------------------------------------------+
-| Sem_Search   | Search the dataframe for relevant rows              |
-+--------------+-----------------------------------------------------+
-
-
-A core principle of LOTUS is to provide users with a declarative interface that separates the user-specified, logical query plan from its underlying implementation. 
-As such, users program with LOTUS's semantic operators by writing parameterized language expressions (*langex*), rather than directly prompting an underlying LM.
-For example, to filter a dataframe of research papers via its abstract column, a LOTUS user may write
-
-.. code-block:: python
-
-    langex = "The {abstract} suggests that LLMs efficeintly utilize long context"
-    filtered_df = papers_df.sem_filter(langex)
-
-
 Examples
--------------------------
+==================
+
 Let's walk through some use cases of LOTUS.
 First let's configure LOTUS to use GPT-3.5-Turbo for the LLM and E5 as the embedding model.
 Then let's define a dataset of courses and their descriptions/workloads.
@@ -129,4 +91,4 @@ Additionally, let's provide some examples to the model that can be used for demo
         Respond with just the topic name and nothing else.", examples=examples_df, suffix="Next Topics"
     )
 
-Now you've seen how to use LOTUS to build LLM applications in a couple steps!
+Now you've seen how to use LOTUS to implement LLM-powered transformations in a couple of steps using semantic operators in LOTUS!

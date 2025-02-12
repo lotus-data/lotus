@@ -5,6 +5,7 @@ import pytest
 from tokenizers import Tokenizer
 
 import lotus
+from lotus.cache import CacheConfig, CacheFactory, CacheType
 from lotus.models import LM, SentenceTransformersRM
 from lotus.types import CascadeArgs
 
@@ -433,6 +434,7 @@ def test_disable_cache(setup_models, model):
         [{"role": "user", "content": "Hello, world!"}],
         [{"role": "user", "content": "What is the capital of France?"}],
     ]
+
     lm(batch)
     assert lm.stats.total_usage.cache_hits == 0
     lm(batch)
@@ -472,3 +474,125 @@ def test_reset_cache(setup_models, model):
     assert lm.stats.total_usage.cache_hits == 3
     lm(batch)
     assert lm.stats.total_usage.cache_hits == 3
+
+
+@pytest.mark.parametrize("model", get_enabled("gpt-4o-mini"))
+def test_operator_cache(setup_models, model):
+    cache_config = CacheConfig(cache_type=CacheType.SQLITE, max_size=1000)
+    cache = CacheFactory.create_cache(cache_config)
+
+    lm = LM(model="gpt-4o-mini", cache=cache)
+    lotus.settings.configure(lm=lm, enable_cache=True)
+
+    data = {
+        "Course Name": [
+            "Dynamics and Control of Chemical Processes",
+            "Optimization Methods in Engineering",
+            "Chemical Kinetics and Catalysis",
+            "Transport Phenomena and Separations",
+        ]
+    }
+
+    expected_response = pd.DataFrame(
+        {
+            "Course Name": [
+                "Dynamics and Control of Chemical Processes",
+                "Optimization Methods in Engineering",
+                "Chemical Kinetics and Catalysis",
+                "Transport Phenomena and Separations",
+            ],
+            "_map": [
+                "Process Dynamics and Control",
+                "Advanced Optimization Techniques in Engineering",
+                "Reaction Kinetics and Mechanisms",
+                "Fluid Mechanics and Mass Transfer",
+            ],
+        }
+    )
+
+    df = pd.DataFrame(data)
+    user_instruction = "What is a similar course to {Course Name}. Please just output the course name."
+
+    first_response = df.sem_map(user_instruction)
+    assert lm.stats.total_usage.operator_cache_hits == 0
+
+    second_response = df.sem_map(user_instruction)
+    assert lm.stats.total_usage.operator_cache_hits == 1
+
+    first_response["_map"] = first_response["_map"].str.replace(r"[^a-zA-Z\s]", "", regex=True).str.lower()
+    second_response["_map"] = second_response["_map"].str.replace(r"[^a-zA-Z\s]", "", regex=True).str.lower()
+    expected_response["_map"] = expected_response["_map"].str.replace(r"[^a-zA-Z\s]", "", regex=True).str.lower()
+
+    pd.testing.assert_frame_equal(first_response, second_response)
+    pd.testing.assert_frame_equal(first_response, expected_response)
+    pd.testing.assert_frame_equal(second_response, expected_response)
+
+    lm.reset_cache()
+    lm.reset_stats()
+    assert lm.stats.total_usage.operator_cache_hits == 0
+
+
+@pytest.mark.parametrize("model", get_enabled("gpt-4o-mini"))
+def test_disable_operator_cache(setup_models, model):
+    cache_config = CacheConfig(cache_type=CacheType.SQLITE, max_size=1000)
+    cache = CacheFactory.create_cache(cache_config)
+
+    lm = LM(model="gpt-4o-mini", cache=cache)
+    lotus.settings.configure(lm=lm, enable_cache=False)
+
+    lm.reset_cache()
+    lm.reset_stats()
+
+    data = {
+        "Course Name": [
+            "Dynamics and Control of Chemical Processes",
+            "Optimization Methods in Engineering",
+            "Chemical Kinetics and Catalysis",
+            "Transport Phenomena and Separations",
+        ]
+    }
+
+    expected_response = pd.DataFrame(
+        {
+            "Course Name": [
+                "Dynamics and Control of Chemical Processes",
+                "Optimization Methods in Engineering",
+                "Chemical Kinetics and Catalysis",
+                "Transport Phenomena and Separations",
+            ],
+            "_map": [
+                "Process Dynamics and Control",
+                "Advanced Optimization Techniques in Engineering",
+                "Reaction Kinetics and Mechanisms",
+                "Fluid Mechanics and Mass Transfer",
+            ],
+        }
+    )
+
+    df = pd.DataFrame(data)
+    user_instruction = "What is a similar course to {Course Name}. Please just output the course name."
+
+    first_response = df.sem_map(user_instruction)
+    first_response["_map"] = first_response["_map"].str.replace(r"[^a-zA-Z\s]", "", regex=True).str.lower()
+    assert lm.stats.total_usage.operator_cache_hits == 0
+
+    second_response = df.sem_map(user_instruction)
+    second_response["_map"] = second_response["_map"].str.replace(r"[^a-zA-Z\s]", "", regex=True).str.lower()
+    assert lm.stats.total_usage.operator_cache_hits == 0
+
+    pd.testing.assert_frame_equal(first_response, second_response)
+
+    # Now enable operator cache.
+    lotus.settings.configure(enable_cache=True)
+    first_responses = df.sem_map(user_instruction)
+    first_responses["_map"] = first_responses["_map"].str.replace(r"[^a-zA-Z\s]", "", regex=True).str.lower()
+    assert lm.stats.total_usage.operator_cache_hits == 0
+    second_responses = df.sem_map(user_instruction)
+    second_responses["_map"] = second_responses["_map"].str.replace(r"[^a-zA-Z\s]", "", regex=True).str.lower()
+    assert lm.stats.total_usage.operator_cache_hits == 1
+
+    expected_response["_map"] = expected_response["_map"].str.replace(r"[^a-zA-Z\s]", "", regex=True).str.lower()
+
+    pd.testing.assert_frame_equal(first_responses, second_responses)
+    pd.testing.assert_frame_equal(first_responses, expected_response)
+    pd.testing.assert_frame_equal(second_responses, expected_response)

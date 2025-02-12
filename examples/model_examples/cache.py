@@ -1,11 +1,17 @@
+import os
+
 import pandas as pd
 
 import lotus
+from lotus.cache import CacheConfig, CacheFactory, CacheType
 from lotus.models import LM
 
-lm = LM(model="gpt-4o-mini") 
+cache_config = CacheConfig(cache_type=CacheType.SQLITE, max_size=1000, cache_dir=os.path.expanduser("~/.lotus/cache"))
+cache = CacheFactory.create_cache(cache_config)
 
-lotus.settings.configure(lm=lm, enable_cache=True) # default caching is False
+lm = LM(model="gpt-4o-mini", cache=cache)
+
+lotus.settings.configure(lm=lm, enable_message_cache=True)  # default caching is False
 data = {
     "Course Name": [
         "Probability and Random Processes",
@@ -24,4 +30,3 @@ print(df)
 df = df.sem_filter(user_instruction)
 print("====== second run ======")
 print(df)
-

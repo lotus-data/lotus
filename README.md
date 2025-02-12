@@ -19,12 +19,28 @@ LOTUS makes LLM-powered data processing fast and easy.
 
 LOTUS (**L**LMs **O**ver **T**ables of **U**nstructured and **S**tructured Data) provides a declarative programming model and an optimized query engine for serving powerful reasoning-based query pipelines over structured and unstructured data! We provide a simple and intuitive Pandas-like API, that implements **semantic operators**. 
 
+For trouble-shooting or feature requests, please raise an issue and we'll get to it promptly. To share feedback and applications you're working on, you can send us a message on our [community slack](https://join.slack.com/t/lotus-fnm8919/shared_invite/zt-2tnq6948j-juGuSIR0__fsh~kUmZ6TJw), or send an email (lianapat@stanford.edu).
+
 # Installation
 ```
 conda create -n lotus python=3.10 -y
 conda activate lotus
 pip install lotus-ai
 ```
+
+## Running on Mac
+If you are running on mac, please install Faiss via conda:
+
+### CPU-only version
+```
+conda install -c pytorch faiss-cpu=1.8.0
+```
+
+### GPU(+CPU) version
+```
+conda install -c pytorch -c nvidia faiss-gpu=1.8.0
+```
+For more details, see [Installing FAISS via Conda](https://github.com/facebookresearch/faiss/blob/main/INSTALL.md#installing-faiss-via-conda).
 
 # Quickstart
 If you're already familiar with Pandas, getting started will be a breeze! Below we provide a simple example program using the semantic join operator. The join, like many semantic operators, are specified by **langex** (natural language expressions), which the programmer uses to specify the operation. Each langex is parameterized by one or more table columns, denoted in brackets. The join's langex serves as a predicate and is parameterized by a right and left join key.
@@ -68,14 +84,14 @@ LOTUS offers a number of semantic operators in a Pandas-like API, some of which 
 
 | Operator   | Description                                     |
 |------------|-------------------------------------------------|
-| sem_map    | Map each record using a natural language projection                   |
-| sem_filter | Keep records that match the natural language predicate                |
-| sem_agg    | Performs a natural language aggregation across all records (e.g. for summarization)           |
-| sem_topk   | Order the records by some natural langauge sorting criteria            |
-| sem_join   | Join two datasets based on a natural language predicate        |
-| sem_dedup  | Deduplicate records based on semantic similarity           |
-| sem_index  | Create a semantic similarity index over a text column           |
-| sem_search | Perform top-k search the over a text column          |
+| sem_map      |  Map each record using a natural language projection| 
+| sem_filter   | Keep records that match the natural language predicate |  
+| sem_extract  | Extract one or more attributes from each row        |
+| sem_agg      | Aggregate across all records (e.g. for summarization)             |
+| sem_topk     | Order the records by some natural langauge sorting criteria                 |
+| sem_join     | Join two datasets based on a natural language predicate       |
+| sem_sim_join | Join two DataFrames based on semantic similarity             |
+| sem_search   | Perform semantic search the over a text column                |
 
 
 # Supported Models

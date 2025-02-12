@@ -3,6 +3,7 @@ from typing import Any
 import pandas as pd
 
 import lotus
+from lotus.cache import operator_cache
 
 
 @pd.api.extensions.register_dataframe_accessor("sem_index")
@@ -19,6 +20,7 @@ class SemIndexDataframe:
         if not isinstance(obj, pd.DataFrame):
             raise AttributeError("Must be a DataFrame")
 
+    @operator_cache
     def __call__(self, col_name: str, index_dir: str) -> pd.DataFrame:
         """
         Index a column in the DataFrame.

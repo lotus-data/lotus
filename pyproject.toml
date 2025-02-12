@@ -37,6 +37,15 @@ docs = [
     "sphinx",
     "sphinx_rtd_theme",
 ]
+xml = [
+    "lxml",
+]
+serpapi = [
+    "google-search-results",
+]
+arxiv = [
+    "arxiv",
+]
 
 [tool.ruff]
 line-length = 120

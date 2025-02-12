@@ -4,6 +4,7 @@ import pandas as pd
 from litellm import embedding
 from litellm.types.utils import EmbeddingResponse
 from numpy.typing import NDArray
+from tqdm import tqdm
 
 from lotus.dtype_extensions import convert_to_base_data
 from lotus.models.faiss_rm import FaissRM
@@ -23,7 +24,7 @@ class LiteLLMRM(FaissRM):
 
     def _embed(self, docs: pd.Series | list) -> NDArray[np.float64]:
         all_embeddings = []
-        for i in range(0, len(docs), self.max_batch_size):
+        for i in tqdm(range(0, len(docs), self.max_batch_size)):
             batch = docs[i : i + self.max_batch_size]
             _batch = convert_to_base_data(batch)
             response: EmbeddingResponse = embedding(model=self.model, input=_batch)

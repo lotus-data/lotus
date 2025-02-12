@@ -3,6 +3,7 @@ from typing import Any, Callable
 import pandas as pd
 
 import lotus
+from lotus.cache import operator_cache
 from lotus.models import LM
 from lotus.templates import task_instructions
 from lotus.types import LMOutput, SemanticExtractOutput, SemanticExtractPostprocessOutput
@@ -33,7 +34,6 @@ def sem_extract(
     Returns:
         SemanticExtractOutput: The outputs, raw outputs, and quotes.
     """
-
     # prepare model inputs
     inputs = []
     for doc in docs:
@@ -58,7 +58,7 @@ def sem_extract(
     if safe_mode:
         model.print_total_usage()
 
-    return SemanticExtractOutput(**postprocess_output.model_dump())
+    return SemanticExtractOutput(raw_outputs=postprocess_output.raw_outputs, outputs=postprocess_output.outputs)
 
 
 @pd.api.extensions.register_dataframe_accessor("sem_extract")
@@ -72,6 +72,7 @@ class SemExtractDataFrame:
         if not isinstance(obj, pd.DataFrame):
             raise AttributeError("Must be a DataFrame")
 
+    @operator_cache
     def __call__(
         self,
         input_cols: list[str],

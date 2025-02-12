@@ -3,6 +3,7 @@ from typing import Any
 import pandas as pd
 
 import lotus
+from lotus.cache import operator_cache
 from lotus.models import RM
 from lotus.types import RMOutput
 
@@ -20,6 +21,7 @@ class SemSimJoinDataframe:
         if not isinstance(obj, pd.DataFrame):
             raise AttributeError("Must be a DataFrame")
 
+    @operator_cache
     def __call__(
         self,
         other: pd.DataFrame,

@@ -5,6 +5,7 @@ import pandas as pd
 from numpy.typing import NDArray
 
 import lotus
+from lotus.cache import operator_cache
 from lotus.templates import task_instructions
 from lotus.types import CascadeArgs, LMOutput, LogprobsForFilterCascade, ProxyModel, SemanticFilterOutput
 from lotus.utils import show_safe_mode
@@ -71,7 +72,12 @@ def sem_filter(
     if safe_mode:
         model.print_total_usage()
 
-    return SemanticFilterOutput(**postprocess_output.model_dump(), logprobs=lm_output.logprobs if logprobs else None)
+    return SemanticFilterOutput(
+        raw_outputs=postprocess_output.raw_outputs,
+        outputs=postprocess_output.outputs,
+        explanations=postprocess_output.explanations,
+        logprobs=lm_output.logprobs if logprobs else None,
+    )
 
 
 def learn_filter_cascade_thresholds(
@@ -134,6 +140,7 @@ class SemFilterDataframe:
         if not isinstance(obj, pd.DataFrame):
             raise AttributeError("Must be a DataFrame")
 
+    @operator_cache
     def __call__(
         self,
         user_instruction: str,

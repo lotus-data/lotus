@@ -1,3 +1,4 @@
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
@@ -7,85 +8,98 @@ from pydantic import BaseModel
 
 
 ################################################################################
-# Mixins
+# LM related
 ################################################################################
-class StatsMixin(BaseModel):
-    stats: dict[str, Any] | None = None
-
-
-class LogprobsMixin(BaseModel):
-    # for each response, we have a list of tokens, and for each token, we have a ChatCompletionTokenLogprob
+@dataclass
+class LMOutput:
+    outputs: list[str]
     logprobs: list[list[ChatCompletionTokenLogprob]] | None = None
 
 
-################################################################################
-# LM related
-################################################################################
-class LMOutput(LogprobsMixin):
-    outputs: list[str]
-
-
-class LMStats(BaseModel):
-    class TotalUsage(BaseModel):
+@dataclass
+class LMStats:
+    @dataclass
+    class TotalUsage:
         prompt_tokens: int = 0
         completion_tokens: int = 0
         total_tokens: int = 0
         total_cost: float = 0.0
         cache_hits: int = 0
+        operator_cache_hits: int = 0
 
-    total_usage: TotalUsage = TotalUsage()
+    total_usage: TotalUsage = field(default_factory=TotalUsage)
 
 
-class LogprobsForCascade(BaseModel):
+@dataclass
+class LogprobsForCascade:
     tokens: list[list[str]]
     confidences: list[list[float]]
 
 
-class LogprobsForFilterCascade(LogprobsForCascade):
+@dataclass
+class LogprobsForFilterCascade:
     true_probs: list[float]
+    tokens: list[list[str]]
+    confidences: list[list[float]]
 
 
 ################################################################################
 # Semantic operation outputs
 ################################################################################
-class SemanticMapPostprocessOutput(BaseModel):
+@dataclass
+class SemanticMapPostprocessOutput:
     raw_outputs: list[str]
     outputs: list[str]
     explanations: list[str | None]
 
 
-class SemanticMapOutput(SemanticMapPostprocessOutput):
-    pass
+@dataclass
+class SemanticMapOutput:
+    raw_outputs: list[str]
+    outputs: list[str]
+    explanations: list[str | None]
 
 
-class SemanticExtractPostprocessOutput(BaseModel):
+@dataclass
+class SemanticExtractPostprocessOutput:
     raw_outputs: list[str]
     outputs: list[dict[str, str]]
 
 
-class SemanticExtractOutput(SemanticExtractPostprocessOutput):
-    pass
+@dataclass
+class SemanticExtractOutput:
+    raw_outputs: list[str]
+    outputs: list[dict[str, str]]
 
 
-class SemanticFilterPostprocessOutput(BaseModel):
+@dataclass
+class SemanticFilterPostprocessOutput:
     raw_outputs: list[str]
     outputs: list[bool]
     explanations: list[str | None]
 
 
-class SemanticFilterOutput(SemanticFilterPostprocessOutput, StatsMixin, LogprobsMixin):
-    pass
+@dataclass
+class SemanticFilterOutput:
+    raw_outputs: list[str]
+    outputs: list[bool]
+    explanations: list[str | None]
+    stats: dict[str, Any] | None = None
+    logprobs: list[list[ChatCompletionTokenLogprob]] | None = None
 
 
-class SemanticAggOutput(BaseModel):
+@dataclass
+class SemanticAggOutput:
     outputs: list[str]
 
 
-class SemanticJoinOutput(StatsMixin):
+@dataclass
+class SemanticJoinOutput:
     join_results: list[tuple[int, int, str | None]]
     filter_outputs: list[bool]
     all_raw_outputs: list[str]
     all_explanations: list[str | None]
+    stats: dict[str, Any] | None = None
 
 
 class ProxyModel(Enum):
@@ -116,14 +130,19 @@ class CascadeArgs(BaseModel):
         arbitrary_types_allowed = True
 
 
-class SemanticTopKOutput(StatsMixin):
+@dataclass
+class SemanticTopKOutput:
     indexes: list[int]
+    stats: dict[str, Any] | None = None
 
 
 ################################################################################
 # RM related
 ################################################################################
-class RMOutput(BaseModel):
+
+
+@dataclass
+class RMOutput:
     distances: list[list[float]]
     indices: list[list[int]]
 
@@ -131,5 +150,15 @@ class RMOutput(BaseModel):
 ################################################################################
 # Reranker related
 ################################################################################
-class RerankerOutput(BaseModel):
+@dataclass
+class RerankerOutput:
     indices: list[int]
+
+
+################################################################################
+# Serialization related
+################################################################################
+class SerializationFormat(Enum):
+    JSON = "json"
+    XML = "xml"
+    DEFAULT = "default"
