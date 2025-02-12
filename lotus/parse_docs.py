@@ -1,11 +1,13 @@
 import pandas as pd
 
-
-def parse_docs(
-    docs: list[str],
+ALLOWED_METADATA_COLUMNS = ['format', 'title', 'author', 'subject', 'keywords', 'creator', 'producer', 'creationDate', 'modDate', 'trapped', 'encryption']
+    
+    
+def parse_pdf(
+    file_paths: list[str] | str,
     per_page: bool = True,
-    header_title: str = "title",
-    content_title: str = "content",
+    page_separator: str = "\n",
+    metadata_columns: list[str] | None = None,
 ) -> pd.DataFrame:
     try:
         import pymupdf
@@ -15,31 +17,45 @@ def parse_docs(
             "You can install it with the following command:\n\n"
             "    pip install 'lotus-ai[pymupdf]'"
         )
-    assert header_title != content_title
+    if not isinstance(file_paths, list) and not isinstance(file_paths, tuple):
+        file_paths = [file_paths]
 
-    df = pd.DataFrame({header_title: [], content_title: []})
-    doc_number = 0
-    for doc in docs:
-        opened_doc = pymupdf.open(doc)
-        doc_number += 1
+    columns = ['file_path', 'content']
+    if metadata_columns:
+        for metadata_column in metadata_columns:
+            assert metadata_column in ALLOWED_METADATA_COLUMNS, f"{metadata_column} is not an allowed metadata column. Allowed metadata columns: {ALLOWED_METADATA_COLUMNS}"
+        columns.extend(metadata_columns)
+    else:
+        metadata_columns = []
 
+    if per_page:
+        columns.append('page')
+
+    all_data = []
+    for file_path in file_paths:
+        opened_doc = pymupdf.open(file_path)
+        data = {
+            "file_path": file_path,
+        }
+        if metadata_columns:
+            data.update(
+                {
+                    metadata_column: opened_doc.metadata.get(metadata_column, None)
+                    for metadata_column in metadata_columns
+                }
+            )
         if per_page:
-            page_number = 1
-            for page in opened_doc:
-                df.loc[-1] = [
-                    f"{opened_doc.metadata.get('title', 'DOCUMENT ' + doc_number)} - {opened_doc.metadata.get('author', '')} <{page_number}>",
-                    page.get_text().encode("utf8"),
-                ]
-                df.index += 1
-                page_number += 1
+            data_list = [data.copy() for _ in range(len(opened_doc))]
+            for i, page in enumerate(opened_doc):
+                data_list[i]["content"] = page.get_text()
+                data_list[i]["page"] = i + 1
+            all_data.extend(data_list)
         else:
-            document_text = [
-                page.get_text().encode("utf8") for page in opened_doc
-            ].join("\n")
-            df.loc[-1] = [
-                f"{opened_doc.metadata.get('title', 'DOCUMENT ' + doc_number)} - {opened_doc.metadata.get('author', '')}",
-                document_text,
-            ]
-            df.index += 1
-
+            data["content"] = page_separator.join(
+                [page.get_text() for page in opened_doc]
+            )
+            all_data.append(data)
+        
+        opened_doc.close()
+    df = pd.DataFrame(all_data, columns=columns)
     return df
