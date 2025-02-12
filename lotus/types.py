@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
@@ -27,7 +27,7 @@ class LMStats:
         cache_hits: int = 0
         operator_cache_hits: int = 0
 
-    total_usage: TotalUsage = TotalUsage()
+    total_usage: TotalUsage = field(default_factory=TotalUsage)
 
 
 @dataclass
