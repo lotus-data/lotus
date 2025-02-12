@@ -79,7 +79,7 @@ def parse_pdf(
             response = requests.get(file_path)
             response.raise_for_status()
             opened_doc = pymupdf.open(
-                stream=io.BytesIO(response.content), type=response.headers.get("Content-Type", "application/pdf")
+                stream=io.BytesIO(response.content), filetype=response.headers.get("Content-Type", "application/pdf")
             )
         else:
             opened_doc = pymupdf.open(file_path)
