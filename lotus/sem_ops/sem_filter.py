@@ -369,7 +369,7 @@ class SemFilterDataframe:
             raw_outputs = output.raw_outputs
             explanations = output.explanations
 
-        if return_all == False:
+        if not return_all:
             # find indices where output is True
             ids = [i for i, x in enumerate(outputs) if x]
             idx_ids = [self._obj.index[i] for i, x in enumerate(outputs) if x]
@@ -384,6 +384,7 @@ class SemFilterDataframe:
             new_df = self._obj.iloc[ids]
             new_df.attrs["index_dirs"] = self._obj.attrs.get("index_dirs", None)
         else:
+
             def get_out_col_name(df, col_name):
                 if col_name in df.columns:
                     i = 1
@@ -392,6 +393,7 @@ class SemFilterDataframe:
                     return f"{col_name}_{i}"
                 else:
                     return col_name
+
             new_df = self._obj.copy()
             new_df[get_out_col_name(new_df, "filter_label")] = outputs
             filtered_explanations = explanations

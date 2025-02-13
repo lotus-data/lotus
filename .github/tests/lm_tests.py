@@ -260,7 +260,12 @@ def test_filter_operation_cot_fewshot(setup_models, model):
     examples_df = pd.DataFrame(examples)
 
     user_instruction = "{Sequence} is increasing"
-    filtered_df = df.sem_filter(user_instruction, strategy="cot", examples=examples_df, additional_cot_instructions="Assume the most typical or logical case.")
+    filtered_df = df.sem_filter(
+        user_instruction,
+        strategy="cot",
+        examples=examples_df,
+        additional_cot_instructions="Assume the most typical or logical case.",
+    )
     expected_df = pd.DataFrame(
         {
             "Sequence": [
@@ -271,6 +276,7 @@ def test_filter_operation_cot_fewshot(setup_models, model):
         index=[1, 2],
     )
     assert filtered_df.equals(expected_df)
+
 
 @pytest.mark.parametrize("model", get_enabled("gpt-4o-mini", "ollama/llama3.1"))
 def test_filter_operation_cot_fewshot_no_reasoning(setup_models, model):
@@ -304,6 +310,7 @@ def test_filter_operation_cot_fewshot_no_reasoning(setup_models, model):
         index=[1, 2],
     )
     assert filtered_df.equals(expected_df)
+
 
 ################################################################################
 # Cascade tests
