@@ -4,7 +4,7 @@ from typing import Any
 import pandas as pd
 
 import lotus
-from lotus.dtype_extensions import ImageDtype
+from lotus.dtype_extensions import DocumentDtype, ImageDtype
 from lotus.types import SerializationFormat
 
 
@@ -312,11 +312,15 @@ def df2multimodal_info(df: pd.DataFrame, cols: list[str]) -> list[dict[str, Any]
     Return a list of dictionaries, each containing text and image data.
     """
     image_cols = [col for col in cols if isinstance(df[col].dtype, ImageDtype)]
-    text_cols = [col for col in cols if col not in image_cols]
+    document_cols = [col for col in cols if isinstance(df[col].dtype, DocumentDtype)]
+    text_cols = [col for col in cols if col not in image_cols and col not in document_cols]
     text_rows = df2text(df, text_cols)
     multimodal_data = [
         {
-            "text": text_rows[i],
+            "text": {
+                "text": text_rows[i],
+                **{col.capitalize(): df[col].array.get_document(i, "string") for col in document_cols},
+            },
             "image": {col.capitalize(): df[col].array.get_image(i, "base64") for col in image_cols},
         }
         for i in range(len(df))
