@@ -310,14 +310,12 @@ def map_formatter(
             "Your task is to answer the given instruction based on the context.\n\n"
             "Instructions:\n"
             "1. First, show your reasoning in <think> tags\n"
-            "2. Then provide your final answer\n\n"
+            "2. Then provide ONLY a single word, phrase, or number as your final answer\n\n"
             "Example format:\n"
             "<think>\n"
             "Your reasoning about how you arrived at the answer...\n"
             "</think>\n"
-            "Your final answer here\n\n"
-            "Important: Make sure to include your reasoning in <think> tags "
-            "followed by a clear, concise answer."
+            "answer\n\n"
         )
     else:
         base_instruction = (
@@ -341,6 +339,54 @@ def map_formatter(
                     {"role": "assistant", "content": str(ex_ans)},
                 ]
             )
+
+    messages.append(user_message_formatter(
+        multimodal_data,
+        f"Instruction: {user_instruction}",
+        is_deepseek=is_deepseek,
+        base_instruction=base_instruction if is_deepseek else None
+    ))
+    return messages
+
+def agg_formatter(
+    multimodal_data: dict[str, Any],
+    user_instruction: str,
+    strategy: str | None = None,
+) -> list[dict[str, str]]:
+    """
+    Format instructions for aggregation operator.
+
+    Args:
+        multimodal_data (dict[str, Any]): The multimodal data to format.
+        user_instruction (str): The user instruction.
+        strategy (str | None): The reasoning strategy ("deepseek" or None).
+
+    Returns:
+        list[dict[str, str]]: The formatted messages.
+    """
+    is_deepseek = strategy == "deepseek"
+    messages = []
+    
+    if is_deepseek:
+        base_instruction = (
+            "Your task is to analyze multiple documents and provide a comprehensive answer.\n\n"
+            "Instructions:\n"
+            "1. First, show your reasoning in <think> tags about how you analyzed the documents\n"
+            "2. Then provide your final answer that combines information from all documents\n\n"
+            "Example format:\n"
+            "<think>\n"
+            "Your reasoning about how you analyzed and combined the documents...\n"
+            "</think>\n"
+            "Your final comprehensive answer\n\n"
+        )
+    else:
+        base_instruction = (
+            "Your job is to provide an answer to the user's instruction given the context below from multiple documents.\n"
+            "Remember that your job is to answer the user's instruction by combining all relevant information from all provided documents, into a single coherent answer.\n"
+            "Do NOT copy the format of the sources! Instead output your answer in a coherent, well-structured manner that best answers the user instruction.\n"
+            "You have limited space to provide your answer, so be concise and to the point.\n"
+        )
+        messages.append({"role": "system", "content": base_instruction})
 
     messages.append(user_message_formatter(
         multimodal_data,

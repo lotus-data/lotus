@@ -89,8 +89,16 @@ class SemanticFilterOutput:
 
 
 @dataclass
+class SemanticAggPostprocessOutput:
+    raw_outputs: list[str]
+    outputs: list[str]
+    explanations: list[str | None]
+
+
+@dataclass
 class SemanticAggOutput:
     outputs: list[str]
+    explanations: list[str | None]
 
 
 @dataclass

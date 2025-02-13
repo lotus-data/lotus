@@ -6,6 +6,7 @@ from lotus.types import (
     SemanticExtractPostprocessOutput,
     SemanticFilterPostprocessOutput,
     SemanticMapPostprocessOutput,
+    SemanticAggPostprocessOutput,
 )
 from lotus.sem_ops.deepseek_utils import extract_deepseek_reasoning
 
@@ -245,3 +246,35 @@ def filter_postprocess(
             outputs.append(default)
 
     return SemanticFilterPostprocessOutput(raw_outputs=llm_answers, outputs=outputs, explanations=explanations)
+
+def agg_postprocess(
+    llm_answers: list[str],
+    strategy: str | None = None,
+) -> SemanticAggPostprocessOutput:
+    """
+    Postprocess the output of the aggregate operator.
+
+    Args:
+        llm_answers (list[str]): The list of llm answers.
+        strategy (str | None): The reasoning strategy ("deepseek" or None).
+
+    Returns:
+        SemanticAggPostprocessOutput
+    """
+    outputs: list[str] = []
+    explanations: list[str | None] = []
+    
+    for llm_answer in llm_answers:
+        if strategy == "deepseek":
+            reasoning, answer = _process_deepseek_output(llm_answer)
+            outputs.append(answer)
+            explanations.append(reasoning)
+        else:
+            outputs.append(llm_answer)
+            explanations.append(None)
+            
+    return SemanticAggPostprocessOutput(
+        raw_outputs=llm_answers,
+        outputs=outputs,
+        explanations=explanations
+    )

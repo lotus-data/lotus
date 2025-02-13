@@ -110,6 +110,12 @@ def test_join_behavior():
         strategy="deepseek"
     )
     
+    # Print the full result DataFrame
+    print("\n=== Deepseek Join Result ===")
+    with pd.option_context('display.max_columns', None, 'display.max_rows', None, 'display.width', 1000):
+        print(result)
+    print("===========================\n")
+    
     # Should have reasoning in explanation_join
     assert "explanation_join" in result.columns
     assert len(result) > 0
@@ -124,6 +130,12 @@ def test_join_behavior():
         "{Course1} and {Course2} are related fields",
         return_explanations=True  # Non-deepseek model should not use deepseek strategy
     )
+    
+    # Print the full result DataFrame
+    print("\n=== Non-Deepseek Join Result ===")
+    with pd.option_context('display.max_columns', None, 'display.max_rows', None, 'display.width', 1000):
+        print(result)
+    print("===========================\n")
     
     # Should have no reasoning
     assert len(result) > 0
@@ -175,3 +187,54 @@ def test_extract_behavior():
     assert isinstance(result["course_code"].iloc[0], str)
     assert isinstance(result["professor"].iloc[0], str)
     assert "<think>" not in result["raw_output"].iloc[0]
+
+def test_agg_behavior():
+    """Test that sem_agg handles both deepseek and non-deepseek models correctly"""
+    df = pd.DataFrame({
+        "Note": [
+            "Patient reports chest pain",
+            "Follow-up shows improved symptoms",
+            "Final checkup confirms recovery"
+        ]
+    })
+
+    # Test deepseek model
+    lm = LM(model="ollama/deepseek-r1:7b")
+    lotus.settings.configure(lm=lm)
+    
+    result = df.sem_agg(
+        "Summarize the progression of {Note}",
+        return_explanations=True,
+        strategy="deepseek"
+    )
+    
+    # Print the full result DataFrame
+    print("\n=== Deepseek Agg Result ===")
+    with pd.option_context('display.max_columns', None, 'display.max_rows', None, 'display.width', 1000):
+        print(result)
+    print("===========================\n")
+    
+    # Should have reasoning in explanation column
+    assert "explanation_output" in result.columns
+    assert len(result) > 0
+    assert result["explanation_output"].iloc[0] is not None
+    assert isinstance(result["_output"].iloc[0], str)
+
+    # Test non-deepseek model
+    lm = LM(model="ollama/llama3.1:8b")
+    lotus.settings.configure(lm=lm)
+    
+    result = df.sem_agg(
+        "Summarize the progression of {Note}",
+        return_explanations=True  # Non-deepseek model should not use deepseek strategy
+    )
+    
+    # Print the full result DataFrame
+    print("\n=== Non-Deepseek Agg Result ===")
+    with pd.option_context('display.max_columns', None, 'display.max_rows', None, 'display.width', 1000):
+        print(result)
+    print("===========================\n")
+    
+    # Should have no reasoning
+    assert len(result) > 0
+    assert result["explanation_output"].iloc[0] is None
