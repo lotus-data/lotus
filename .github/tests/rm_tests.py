@@ -5,8 +5,7 @@ import pytest
 
 import lotus
 from lotus.models import CrossEncoderReranker, LiteLLMRM, SentenceTransformersRM
-from lotus.vector_store import ChromaVS, FaissVS, PineconeVS, QdrantVS, WeaviateVS
-
+from lotus.vector_store import FaissVS, PineconeVS
 ################################################################################
 # Setup
 ################################################################################
@@ -33,10 +32,7 @@ MODEL_NAME_TO_CLS = {
 
 VECTOR_STORE_TO_CLS = {
     'local': FaissVS,
-    'weaviate':WeaviateVS,
     'pinecone': PineconeVS,
-    'chroma': ChromaVS,
-    'qdrant': QdrantVS
 }
 
 
