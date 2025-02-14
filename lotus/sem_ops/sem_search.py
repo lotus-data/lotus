@@ -5,7 +5,6 @@ import pandas as pd
 import lotus
 from lotus.cache import operator_cache
 from lotus.types import RerankerOutput, RMOutput
-from lotus.vector_store.pinecone_vs import PineconeVS
 
 
 @pd.api.extensions.register_dataframe_accessor("sem_search")
