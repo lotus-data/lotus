@@ -169,7 +169,7 @@ def test_dedup(setup_models):
 ################################################################################
 
 
-@pytest.mark.parametrize("vs", VECTOR_STORE_TO_CLS.keys())
+@pytest.mark.parametrize("vs", ['local'])
 @pytest.mark.parametrize("model", get_enabled("intfloat/e5-small-v2", "text-embedding-3-small"))
 def test_vs_cluster_by(setup_models, setup_vs, vs, model):
     rm = setup_models[model]

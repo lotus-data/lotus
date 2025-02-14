@@ -103,22 +103,6 @@ class PineconeVS(VS):
         if self.pc_index is None:
             raise ValueError("No index loaded. Call load_index first.")
 
-        """
-        # Convert single query to list
-        if isinstance(queries, (str, Image.Image)):
-            queries = [queries]
-
-        # Handle numpy array queries (pre-computed vectors)
-        if isinstance(queries, np.ndarray):
-            query_vectors = queries
-        else:
-            # Convert queries to list if needed
-            if isinstance(queries, pd.Series):
-                queries = queries.tolist()
-            # Create embeddings for text queries
-            query_vectors = self._batch_embed(queries)
-        """
-
         # Perform searches
         all_distances = []
         all_indices = []
@@ -155,22 +139,4 @@ class PineconeVS(VS):
 
     def get_vectors_from_index(self, index_dir: str, ids: list[int]) -> NDArray[np.float64]:
         """Retrieve vectors for specific document IDs"""
-        if self.pc_index is None or self.index_dir != index_dir:
-            self.load_index(index_dir)
-
-        if self.pc_index is None:  # Add this check after load_index
-            raise ValueError("Failed to initialize Pinecone index")
-
-
-
-        # Fetch vectors from Pinecone
-        vectors = []
-        for doc_id in ids:
-            response = self.pc_index.fetch(ids=[str(doc_id)])
-            if str(doc_id) in response.vectors:
-                vector = response.vectors[str(doc_id)].values
-                vectors.append(vector)
-            else:
-                raise ValueError(f"Document with id {doc_id} not found")
-
-        return np.array(vectors, dtype=np.float64)
+        raise ValueError('Not a Pinecone supported operation!')
