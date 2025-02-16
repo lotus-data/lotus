@@ -61,10 +61,6 @@ class SemSearchDataframe:
 
             df_idxs = self._obj.index
             cur_min = len(df_idxs)
-<<<<<<< HEAD
-=======
-
->>>>>>> 6b9bcfa5439dd6aeff87f754e303127803ed6cb6
             K = min(K, cur_min)
 
             search_K = K
