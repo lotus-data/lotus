@@ -119,15 +119,16 @@ class SemExtractDataFrame:
         )
 
         new_df = self._obj.copy()
+        indices = new_df.index.to_list()
         for i, output_dict in enumerate(out.outputs):
+            if i >= len(indices):
+                break
             for key, value in output_dict.items():
                 if key not in new_df.columns:
                     new_df[key] = None
-                new_df.loc[i, key] = value
+                new_df.loc[indices[i], key] = value
 
         if return_raw_outputs:
             new_df["raw_output"] = out.raw_outputs
-
-        new_df = new_df.reset_index(drop=True)
 
         return new_df

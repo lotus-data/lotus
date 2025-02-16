@@ -5,7 +5,12 @@ import pytest
 
 import lotus
 from lotus.models import CrossEncoderReranker, LiteLLMRM, SentenceTransformersRM
+<<<<<<< HEAD
 from lotus.vector_store import FaissVS, PineconeVS
+=======
+from lotus.vector_store import  FaissVS
+
+>>>>>>> 6b9bcfa5439dd6aeff87f754e303127803ed6cb6
 ################################################################################
 # Setup
 ################################################################################
@@ -32,7 +37,10 @@ MODEL_NAME_TO_CLS = {
 
 VECTOR_STORE_TO_CLS = {
     'local': FaissVS,
+<<<<<<< HEAD
     'pinecone': PineconeVS,
+=======
+>>>>>>> 6b9bcfa5439dd6aeff87f754e303127803ed6cb6
 }
 
 
@@ -169,7 +177,11 @@ def test_dedup(setup_models):
 ################################################################################
 
 
+<<<<<<< HEAD
 @pytest.mark.parametrize("vs", ['local'])
+=======
+@pytest.mark.parametrize("vs", VECTOR_STORE_TO_CLS.keys())
+>>>>>>> 6b9bcfa5439dd6aeff87f754e303127803ed6cb6
 @pytest.mark.parametrize("model", get_enabled("intfloat/e5-small-v2", "text-embedding-3-small"))
 def test_vs_cluster_by(setup_models, setup_vs, vs, model):
     rm = setup_models[model]
@@ -241,6 +253,10 @@ def test_vs_sim_join(setup_models, setup_vs, vs, model):
     joined_pairs = set(zip(joined_df["Course Name"], joined_df["Skill"]))
     expected_pairs = {("History of the Atlantic World", "History"), ("Riemannian Geometry", "Math")}
     assert joined_pairs == expected_pairs, joined_pairs
+
+    
+
+
 
 
 # TODO: threshold is hardcoded for intfloat/e5-small-v2
@@ -315,3 +331,52 @@ def test_search(setup_models):
     df = df.sem_index("Course Name", "index_dir")
     df = df.sem_search("Course Name", "Optimization", K=2, n_rerank=1)
     assert df["Course Name"].tolist() == ["Optimization Methods in Engineering"]
+
+@pytest.mark.parametrize("model", get_enabled("intfloat/e5-small-v2", "text-embedding-3-small"))
+def test_filtered_vector_search(setup_models, model):
+    """
+    Test filtered vector search.
+    
+    This test starts with a DataFrame that contains:
+      - a text column ("Course Name") that will be embedded and indexed,
+      - a structured column ("Category") used for filtering.
+    
+    The test performs the following steps:
+      1. Index the "Course Name" column to generate semantic embeddings.
+      2. Apply a filter to keep only rows with Category "Culinary".
+      3. Perform a semantic search over the filtered DataFrame using a query ("advanced") that is
+         expected to pick out the culinary course "Gourmet Cooking Advanced".
+    """
+    rm = setup_models[model]
+    vs = FaissVS()
+    lotus.settings.configure(rm=rm, vs=vs)
+
+    data = {
+        "Course Name": [
+            "Gourmet Cooking Advanced",
+            "Home Cooking Basics",
+            "Probability and Statistics",
+            "Linear Algebra Fundamentals"
+        ],
+        "Category": [
+            "Culinary",
+            "Culinary",
+            "Math",
+            "Math"
+        ]
+    }
+    df = pd.DataFrame(data)
+    # Index the 'Course Name' column to generate semantic embeddings.
+    df = df.sem_index("Course Name", "filtered_index_dir")
+    # Filter the DataFrame to only include Culinary courses.
+    df_filtered = df[df["Category"] == "Culinary"]
+    # Perform semantic search on the filtered DataFrame.
+    df_searched = df_filtered.sem_search("Course Name", "advanced", K=1)
+
+    # Verify that every returned row belongs to the Culinary category.
+    assert all(df_searched["Category"] == "Culinary"), "Filtered search returned non-Culinary courses."
+    
+    # Verify the expected course is returned.
+    expected_course = "Gourmet Cooking Advanced"
+    result_course = df_searched["Course Name"].iloc[0]
+    assert result_course == expected_course, f"Expected '{expected_course}', but got '{result_course}'"
