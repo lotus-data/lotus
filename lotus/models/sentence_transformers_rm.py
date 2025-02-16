@@ -17,10 +17,6 @@ class SentenceTransformersRM(RM):
         normalize_embeddings: bool = True,
         device: str | None = None,
     ):
-<<<<<<< HEAD
-        #super().__init__(factory_string, metric)
-=======
->>>>>>> 6b9bcfa5439dd6aeff87f754e303127803ed6cb6
         self.model: str = model
         self.max_batch_size: int = max_batch_size
         self.normalize_embeddings: bool = normalize_embeddings
