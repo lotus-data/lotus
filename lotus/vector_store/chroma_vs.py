@@ -1,8 +1,8 @@
-from typing import Any, Mapping, Optional, Union, cast, List
+from typing import Any, List, Mapping, Optional, Union, cast
 
-from chromadb import Where
 import numpy as np
 import pandas as pd
+from chromadb import Where
 from numpy.typing import NDArray
 from tqdm import tqdm
 
