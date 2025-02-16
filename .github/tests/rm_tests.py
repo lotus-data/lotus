@@ -324,8 +324,9 @@ def test_search(setup_models):
     df = df.sem_search("Course Name", "Optimization", K=2, n_rerank=1)
     assert df["Course Name"].tolist() == ["Optimization Methods in Engineering"]
 
+@pytest.mark.parametrize("vs", VECTOR_STORE_TO_CLS.keys())
 @pytest.mark.parametrize("model", get_enabled("intfloat/e5-small-v2", "text-embedding-3-small"))
-def test_filtered_vector_search(setup_models, model):
+def test_filtered_vector_search(setup_models, setup_vs, vs, model):
     """
     Test filtered vector search.
     
@@ -340,7 +341,7 @@ def test_filtered_vector_search(setup_models, model):
          expected to pick out the culinary course "Gourmet Cooking Advanced".
     """
     rm = setup_models[model]
-    vs = FaissVS()
+    vs = setup_vs[vs]
     lotus.settings.configure(rm=rm, vs=vs)
 
     data = {
