@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
@@ -27,7 +27,7 @@ class LMStats:
         cache_hits: int = 0
         operator_cache_hits: int = 0
 
-    total_usage: TotalUsage = TotalUsage()
+    total_usage: TotalUsage = field(default_factory=TotalUsage)
 
 
 @dataclass
@@ -102,6 +102,11 @@ class SemanticJoinOutput:
     stats: dict[str, Any] | None = None
 
 
+class ProxyModel(Enum):
+    HELPER_LM = "helper_lm"
+    EMBEDDING_MODEL = "embedding_model"
+
+
 class CascadeArgs(BaseModel):
     recall_target: float = 0.8
     precision_target: float = 0.8
@@ -109,6 +114,7 @@ class CascadeArgs(BaseModel):
     failure_probability: float = 0.2
     map_instruction: str | None = None
     map_examples: pd.DataFrame | None = None
+    proxy_model: ProxyModel = ProxyModel.HELPER_LM
 
     # Filter cascade args
     cascade_IS_weight: float = 0.5

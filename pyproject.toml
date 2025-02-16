@@ -40,6 +40,12 @@ docs = [
 xml = [
     "lxml",
 ]
+serpapi = [
+    "google-search-results",
+]
+arxiv = [
+    "arxiv",
+]
 
 [tool.ruff]
 line-length = 120

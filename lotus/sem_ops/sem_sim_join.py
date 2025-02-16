@@ -83,7 +83,9 @@ class SemSimJoinDataframe:
 
         query_vectors = rm.convert_query_to_query_vector(queries)
 
-        vs_output: RMOutput = vs(query_vectors, K)
+        right_ids = list(other.index)
+
+        vs_output: RMOutput = vs(query_vectors, K, ids=right_ids)
         distances = vs_output.distances
         indices = vs_output.indices
 
