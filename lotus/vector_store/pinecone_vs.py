@@ -117,8 +117,8 @@ class PineconeVS(VS):
                 filter={
                     "doc_id": {
                         "in": ids
-                    } if ids is not None else None,
-                },
+                    } ,
+                } if ids is not None else None,
                 **kwargs
             )
 
