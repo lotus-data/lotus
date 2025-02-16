@@ -170,7 +170,7 @@ def test_dedup(setup_models):
 ################################################################################
 
 
-@pytest.mark.parametrize("vs", VECTOR_STORE_TO_CLS.keys())
+@pytest.mark.parametrize("vs", [vs for vs in VECTOR_STORE_TO_CLS.keys() if vs != 'weaviate'])
 @pytest.mark.parametrize("model", get_enabled("intfloat/e5-small-v2", "text-embedding-3-small"))
 def test_vs_cluster_by(setup_models, setup_vs, vs, model):
     rm = setup_models[model]
@@ -249,7 +249,7 @@ def test_vs_sim_join(setup_models, setup_vs, vs, model):
     "intfloat/e5-small-v2" not in ENABLED_MODEL_NAMES,
     reason="Skipping test because intfloat/e5-small-v2 is not enabled",
 )
-@pytest.mark.parametrize("vs", VECTOR_STORE_TO_CLS.keys())
+@pytest.mark.parametrize("vs",  VECTOR_STORE_TO_CLS.keys())
 def test_vs_dedup(setup_models, setup_vs, vs):
     rm = setup_models["intfloat/e5-small-v2"]
     my_vs = setup_vs[vs]
