@@ -33,6 +33,8 @@ class SemIndexDataframe:
             pd.DataFrame: The DataFrame with the index directory saved.
         """
 
+        lotus.logger.warning('Do not reset the dataframe index to ensure proper functionality of get_vectors_from_index')
+
         rm = lotus.settings.rm 
         vs = lotus.settings.vs
         if rm is None or vs is None:

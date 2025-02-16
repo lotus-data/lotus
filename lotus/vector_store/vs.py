@@ -45,6 +45,7 @@ class VS(ABC):
     def __call__(self,
     query_vectors:Any,
     K:int,
+    ids:list, 
     **kwargs: dict[str, Any],
  ) -> RMOutput:
         pass 
@@ -52,15 +53,3 @@ class VS(ABC):
     @abstractmethod
     def get_vectors_from_index(self, index_dir:str, ids: list[Any]) -> NDArray[np.float64]:
         pass 
-
-    """
-    def _batch_embed(self, docs: pd.Series | list) -> NDArray[np.float64]:
-        Create embeddings using the provided embedding model with batching
-        all_embeddings = []
-        for i in tqdm(range(0, len(docs), self.max_batch_size), desc="Creating embeddings"):
-            batch = docs[i : i + self.max_batch_size]
-            _batch = convert_to_base_data(batch)
-            embeddings = self._embed(_batch)
-            all_embeddings.append(embeddings)
-        return np.vstack(all_embeddings)
-    """
