@@ -6,6 +6,7 @@ from numpy.typing import NDArray
 
 from lotus.types import RMOutput
 
+
 class VS(ABC):
     """Abstract class for vector stores."""
 

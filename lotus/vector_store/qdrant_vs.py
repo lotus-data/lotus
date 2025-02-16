@@ -10,7 +10,7 @@ from lotus.vector_store.vs import VS
 
 try:
     from qdrant_client import QdrantClient
-    from qdrant_client.http.models import Distance, PointStruct, VectorParams, Filter, FieldCondition, MatchValue
+    from qdrant_client.http.models import Distance, FieldCondition, Filter, MatchValue, PointStruct, VectorParams
 except ImportError as err:
     raise ImportError("Please install the qdrant client") from err
 
