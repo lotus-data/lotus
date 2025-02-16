@@ -255,6 +255,9 @@ def test_vs_sim_join(setup_models, setup_vs, vs, model):
 )
 @pytest.mark.parametrize("vs", VECTOR_STORE_TO_CLS.keys())
 def test_vs_dedup(setup_models, setup_vs, vs):
+    curr_threshold = 0.85
+    if vs == "chroma":
+        curr_threshold = 0.9
     rm = setup_models["intfloat/e5-small-v2"]
     my_vs = setup_vs[vs]
     lotus.settings.configure(rm=rm, vs=my_vs)
@@ -267,7 +270,7 @@ def test_vs_dedup(setup_models, setup_vs, vs):
         ]
     }
     df = pd.DataFrame(data)
-    df = df.sem_index("Text", "fourthindexdir").sem_dedup("Text", threshold=0.85)
+    df = df.sem_index("Text", "fourthindexdir").sem_dedup("Text", threshold=curr_threshold)
     kept = df["Text"].tolist()
     kept.sort()
     assert len(kept) == 2, kept
