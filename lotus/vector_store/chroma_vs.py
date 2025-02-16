@@ -107,7 +107,13 @@ class ChromaVS(VS):
             raise ValueError("No collection loaded. Call load_index first.")
 
         # If an ids list is provided, build a filter on the "doc_id" field.
-        where_filter = {"doc_id": {"$in": ids}} if ids is not None else None
+        where_filter = {
+            "$or":[
+                {"doc_id": {"$eq": id}} for id in ids
+            ]
+        }
+
+        #{"doc_id": {"$in": ids}} if ids is not None else None
 
         all_distances = []
         all_indices = []
