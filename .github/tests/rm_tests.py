@@ -334,7 +334,7 @@ def test_filtered_vector_search(setup_models, setup_vs, vs, model):
          expected to pick out the culinary course "Gourmet Cooking Advanced".
     """
     rm = setup_models[model]
-    vs = FaissVS()
+    vs = setup_vs[vs]
     lotus.settings.configure(rm=rm, vs=vs)
 
     data = {
