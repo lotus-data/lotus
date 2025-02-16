@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
@@ -10,7 +10,7 @@ from lotus.vector_store.vs import VS
 
 try:
     from qdrant_client import QdrantClient
-    from qdrant_client.models import Distance, PointStruct, VectorParams
+    from qdrant_client.http.models import Distance, PointStruct, VectorParams, Filter, FieldCondition, MatchValue
 except ImportError as err:
     raise ImportError("Please install the qdrant client") from err
 
@@ -105,31 +105,13 @@ class QdrantVS(VS):
         self,
         query_vectors,
         K: int,
+        ids: Optional[list[int]] = None,
         **kwargs: dict[str, Any]
     ) -> RMOutput:
         """Perform vector search using Qdrant"""
         if self.index_dir is None:
             raise ValueError("No collection loaded. Call load_index first.")
-
-        """
-
-        do this in retriever module before passing into here 
-
-        # Convert single query to list
-        if isinstance(queries, (str, Image.Image)):
-            queries = [queries]
-
-        # Handle numpy array queries (pre-computed vectors)
-        if isinstance(queries, np.ndarray):
-            query_vectors = queries
-        else:
-            # Convert queries to list if needed
-            if isinstance(queries, pd.Series):
-                queries = queries.tolist()
-            # Create embeddings for text queries
-            query_vectors = self._batch_embed(queries)
-        """
-
+        
         # Perform searches
         all_distances = []
         all_indices = []
@@ -139,7 +121,12 @@ class QdrantVS(VS):
                 collection_name=self.index_dir,
                 query_vector=query_vector.tolist(),
                 limit=K,
-                with_payload=True
+                with_payload=True,
+                query_filter=Filter(
+                    should=[
+                        FieldCondition(key="doc_id", match=MatchValue(value=id)) for id in ids
+                    ]
+                ) if ids is not None else None
             )
 
             # Extract distances and indices
