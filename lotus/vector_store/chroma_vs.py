@@ -1,4 +1,4 @@
-from typing import Any, Mapping, Union
+from typing import Any, Mapping, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -88,59 +88,55 @@ class ChromaVS(VS):
         self,
         query_vectors,
         K: int,
+        ids: Optional[list[Any]] = None,
         **kwargs: dict[str, Any]
     ) -> RMOutput:
-        """Perform vector search using ChromaDB"""
+        """
+        Perform vector search using ChromaDB with optional filtering by document IDs.
+
+        Args:
+            query_vectors: Pre-embedded query vectors.
+            K (int): Number of nearest neighbors to retrieve.
+            ids (Optional[list[Any]]): If provided, the search will be limited to documents with these ids.
+            **kwargs: Additional parameters.
+
+        Returns:
+            RMOutput: Contains the distances and indices of the nearest neighbors.
+        """
         if self.collection is None:
             raise ValueError("No collection loaded. Call load_index first.")
 
+        # If an ids list is provided, build a filter on the "doc_id" field.
+        where_filter = {"doc_id": {"$in": ids}} if ids is not None else None
 
-        """
-        # Convert single query to list
-        if isinstance(queries, (str, Image.Image)):
-            queries = [queries]
-
-        # Handle numpy array queries (pre-computed vectors)
-        if isinstance(queries, np.ndarray):
-            query_vectors = queries
-        else:
-            # Convert queries to list if needed
-            if isinstance(queries, pd.Series):
-                queries = queries.tolist()
-            # Create embeddings for text queries
-            query_vectors = self._batch_embed(queries)
-
-        """
-
-        # Perform searches
         all_distances = []
         all_indices = []
 
+        # Process each query vector.
         for query_vector in query_vectors:
             results = self.collection.query(
                 query_embeddings=[query_vector.tolist()],
                 n_results=K,
-                include=[IncludeEnum.metadatas, IncludeEnum.distances]
+                include=[IncludeEnum.metadatas, IncludeEnum.distances],
+                where=where_filter,
             )
 
-            # Extract distances and indices
             distances = []
             indices = []
-            
-            if results['metadatas'] and results['distances']:
-                for metadata, distance in zip(results['metadatas'][0], results['distances'][0]):
-                    indices.append(metadata['doc_id'])
-                    # ChromaDB returns squared L2 distances, convert to cosine similarity
-                    # similarity = 1 - (distance / 2)  # Convert L2 distance to cosine similarity
+
+            if results.get("metadatas") and results.get("distances"):
+                for metadata, distance in zip(results["metadatas"][0], results["distances"][0]):
+                    indices.append(metadata["doc_id"])
+                    # ChromaDB returns squared L2 distances; convert these to cosine similarity.
                     distances.append(1 - (distance / 2))
 
-            # Pad results if fewer than K matches
+            # Pad results if fewer than K matches are returned.
             while len(indices) < K:
                 indices.append(-1)
                 distances.append(0.0)
 
-            all_distances.append(distances)
             all_indices.append(indices)
+            all_distances.append(distances)
 
         return RMOutput(
             distances=np.array(all_distances, dtype=np.float32).tolist(),
