@@ -11,6 +11,7 @@ class RM(ABC):
     #Abstract class for retriever models.
 
     def __init__(self) -> None:
+<<<<<<< HEAD
         pass
 
     @abstractmethod 
@@ -90,3 +91,29 @@ class RM(ABC):
     
         
         """
+=======
+        pass
+
+    @abstractmethod 
+    def _embed(self, docs:pd.Series | list):
+        pass 
+
+    def __call__(self, docs: pd.Series | list):
+        return self._embed(docs) 
+    
+    def convert_query_to_query_vector(self, queries: Union[pd.Series, str, Image.Image, list, NDArray[np.float64]],
+):
+        if isinstance(queries, (str, Image.Image)):
+            queries = [queries]
+
+        # Handle numpy array queries (pre-computed vectors)
+        if isinstance(queries, np.ndarray):
+            query_vectors = queries
+        else:
+            # Convert queries to list if needed
+            if isinstance(queries, pd.Series):
+                queries = queries.tolist()
+            # Create embeddings for text queries
+            query_vectors = self._embed(queries) 
+        return query_vectors
+>>>>>>> 6b9bcfa5439dd6aeff87f754e303127803ed6cb6

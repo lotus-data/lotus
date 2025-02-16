@@ -62,8 +62,6 @@ class SemSearchDataframe:
 
             df_idxs = self._obj.index
             cur_min = len(df_idxs)
-            if isinstance(vs, PineconeVS):
-                cur_min = min(cur_min, 10000) 
             K = min(K, cur_min)
 
             search_K = K
