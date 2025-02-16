@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 from numpy.typing import NDArray
@@ -32,35 +32,43 @@ class VS(ABC):
     @abstractmethod
     def index(self, docs, embeddings: Any, index_dir: str, **kwargs: dict[str, Any]):
         """
-        Create index and store it in vector store 
+        Create index and store it in vector store.
         """
         pass
 
     @abstractmethod
     def load_index(self, index_dir: str):
-        """Load the index from the vector store into memory if needed"""
+        """
+        Load the index from the vector store into memory if needed.
+        """
         pass 
 
     @abstractmethod 
-    def __call__(self,
-    query_vectors:Any,
-    K:int,
-    **kwargs: dict[str, Any],
- ) -> RMOutput:
+    def __call__(
+        self,
+        query_vectors: Any,
+        K: int,
+        ids: Optional[list[Any]] = None,
+        **kwargs: dict[str, Any],
+    ) -> RMOutput:
+        """
+        Perform a nearest neighbor search given query vectors.
+
+        Args:
+            query_vectors (Any): The query vector(s) used for the search.
+            K (int): The number of nearest neighbors to retrieve.
+            ids (Optional[list[Any]]): The list of document ids (or index positions) to search over.
+                                       If None, search across all indexed vectors.
+            **kwargs (dict[str, Any]): Additional parameters.
+
+        Returns:
+            RMOutput: The output containing distances and indices.
+        """
         pass 
     
     @abstractmethod
-    def get_vectors_from_index(self, index_dir:str, ids: list[Any]) -> NDArray[np.float64]:
+    def get_vectors_from_index(self, index_dir: str, ids: list[Any]) -> NDArray[np.float64]:
+        """
+        Retrieve vectors from a stored index given specific ids.
+        """
         pass 
-
-    """
-    def _batch_embed(self, docs: pd.Series | list) -> NDArray[np.float64]:
-        Create embeddings using the provided embedding model with batching
-        all_embeddings = []
-        for i in tqdm(range(0, len(docs), self.max_batch_size), desc="Creating embeddings"):
-            batch = docs[i : i + self.max_batch_size]
-            _batch = convert_to_base_data(batch)
-            embeddings = self._embed(_batch)
-            all_embeddings.append(embeddings)
-        return np.vstack(all_embeddings)
-    """
