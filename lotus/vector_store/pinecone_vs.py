@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
@@ -97,6 +97,7 @@ class PineconeVS(VS):
         self,
         query_vectors,
         K: int,
+        ids: Optional[list[int]] = None,
         **kwargs: dict[str, Any]
     ) -> RMOutput:
         """Perform vector search using Pinecone"""
@@ -113,6 +114,11 @@ class PineconeVS(VS):
                 vector=query_vector.tolist(),
                 top_k=K,
                 include_metadata=True,
+                filter={
+                    "doc_id": {
+                        "in": ids
+                    } if ids is not None else None,
+                },
                 **kwargs
             )
 
