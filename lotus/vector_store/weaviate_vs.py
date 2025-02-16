@@ -1,4 +1,4 @@
-from typing import Any, List
+from typing import Any, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -11,7 +11,7 @@ try:
     import weaviate
     from weaviate.classes.config import Configure, DataType, Property
     from weaviate.classes.init import Auth
-    from weaviate.classes.query import MetadataQuery
+    from weaviate.classes.query import MetadataQuery, Filter
 except ImportError as err:
     raise ImportError("Please install the weaviate client") from err 
 
@@ -113,6 +113,7 @@ class WeaviateVS(VS):
     def __call__(self,
         query_vectors,
         K: int,
+        ids: Optional[list[int]] = None,
         **kwargs: dict[str, Any]
     ) -> RMOutput:
         """Perform vector search using pre-computed query vectors"""
@@ -121,21 +122,6 @@ class WeaviateVS(VS):
 
         collection = self.client.collections.get(self.index_dir)
 
-        """
-
-        do this in the retriever module
-        # Convert single query to list
-        if isinstance(queries, (str, Image.Image)):
-            queries = [queries]
-        
-        # Handle numpy array queries (pre-computed vectors)
-        if isinstance(queries, np.ndarray):
-            query_vectors = queries
-        else:
-            # Generate embeddings for text queries
-            query_vectors = self._batch_embed(queries)
-        """
-
         # Perform searches
         results = []
         for query_vector in query_vectors:
@@ -143,7 +129,8 @@ class WeaviateVS(VS):
                 .near_vector(
                     near_vector=query_vector.tolist(),
                     limit=K,
-                    return_metadata=MetadataQuery(distance=True)
+                    return_metadata=MetadataQuery(distance=True),
+                    filters=Filter.any_of([Filter.by_property('doc_id').equal(id) for id in ids]) if ids is not None else None
                     ))
             results.append(response)
 
@@ -175,20 +162,6 @@ class WeaviateVS(VS):
         )
 
     def get_vectors_from_index(self, index_dir: str, ids: list[Any]) -> NDArray[np.float64]:
-        """Retrieve vectors for specific document IDs"""
-        collection = self.client.collections.get(index_dir)
-        
-        # Query for documents with specific doc_ids
-        vectors = []
-        for id in ids:
-            exists = False 
-            for obj in collection.query.fetch_objects().objects:
-                print(f'object vector: {collection.query.__extract_vector_for_object(obj.metadata)}')
-                if id == obj.properties.get('doc_id', -1):
-                    exists = True
-                    vectors.append((1))
-            if not exists:
-                raise ValueError(f'{id} does not exist in {index_dir}')
-        return np.array(vectors, dtype=np.float64)
+        raise NotImplementedError("Weaviate does not support get_vectors_from_index")
         
         
