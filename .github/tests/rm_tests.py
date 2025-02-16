@@ -5,7 +5,7 @@ import pytest
 
 import lotus
 from lotus.models import CrossEncoderReranker, LiteLLMRM, SentenceTransformersRM
-from lotus.vector_store import  FaissVS,  WeaviateVS
+from lotus.vector_store import FaissVS, WeaviateVS
 
 ################################################################################
 # Setup
