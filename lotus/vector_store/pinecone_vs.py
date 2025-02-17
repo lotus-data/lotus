@@ -103,11 +103,6 @@ class PineconeVS(VS):
         """Perform vector search using Pinecone"""
         if self.pc_index is None:
             raise ValueError("No index loaded. Call load_index first.")
-        
-
-        print(f'ids: {ids}')
-        print(f'query_vectors: {query_vectors}')
-        
         K = min(K, 10000)
 
         # Perform searches
@@ -128,7 +123,6 @@ class PineconeVS(VS):
                 **kwargs
             )
 
-            print(f'result for query vector: {results}')
 
             # Extract distances and indices
             distances = []

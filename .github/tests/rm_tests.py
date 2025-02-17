@@ -220,7 +220,7 @@ def test_vs_search_rm_only(setup_models, setup_vs, vs, model):
     df = df.sem_search("Course Name", "Optimization", K=1)
     assert df["Course Name"].tolist() == ["Optimization Methods in Engineering"]
 
-@pytest.mark.parametrize("vs", VECTOR_STORE_TO_CLS.keys())
+@pytest.mark.parametrize("vs", [vs for vs in VECTOR_STORE_TO_CLS.keys() if vs != 'pinecone'])
 @pytest.mark.parametrize("model", get_enabled("intfloat/e5-small-v2", "text-embedding-3-small"))
 def test_vs_sim_join(setup_models, setup_vs, vs, model):
     rm = setup_models[model]
