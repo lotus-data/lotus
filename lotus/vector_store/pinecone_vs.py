@@ -106,6 +106,7 @@ class PineconeVS(VS):
         
 
         print(f'ids: {ids}')
+        print(f'query_vectors: {query_vectors}')
         
         K = min(K, 10000)
 
