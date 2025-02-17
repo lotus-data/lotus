@@ -43,7 +43,7 @@ class PineconeVS(VS):
                 name=index_dir,
                 dimension=dimension,
                 metric="cosine",
-                spec=ServerlessSpec(
+                spec=ServerlessSpec( 
                     cloud='aws', 
                     region='us-east-1'
                 )

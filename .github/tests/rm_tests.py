@@ -342,13 +342,13 @@ def test_filtered_vector_search(setup_models, setup_vs, vs, model):
     lotus.settings.configure(rm=rm, vs=vs)
 
     data = {
-        "coursename": [
+        "Course Name": [
             "Gourmet Cooking Advanced",
             "Home Cooking Basics",
             "Probability and Statistics",
             "Linear Algebra Fundamentals"
         ],
-        "category": [
+        "Category": [
             "Culinary",
             "Culinary",
             "Math",
@@ -357,16 +357,16 @@ def test_filtered_vector_search(setup_models, setup_vs, vs, model):
     }
     df = pd.DataFrame(data)
     # Index the 'Course Name' column to generate semantic embeddings.
-    df = df.sem_index("coursename", "filtered_index_dir")
+    df = df.sem_index("Course Name", "filteredindexdir")
     # Filter the DataFrame to only include Culinary courses.
-    df_filtered = df[df["category"] == "Culinary"]
+    df_filtered = df[df["Category"] == "Culinary"]
     # Perform semantic search on the filtered DataFrame.
-    df_searched = df_filtered.sem_search("coursename", "advanced", K=1)
+    df_searched = df_filtered.sem_search("Course Name", "advanced", K=1)
 
     # Verify that every returned row belongs to the Culinary category.
-    assert all(df_searched["category"] == "Culinary"), "Filtered search returned non-Culinary courses."
+    assert all(df_searched["Category"] == "Culinary"), "Filtered search returned non-Culinary courses."
     
     # Verify the expected course is returned.
     expected_course = "Gourmet Cooking Advanced"
-    result_course = df_searched["coursename"].iloc[0]
+    result_course = df_searched["Course Name"].iloc[0]
     assert result_course == expected_course, f"Expected '{expected_course}', but got '{result_course}'"
