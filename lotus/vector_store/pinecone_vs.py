@@ -103,6 +103,8 @@ class PineconeVS(VS):
         """Perform vector search using Pinecone"""
         if self.pc_index is None:
             raise ValueError("No index loaded. Call load_index first.")
+        
+        K = min(K, 10000)
 
         # Perform searches
         all_distances = []
@@ -116,7 +118,7 @@ class PineconeVS(VS):
                 include_metadata=True,
                 filter={
                     "doc_id": {
-                        "in": ids
+                        "$in": ids
                     } ,
                 } if ids is not None else None,
                 **kwargs
