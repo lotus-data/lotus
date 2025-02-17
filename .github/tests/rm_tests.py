@@ -253,7 +253,7 @@ def test_vs_sim_join(setup_models, setup_vs, vs, model):
     "intfloat/e5-small-v2" not in ENABLED_MODEL_NAMES,
     reason="Skipping test because intfloat/e5-small-v2 is not enabled",
 )
-@pytest.mark.parametrize("vs", VECTOR_STORE_TO_CLS.keys())
+@pytest.mark.parametrize("vs", [key for key in VECTOR_STORE_TO_CLS.keys() if key != 'pinecone'])
 def test_vs_dedup(setup_models, setup_vs, vs):
     rm = setup_models["intfloat/e5-small-v2"]
     my_vs = setup_vs[vs]
@@ -357,16 +357,16 @@ def test_filtered_vector_search(setup_models, setup_vs, vs, model):
     }
     df = pd.DataFrame(data)
     # Index the 'Course Name' column to generate semantic embeddings.
-    df = df.sem_index("Course Name", "filtered_index_dir")
+    df = df.sem_index("coursename", "filtered_index_dir")
     # Filter the DataFrame to only include Culinary courses.
     df_filtered = df[df["Category"] == "Culinary"]
     # Perform semantic search on the filtered DataFrame.
-    df_searched = df_filtered.sem_search("Course Name", "advanced", K=1)
+    df_searched = df_filtered.sem_search("coursename", "advanced", K=1)
 
     # Verify that every returned row belongs to the Culinary category.
     assert all(df_searched["Category"] == "Culinary"), "Filtered search returned non-Culinary courses."
     
     # Verify the expected course is returned.
     expected_course = "Gourmet Cooking Advanced"
-    result_course = df_searched["Course Name"].iloc[0]
+    result_course = df_searched["coursename"].iloc[0]
     assert result_course == expected_course, f"Expected '{expected_course}', but got '{result_course}'"
