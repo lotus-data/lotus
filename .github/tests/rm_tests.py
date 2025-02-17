@@ -348,7 +348,7 @@ def test_filtered_vector_search(setup_models, setup_vs, vs, model):
             "Probability and Statistics",
             "Linear Algebra Fundamentals"
         ],
-        "Category": [
+        "category": [
             "Culinary",
             "Culinary",
             "Math",
@@ -359,12 +359,12 @@ def test_filtered_vector_search(setup_models, setup_vs, vs, model):
     # Index the 'Course Name' column to generate semantic embeddings.
     df = df.sem_index("coursename", "filtered_index_dir")
     # Filter the DataFrame to only include Culinary courses.
-    df_filtered = df[df["Category"] == "Culinary"]
+    df_filtered = df[df["category"] == "Culinary"]
     # Perform semantic search on the filtered DataFrame.
     df_searched = df_filtered.sem_search("coursename", "advanced", K=1)
 
     # Verify that every returned row belongs to the Culinary category.
-    assert all(df_searched["Category"] == "Culinary"), "Filtered search returned non-Culinary courses."
+    assert all(df_searched["category"] == "Culinary"), "Filtered search returned non-Culinary courses."
     
     # Verify the expected course is returned.
     expected_course = "Gourmet Cooking Advanced"
