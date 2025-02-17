@@ -342,7 +342,7 @@ def test_filtered_vector_search(setup_models, setup_vs, vs, model):
     lotus.settings.configure(rm=rm, vs=vs)
 
     data = {
-        "Course Name": [
+        "coursename": [
             "Gourmet Cooking Advanced",
             "Home Cooking Basics",
             "Probability and Statistics",
