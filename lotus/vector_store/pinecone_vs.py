@@ -104,6 +104,9 @@ class PineconeVS(VS):
         if self.pc_index is None:
             raise ValueError("No index loaded. Call load_index first.")
         
+
+        print(f'ids: {ids}')
+        
         K = min(K, 10000)
 
         # Perform searches
