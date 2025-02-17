@@ -128,6 +128,8 @@ class PineconeVS(VS):
                 **kwargs
             )
 
+            print(f'result for query vector: {results}')
+
             # Extract distances and indices
             distances = []
             indices = []
