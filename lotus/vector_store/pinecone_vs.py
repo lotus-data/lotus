@@ -118,7 +118,7 @@ class PineconeVS(VS):
             # Query Pinecone
             results = self.pc_index.query(
                 vector=query_vector.tolist(),
-                top_k=K,
+                top_k=max(K, 2),
                 include_metadata=True,
                 filter={
                     "doc_id": {
