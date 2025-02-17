@@ -5,7 +5,7 @@ import pytest
 
 import lotus
 from lotus.models import CrossEncoderReranker, LiteLLMRM, SentenceTransformersRM
-from lotus.vector_store import  FaissVS
+from lotus.vector_store import FaissVS,  QdrantVS
 
 ################################################################################
 # Setup
@@ -33,6 +33,7 @@ MODEL_NAME_TO_CLS = {
 
 VECTOR_STORE_TO_CLS = {
     'local': FaissVS,
+    'qdrant': QdrantVS
 }
 
 
@@ -242,10 +243,6 @@ def test_vs_sim_join(setup_models, setup_vs, vs, model):
     expected_pairs = {("History of the Atlantic World", "History"), ("Riemannian Geometry", "Math")}
     assert joined_pairs == expected_pairs, joined_pairs
 
-    
-
-
-
 
 # TODO: threshold is hardcoded for intfloat/e5-small-v2
 @pytest.mark.skipif(
@@ -320,8 +317,9 @@ def test_search(setup_models):
     df = df.sem_search("Course Name", "Optimization", K=2, n_rerank=1)
     assert df["Course Name"].tolist() == ["Optimization Methods in Engineering"]
 
+@pytest.mark.parametrize("vs", VECTOR_STORE_TO_CLS.keys())
 @pytest.mark.parametrize("model", get_enabled("intfloat/e5-small-v2", "text-embedding-3-small"))
-def test_filtered_vector_search(setup_models, model):
+def test_filtered_vector_search(setup_models, setup_vs, vs, model):
     """
     Test filtered vector search.
     
@@ -336,7 +334,7 @@ def test_filtered_vector_search(setup_models, model):
          expected to pick out the culinary course "Gourmet Cooking Advanced".
     """
     rm = setup_models[model]
-    vs = FaissVS()
+    vs = setup_vs[vs]
     lotus.settings.configure(rm=rm, vs=vs)
 
     data = {
