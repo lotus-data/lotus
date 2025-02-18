@@ -16,7 +16,7 @@ except ImportError as err:
     raise ImportError("Please install the weaviate client") from err 
 
 class WeaviateVS(VS):
-    def __init__(self, max_batch_size: int = 64, vector_index_config: Configure.VectorIndex = Configure.VectorIndex.hnsw(), API_KEY=None, REST_URL=None):
+    def __init__(self, max_batch_size: int = 64, vector_index_config = Configure.VectorIndex.hnsw(), API_KEY=None, REST_URL=None):
 
 
         weaviate_client: weaviate.WeaviateClient | None = None
@@ -32,7 +32,7 @@ class WeaviateVS(VS):
         self.client = weaviate_client
         self.max_batch_size = max_batch_size
         self.vector_index_config = vector_index_config
-        self.embedding_dim = None 
+        self.embedding_dim: Optional[int] = None 
     def __del__(self):
         self.client.close()
 

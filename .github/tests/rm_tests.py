@@ -41,6 +41,10 @@ VECTOR_STORE_TO_CLS = {
 }
 
 VECTOR_STORE_KEYS = {
+    'local': {
+        'API_KEY': None,
+        'REST_URL': None,
+    },
     'weaviate': {
         'API_KEY': WEAVIATE_API_KEY,
         'REST_URL': WEAVIATE_REST_URL,
