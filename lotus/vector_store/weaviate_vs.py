@@ -144,5 +144,3 @@ class WeaviateVS(VS):
 
     def get_vectors_from_index(self, index_dir: str, ids: list[Any]) -> NDArray[np.float64]:
         raise NotImplementedError("Weaviate does not support get_vectors_from_index")
-        
-        
