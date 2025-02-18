@@ -259,6 +259,10 @@ def test_vs_sim_join(setup_models, setup_vs, vs, model):
     assert joined_pairs == expected_pairs, joined_pairs
 
 
+
+
+
+
 # TODO: threshold is hardcoded for intfloat/e5-small-v2
 @pytest.mark.skipif(
     "intfloat/e5-small-v2" not in ENABLED_MODEL_NAMES,
