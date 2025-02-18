@@ -50,6 +50,8 @@ VECTOR_STORE_KEYS = {
 def get_enabled(*candidate_models: str) -> list[str]:
     return [model for model in candidate_models if model in ENABLED_MODEL_NAMES]
 
+def get_vs_enabled(*candidate_vs: str) -> list[str]:
+    return ['local'] + [vs for vs in candidate_vs if VECTOR_STORE_KEYS[vs]['API_KEY'] is not None and VECTOR_STORE_KEYS[vs]['REST_URL'] is not None]
 
 @pytest.fixture(scope="session")
 def setup_models():
@@ -69,7 +71,7 @@ def setup_vs():
     for vs in VECTOR_STORE_TO_CLS:
         if vs != 'local' and VECTOR_STORE_KEYS[vs]['API_KEY'] is not None and VECTOR_STORE_KEYS[vs]['REST_URL'] is not None:
             vs_model[vs] = VECTOR_STORE_TO_CLS[vs](API_KEY=VECTOR_STORE_KEYS[vs]['API_KEY'], REST_URL=VECTOR_STORE_KEYS[vs]['REST_URL'])
-        else:
+        elif vs == 'local':
             vs_model[vs] = VECTOR_STORE_TO_CLS[vs]()
 
     return vs_model
@@ -183,7 +185,7 @@ def test_dedup(setup_models):
 ################################################################################
 
 
-@pytest.mark.parametrize("vs", [vs for vs in filter(lambda key :key != 'weaviate' and (VECTOR_STORE_KEYS[key]['API_KEY'] is not None and VECTOR_STORE_KEYS[key]['REST_URL'] is not None), VECTOR_STORE_TO_CLS.keys())])
+@pytest.mark.parametrize("vs", get_vs_enabled("local"))
 @pytest.mark.parametrize("model", get_enabled("intfloat/e5-small-v2", "text-embedding-3-small"))
 def test_vs_cluster_by(setup_models, setup_vs, vs, model):
     rm = setup_models[model]
@@ -213,7 +215,7 @@ def test_vs_cluster_by(setup_models, setup_vs, vs, model):
     assert cooking_group == {"Cooking", "Food Sciences"}, groups
     assert probability_group == {"Probability and Random Processes", "Optimization Methods in Engineering"}, groups
 
-@pytest.mark.parametrize("vs", [vs for vs in filter(lambda key :(VECTOR_STORE_KEYS[key]['API_KEY'] is not None and VECTOR_STORE_KEYS[key]['REST_URL'] is not None), VECTOR_STORE_TO_CLS.keys())])
+@pytest.mark.parametrize("vs", get_vs_enabled("local", "weaviate"))
 @pytest.mark.parametrize("model", get_enabled("intfloat/e5-small-v2", "text-embedding-3-small"))
 def test_vs_search_rm_only(setup_models, setup_vs, vs, model):
     rm = setup_models[model]
@@ -233,7 +235,7 @@ def test_vs_search_rm_only(setup_models, setup_vs, vs, model):
     df = df.sem_search("Course Name", "Optimization", K=1)
     assert df["Course Name"].tolist() == ["Optimization Methods in Engineering"]
 
-@pytest.mark.parametrize("vs", [vs for vs in filter(lambda key :(VECTOR_STORE_KEYS[key]['API_KEY'] is not None and VECTOR_STORE_KEYS[key]['REST_URL'] is not None), VECTOR_STORE_TO_CLS.keys())])
+@pytest.mark.parametrize("vs", get_vs_enabled("local"))
 @pytest.mark.parametrize("model", get_enabled("intfloat/e5-small-v2", "text-embedding-3-small"))
 def test_vs_sim_join(setup_models, setup_vs, vs, model):
     rm = setup_models[model]
@@ -262,7 +264,7 @@ def test_vs_sim_join(setup_models, setup_vs, vs, model):
     "intfloat/e5-small-v2" not in ENABLED_MODEL_NAMES,
     reason="Skipping test because intfloat/e5-small-v2 is not enabled",
 )
-@pytest.mark.parametrize("vs", [vs for vs in filter(lambda key :(VECTOR_STORE_KEYS[key]['API_KEY'] is not None and VECTOR_STORE_KEYS[key]['REST_URL'] is not None), VECTOR_STORE_TO_CLS.keys())])
+@pytest.mark.parametrize("vs", get_vs_enabled("local"))
 def test_vs_dedup(setup_models, setup_vs, vs):
     rm = setup_models["intfloat/e5-small-v2"]
     my_vs = setup_vs[vs]
@@ -331,7 +333,7 @@ def test_search(setup_models):
     assert df["Course Name"].tolist() == ["Optimization Methods in Engineering"]
 
 @pytest.mark.parametrize("model", get_enabled("intfloat/e5-small-v2", "text-embedding-3-small"))
-@pytest.mark.parametrize("vs", [vs for vs in filter(lambda key :(VECTOR_STORE_KEYS[key]['API_KEY'] is not None and VECTOR_STORE_KEYS[key]['REST_URL'] is not None), VECTOR_STORE_TO_CLS.keys())])
+@pytest.mark.parametrize("vs", get_vs_enabled("local", "weaviate"))
 def test_filtered_vector_search(setup_models, setup_vs, model, vs):
     """
     Test filtered vector search.
