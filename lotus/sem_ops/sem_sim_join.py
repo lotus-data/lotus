@@ -6,6 +6,7 @@ import lotus
 from lotus.cache import operator_cache
 from lotus.models import RM
 from lotus.types import RMOutput
+from lotus.vector_store import VS
 
 
 @pd.api.extensions.register_dataframe_accessor("sem_sim_join")
@@ -51,20 +52,21 @@ class SemSimJoinDataframe:
                 raise ValueError("Other Series must have a name")
             other = pd.DataFrame({other.name: other})
 
-        rm = lotus.settings.rm
-        if not isinstance(rm, RM):
+        rm = lotus.settings.rm 
+        vs = lotus.settings.vs
+        if not isinstance(rm, RM) or not isinstance(vs, VS):
             raise ValueError(
-                "The retrieval model must be an instance of RM. Please configure a valid retrieval model using lotus.settings.configure()"
+                "The retrieval model must be an instance of RM, and the vector store must be an instance of VS. Please configure a valid retrieval model or vector store using lotus.settings.configure()"
             )
-
+        
         # load query embeddings from index if they exist
         if left_on in self._obj.attrs.get("index_dirs", []):
             query_index_dir = self._obj.attrs["index_dirs"][left_on]
-            if rm.index_dir != query_index_dir:
-                rm.load_index(query_index_dir)
-            assert rm.index_dir == query_index_dir
+            if vs.index_dir != query_index_dir:
+                vs.load_index(query_index_dir)
+            assert vs.index_dir == query_index_dir
             try:
-                queries = rm.get_vectors_from_index(query_index_dir, self._obj.index)
+                queries = vs.get_vectors_from_index(query_index_dir, self._obj.index)
             except NotImplementedError:
                 queries = self._obj[left_on]
         else:
@@ -75,13 +77,17 @@ class SemSimJoinDataframe:
             col_index_dir = other.attrs["index_dirs"][right_on]
         except KeyError:
             raise ValueError(f"Index directory for column {right_on} not found in DataFrame")
-        if rm.index_dir != col_index_dir:
-            rm.load_index(col_index_dir)
-        assert rm.index_dir == col_index_dir
+        if vs.index_dir != col_index_dir:
+            vs.load_index(col_index_dir)
+        assert vs.index_dir == col_index_dir
 
-        rm_output: RMOutput = rm(queries, K)
-        distances = rm_output.distances
-        indices = rm_output.indices
+        query_vectors = rm.convert_query_to_query_vector(queries)
+
+        right_ids = list(other.index)
+
+        vs_output: RMOutput = vs(query_vectors, K, ids=right_ids)
+        distances = vs_output.distances
+        indices = vs_output.indices
 
         other_index_set = set(other.index)
         join_results = []

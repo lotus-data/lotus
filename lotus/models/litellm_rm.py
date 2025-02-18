@@ -7,10 +7,10 @@ from numpy.typing import NDArray
 from tqdm import tqdm
 
 from lotus.dtype_extensions import convert_to_base_data
-from lotus.models.faiss_rm import FaissRM
+from lotus.models.rm import RM
 
 
-class LiteLLMRM(FaissRM):
+class LiteLLMRM(RM):
     def __init__(
         self,
         model: str = "text-embedding-3-small",
@@ -18,7 +18,7 @@ class LiteLLMRM(FaissRM):
         factory_string: str = "Flat",
         metric=faiss.METRIC_INNER_PRODUCT,
     ):
-        super().__init__(factory_string, metric)
+        super()
         self.model: str = model
         self.max_batch_size: int = max_batch_size
 

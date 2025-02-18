@@ -20,6 +20,8 @@ from lotus.sem_ops import (
     sem_dedup,
     sem_topk,
 )
+from lotus.web_search import web_search, WebSearchCorpus
+from lotus.parse_docs import parse_pdf
 from lotus.settings import settings  # type: ignore[attr-defined]
 
 
@@ -48,4 +50,7 @@ __all__ = [
     "vector_store",
     "utils",
     "dtype_extensions",
+    "web_search",
+    "WebSearchCorpus",
+    "parse_pdf",
 ]

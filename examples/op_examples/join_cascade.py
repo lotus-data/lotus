@@ -3,11 +3,13 @@ import pandas as pd
 import lotus
 from lotus.models import LM, SentenceTransformersRM
 from lotus.types import CascadeArgs
+from lotus.vector_store import FaissVS
 
 lm = LM(model="gpt-4o-mini")
 rm = SentenceTransformersRM(model="intfloat/e5-base-v2")
+vs = FaissVS() 
 
-lotus.settings.configure(lm=lm, rm=rm)
+lotus.settings.configure(lm=lm, rm=rm, vs=vs)
 data = {
     "Course Name": [
         "Digital Design and Integrated Circuits",

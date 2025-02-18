@@ -40,6 +40,15 @@ docs = [
 xml = [
     "lxml",
 ]
+serpapi = [
+    "google-search-results",
+]
+arxiv = [
+    "arxiv",
+]
+pdf_parser = [
+    "pymupdf",
+]
 
 [tool.ruff]
 line-length = 120

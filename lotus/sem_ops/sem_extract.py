@@ -126,17 +126,21 @@ class SemExtractDataFrame:
             progress_bar_desc=progress_bar_desc,
         )
 
-        # Create a new DataFrame with just the extracted fields
-        new_df = pd.DataFrame(index=range(len(self._obj)))
-        for i, output_dict in enumerate(out.outputs):
-            for key, value in output_dict.items():
-                if key not in new_df.columns:
-                    new_df[key] = None
-                new_df.loc[i, key] = value
+    # Create a copy of the original DataFrame so we can preserve original columns
+    new_df = self._obj.copy()
+    indices = new_df.index.to_list()
 
-        if return_raw_outputs:
-            new_df["raw_output"] = out.raw_outputs
+    # Insert the extracted columns into new_df
+    for i, output_dict in enumerate(out.outputs):
+        if i >= len(indices):
+            break
+        for key, value in output_dict.items():
+            if key not in new_df.columns:
+                new_df[key] = None
+            new_df.loc[indices[i], key] = value
 
-        new_df = new_df.reset_index(drop=True)
+    # Optionally add raw outputs as a column
+    if return_raw_outputs:
+        new_df["raw_output"] = out.raw_outputs
 
-        return new_df
+    return new_df
