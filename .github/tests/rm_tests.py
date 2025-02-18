@@ -5,7 +5,7 @@ import pytest
 
 import lotus
 from lotus.models import CrossEncoderReranker, LiteLLMRM, SentenceTransformersRM
-from lotus.vector_store import  FaissVS
+from lotus.vector_store import FaissVS, PineconeVS
 
 ################################################################################
 # Setup
@@ -33,6 +33,7 @@ MODEL_NAME_TO_CLS = {
 
 VECTOR_STORE_TO_CLS = {
     'local': FaissVS,
+    'pinecone': PineconeVS,
 }
 
 
@@ -169,7 +170,7 @@ def test_dedup(setup_models):
 ################################################################################
 
 
-@pytest.mark.parametrize("vs", VECTOR_STORE_TO_CLS.keys())
+@pytest.mark.parametrize("vs", [key for key in VECTOR_STORE_TO_CLS.keys() if key != "pinecone"])
 @pytest.mark.parametrize("model", get_enabled("intfloat/e5-small-v2", "text-embedding-3-small"))
 def test_vs_cluster_by(setup_models, setup_vs, vs, model):
     rm = setup_models[model]
@@ -219,7 +220,7 @@ def test_vs_search_rm_only(setup_models, setup_vs, vs, model):
     df = df.sem_search("Course Name", "Optimization", K=1)
     assert df["Course Name"].tolist() == ["Optimization Methods in Engineering"]
 
-@pytest.mark.parametrize("vs", VECTOR_STORE_TO_CLS.keys())
+@pytest.mark.parametrize("vs", [vs for vs in VECTOR_STORE_TO_CLS.keys() if vs != 'pinecone'])
 @pytest.mark.parametrize("model", get_enabled("intfloat/e5-small-v2", "text-embedding-3-small"))
 def test_vs_sim_join(setup_models, setup_vs, vs, model):
     rm = setup_models[model]
@@ -252,7 +253,7 @@ def test_vs_sim_join(setup_models, setup_vs, vs, model):
     "intfloat/e5-small-v2" not in ENABLED_MODEL_NAMES,
     reason="Skipping test because intfloat/e5-small-v2 is not enabled",
 )
-@pytest.mark.parametrize("vs", VECTOR_STORE_TO_CLS.keys())
+@pytest.mark.parametrize("vs", [key for key in VECTOR_STORE_TO_CLS.keys() if key != 'pinecone'])
 def test_vs_dedup(setup_models, setup_vs, vs):
     rm = setup_models["intfloat/e5-small-v2"]
     my_vs = setup_vs[vs]
@@ -320,8 +321,9 @@ def test_search(setup_models):
     df = df.sem_search("Course Name", "Optimization", K=2, n_rerank=1)
     assert df["Course Name"].tolist() == ["Optimization Methods in Engineering"]
 
+@pytest.mark.parametrize("vs", VECTOR_STORE_TO_CLS.keys())
 @pytest.mark.parametrize("model", get_enabled("intfloat/e5-small-v2", "text-embedding-3-small"))
-def test_filtered_vector_search(setup_models, model):
+def test_filtered_vector_search(setup_models, setup_vs, vs, model):
     """
     Test filtered vector search.
     
@@ -336,7 +338,7 @@ def test_filtered_vector_search(setup_models, model):
          expected to pick out the culinary course "Gourmet Cooking Advanced".
     """
     rm = setup_models[model]
-    vs = FaissVS()
+    vs = setup_vs[vs]
     lotus.settings.configure(rm=rm, vs=vs)
 
     data = {
@@ -355,7 +357,7 @@ def test_filtered_vector_search(setup_models, model):
     }
     df = pd.DataFrame(data)
     # Index the 'Course Name' column to generate semantic embeddings.
-    df = df.sem_index("Course Name", "filtered_index_dir")
+    df = df.sem_index("Course Name", "filteredindexdir")
     # Filter the DataFrame to only include Culinary courses.
     df_filtered = df[df["Category"] == "Culinary"]
     # Perform semantic search on the filtered DataFrame.
