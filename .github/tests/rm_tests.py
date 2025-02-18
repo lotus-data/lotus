@@ -15,7 +15,6 @@ from lotus.vector_store import FaissVS, WeaviateVS
 lotus.logger.setLevel("DEBUG")
 
 load_dotenv()
-
 # Environment flags to enable/disable tests
 ENABLE_OPENAI_TESTS = os.getenv("ENABLE_OPENAI_TESTS", "false").lower() == "true"
 ENABLE_LOCAL_TESTS = os.getenv("ENABLE_LOCAL_TESTS", "false").lower() == "true"
