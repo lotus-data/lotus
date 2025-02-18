@@ -61,9 +61,7 @@ class SemSearchDataframe:
 
             df_idxs = self._obj.index
             cur_min = len(df_idxs)
-
-            K = min(K, cur_min)
-
+            K = min(K, cur_min)   
             search_K = K
             while True:
                 query_vectors = rm.convert_query_to_query_vector(query)
