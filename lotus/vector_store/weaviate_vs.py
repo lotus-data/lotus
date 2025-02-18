@@ -16,75 +16,56 @@ except ImportError as err:
     raise ImportError("Please install the weaviate client") from err 
 
 class WeaviateVS(VS):
-    def __init__(self, max_batch_size: int = 64):
+    def __init__(self, max_batch_size: int = 64, vector_index_config: Configure.VectorIndex = Configure.VectorIndex.hnsw(), API_KEY=None, REST_URL=None):
 
-        REST_URL = 'https://aliugucnqnkzihdc3jqdig.c0.us-west3.gcp.weaviate.cloud'
 
-        API_KEY = 'e1VUifT3atB7PHLB3kXQPYhL2PNXeG0JeGYK'
-
-        weaviate_client: weaviate.WeaviateClient | None = None #  need to set this up 
+        weaviate_client: weaviate.WeaviateClient | None = None
 
 
         weaviate_client = weaviate.connect_to_weaviate_cloud(
-            cluster_url=REST_URL,                                    # Replace with your Weaviate Cloud URL
-            auth_credentials=Auth.api_key(API_KEY),             # Replace with your Weaviate Cloud key
+            cluster_url=REST_URL,                                    
+            auth_credentials=Auth.api_key(API_KEY),            
         )
 
         """Initialize with Weaviate client and embedding model"""
         super()
         self.client = weaviate_client
         self.max_batch_size = max_batch_size
-
+        self.vector_index_config = vector_index_config
+        self.embedding_dim = None 
     def __del__(self):
         self.client.close()
 
     def get_collection_dimension(self, index_dir):
-        self.client.collections.get(index_dir).config
-
+        if not self.embedding_dim:
+            self.embedding_dim = self.client.collections.get(index_dir).config
+        return self.embedding_dim
+    
     def index(self, docs: pd.Series, embeddings, index_dir: str, **kwargs: dict[str, Any]):
         """Create a collection and add documents with their embeddings"""
         self.index_dir = index_dir
 
-        embedding_dim = np.reshape(embeddings, (len(embeddings), -1)).shape[1]
+        if self.client.collections.exists(index_dir):
+            self.client.collections.delete(index_dir)
+            self.embedding_dim = np.reshape(embeddings, (len(embeddings), -1)).shape[1]
         
-        # Create collection without vectorizer config (we'll provide vectors directly)
-        if not self.client.collections.exists(index_dir):
-            collection = self.client.collections.create(
-                name=index_dir,
-                properties=[
-                    Property(
-                        name='content', 
-                        data_type=DataType.TEXT
-                    ),
-                    Property(
-                        name='doc_id',
-                        data_type=DataType.INT,
-                    )
-                ],
-                vectorizer_config=None,  # No vectorizer needed as we provide vectors
-                vector_index_config=Configure.VectorIndex.hnsw()
-            )
-        else:
-            collection = self.client.collections.get(index_dir)
-            if self.get_collection_dimension(index_dir) != embedding_dim:
-                self.client.collections.delete(index_dir)
-                collection = self.client.collections.create(
-                    name=index_dir,
-                    properties=[
-                        Property(
-                            name='content', 
-                            data_type=DataType.TEXT
-                        ),
-                        Property(
-                            name='doc_id',
-                            data_type=DataType.INT,
-                        )
-                    ],
-                    vectorizer_config=None,  # No vectorizer needed as we provide vectors
-                    vector_index_config=Configure.VectorIndex.hnsw()
-                )
 
-        
+        collection = self.client.collections.create(
+            name=index_dir,
+            properties=[
+                Property(
+                    name='content', 
+                    data_type=DataType.TEXT
+                ),
+                Property(
+                    name='doc_id',
+                    data_type=DataType.INT,
+                )
+            ],
+            vectorizer_config=None,  # No vectorizer needed as we provide vectors
+            vector_index_config=self.vector_index_config
+        )
+
         # Generate embeddings for all documents
         docs_list = docs.tolist() if isinstance(docs, pd.Series) else docs
 
