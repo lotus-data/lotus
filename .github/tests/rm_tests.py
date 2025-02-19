@@ -5,7 +5,7 @@ import pytest
 
 import lotus
 from lotus.models import CrossEncoderReranker, LiteLLMRM, SentenceTransformersRM
-from lotus.vector_store import  FaissVS
+from lotus.vector_store import ChromaVS, FaissVS
 
 ################################################################################
 # Setup
@@ -33,6 +33,7 @@ MODEL_NAME_TO_CLS = {
 
 VECTOR_STORE_TO_CLS = {
     'local': FaissVS,
+    'chroma': ChromaVS,
 }
 
 
@@ -254,6 +255,9 @@ def test_vs_sim_join(setup_models, setup_vs, vs, model):
 )
 @pytest.mark.parametrize("vs", VECTOR_STORE_TO_CLS.keys())
 def test_vs_dedup(setup_models, setup_vs, vs):
+    curr_threshold = 0.85
+    if vs == "chroma":
+        curr_threshold = 0.9
     rm = setup_models["intfloat/e5-small-v2"]
     my_vs = setup_vs[vs]
     lotus.settings.configure(rm=rm, vs=my_vs)
@@ -266,7 +270,7 @@ def test_vs_dedup(setup_models, setup_vs, vs):
         ]
     }
     df = pd.DataFrame(data)
-    df = df.sem_index("Text", "fourthindexdir").sem_dedup("Text", threshold=0.85)
+    df = df.sem_index("Text", "fourthindexdir").sem_dedup("Text", threshold=curr_threshold)
     kept = df["Text"].tolist()
     kept.sort()
     assert len(kept) == 2, kept
@@ -320,8 +324,9 @@ def test_search(setup_models):
     df = df.sem_search("Course Name", "Optimization", K=2, n_rerank=1)
     assert df["Course Name"].tolist() == ["Optimization Methods in Engineering"]
 
+@pytest.mark.parametrize("vs", VECTOR_STORE_TO_CLS.keys())
 @pytest.mark.parametrize("model", get_enabled("intfloat/e5-small-v2", "text-embedding-3-small"))
-def test_filtered_vector_search(setup_models, model):
+def test_filtered_vector_search(setup_models, setup_vs, vs, model):
     """
     Test filtered vector search.
     
@@ -336,7 +341,7 @@ def test_filtered_vector_search(setup_models, model):
          expected to pick out the culinary course "Gourmet Cooking Advanced".
     """
     rm = setup_models[model]
-    vs = FaissVS()
+    vs = setup_vs[vs]
     lotus.settings.configure(rm=rm, vs=vs)
 
     data = {

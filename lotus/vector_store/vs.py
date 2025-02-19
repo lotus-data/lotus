@@ -33,7 +33,7 @@ class VS(ABC):
         self,
         query_vectors: Any,
         K: int,
-        ids: Optional[list[Any]] = None,
+        ids: Optional[list[int]] = None,
         **kwargs: dict[str, Any],
     ) -> RMOutput:
         """
@@ -52,7 +52,7 @@ class VS(ABC):
         pass 
     
     @abstractmethod
-    def get_vectors_from_index(self, index_dir: str, ids: list[Any]) -> NDArray[np.float64]:
+    def get_vectors_from_index(self, index_dir: str, ids: list[int]) -> NDArray[np.float64]:
         """
         Retrieve vectors from a stored index given specific ids.
         """
