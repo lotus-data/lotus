@@ -55,7 +55,11 @@ def learn_cascade_thresholds(
     def LB(mean: float, std_dev: float, s: int, delta: float) -> float:
         return float(mean - (std_dev / (s**0.5)) * ((2 * np.log(1 / delta)) ** 0.5))
 
-    def recall(pos_threshold: float, neg_threshold: float, sorted_pairs: list[tuple[float, bool, float]]) -> float:
+    def recall(
+        pos_threshold: float,
+        neg_threshold: float,
+        sorted_pairs: list[tuple[float, bool, np.float64]] | list[tuple[float, bool, float]],
+    ) -> float | np.float64:
         helper_accepted = [x for x in sorted_pairs if x[0] >= pos_threshold or x[0] <= neg_threshold]
         sent_to_oracle = [x for x in sorted_pairs if x[0] < pos_threshold and x[0] > neg_threshold]
         total_correct = sum(pair[1] * pair[2] for pair in sorted_pairs)
@@ -70,7 +74,9 @@ def learn_cascade_thresholds(
         )
         return recall
 
-    def precision(pos_threshold: float, neg_threshold: float, sorted_pairs: list[tuple[float, bool, float]]) -> float:
+    def precision(
+        pos_threshold: float, neg_threshold: float, sorted_pairs: list[tuple[float, bool, np.float64]]
+    ) -> float:
         helper_accepted = [x for x in sorted_pairs if x[0] >= pos_threshold or x[0] <= neg_threshold]
         sent_to_oracle = [x for x in sorted_pairs if pos_threshold > x[0] > neg_threshold]
         oracle_positive = sum(x[1] for x in sent_to_oracle)
@@ -79,7 +85,9 @@ def learn_cascade_thresholds(
         precision = true_positives / predicted_positives if predicted_positives > 0 else 0.0
         return precision
 
-    def calculate_tau_neg(sorted_pairs: list[tuple[float, bool, float]], tau_pos: float, recall_target: float) -> float:
+    def calculate_tau_neg(
+        sorted_pairs: list[tuple[float, bool, np.float64]], tau_pos: float, recall_target: float
+    ) -> float:
         return max(
             (x[0] for x in sorted_pairs[::-1] if recall(tau_pos, x[0], sorted_pairs) >= recall_target), default=0
         )

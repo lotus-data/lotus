@@ -8,8 +8,6 @@ lm = LM(model="gpt-4o-mini")
 lotus.settings.configure(lm=lm)
 
 
-
-
 # Test filter operation on an easy dataframe
 data = {
     "Text": [
@@ -21,8 +19,10 @@ data = {
 }
 df = pd.DataFrame(data)
 user_instruction = "{Text} I have at least one apple"
-filtered_df = df.sem_filter(user_instruction, strategy="cot", return_all=True)
-# filtered_df = df.sem_filter(user_instruction, strategy="cot", return_all=True, return_explanations=True) # uncomment to see reasoning chains
+# filtered_df = df.sem_filter(user_instruction, strategy="cot", return_all=True)
+filtered_df = df.sem_filter(
+    user_instruction, strategy="cot", return_all=True, return_explanations=True
+)  # uncomment to see reasoning chains
 
 print(filtered_df)
 # print(filtered_df)
