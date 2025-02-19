@@ -23,7 +23,7 @@ ENABLE_OLLAMA_TESTS = os.getenv("ENABLE_OLLAMA_TESTS", "false").lower() == "true
 MODEL_NAME_TO_ENABLED = {
     "gpt-4o-mini": ENABLE_OPENAI_TESTS,
     "gpt-4o": ENABLE_OPENAI_TESTS,
-    "ollama/llama3.1": ENABLE_OLLAMA_TESTS,
+    "ollama/llama3.3": ENABLE_OLLAMA_TESTS,
 }
 ENABLED_MODEL_NAMES = set([model_name for model_name, is_enabled in MODEL_NAME_TO_ENABLED.items() if is_enabled])
 
