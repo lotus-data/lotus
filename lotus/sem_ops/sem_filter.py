@@ -229,7 +229,6 @@ class SemFilterDataframe:
                 assert "Answer" in helper_examples.columns, "Answer must be a column in examples dataframe"
                 helper_examples_multimodal_data = task_instructions.df2multimodal_info(helper_examples, col_li)
                 helper_examples_answers = helper_examples["Answer"].tolist()
-
                 if helper_strategy == "cot" and "Reasoning" in helper_examples.columns:
                     helper_cot_reasoning = helper_examples["Reasoning"].tolist()
 
