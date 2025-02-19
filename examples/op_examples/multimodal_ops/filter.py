@@ -15,9 +15,7 @@ image_file_names = os.listdir("images")  # get all file in the folder
 labels = [os.path.splitext(image)[0] for image in image_file_names]
 image_paths = [os.path.join("images", image) for image in image_file_names]
 
-df = pd.DataFrame({"image": ImageArray(image_paths), 
-                   "label": labels, 
-                   "image_path": image_paths})
+df = pd.DataFrame({"image": ImageArray(image_paths), "label": labels, "image_path": image_paths})
 
 df = df.sem_filter("{image} represents number 1")
 print(df)

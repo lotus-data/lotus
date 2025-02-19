@@ -6,6 +6,7 @@ from lotus.models import LM
 lm = LM(model="gpt-4o-mini")
 
 lotus.settings.configure(lm=lm)
+
 data = {
     "Course Name": [
         "Probability and Random Processes",
@@ -16,5 +17,5 @@ data = {
 }
 df = pd.DataFrame(data)
 user_instruction = "{Course Name} requires a lot of math"
-df = df.sem_filter(user_instruction)
+df = df.sem_filter(user_instruction, strategy="cot")
 print(df)

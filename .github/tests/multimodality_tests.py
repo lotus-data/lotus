@@ -139,7 +139,8 @@ def test_topk_operation(setup_models, model):
 
         top_2_actual = set(sorted_df["image"].values)
         assert top_2_expected == top_2_actual
-        
+
+
 @pytest.mark.parametrize("model", get_enabled("gpt-4o-mini"))
 def test_topk_with_groupby_operation(setup_models, model):
     image_url = [
@@ -154,8 +155,7 @@ def test_topk_with_groupby_operation(setup_models, model):
 
     df = image_df.join(element_df, how="cross")
     df.sem_topk("the {image} is most likely an {element}", K=1, group_by=["element"])
-    assert(len(set(df["element"])) == 2)
-
+    assert len(set(df["element"])) == 2
 
 
 @pytest.mark.parametrize("model", get_enabled("clip-ViT-B-32"))

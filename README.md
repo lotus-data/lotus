@@ -22,11 +22,20 @@ LOTUS (**L**LMs **O**ver **T**ables of **U**nstructured and **S**tructured Data)
 For trouble-shooting or feature requests, please raise an issue and we'll get to it promptly. To share feedback and applications you're working on, you can send us a message on our [community slack](https://join.slack.com/t/lotus-fnm8919/shared_invite/zt-2tnq6948j-juGuSIR0__fsh~kUmZ6TJw), or send an email (lianapat@stanford.edu).
 
 # Installation
+For the latest stable release:
 ```
 conda create -n lotus python=3.10 -y
 conda activate lotus
 pip install lotus-ai
 ```
+
+For the latest features, you can alternatively install as follows:
+```
+conda create -n lotus python=3.10 -y
+conda activate lotus
+pip install git+https://github.com/lotus-data/lotus.git@main
+```
+
 
 ## Running on Mac
 If you are running on mac, please install Faiss via conda:
