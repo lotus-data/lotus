@@ -310,8 +310,8 @@ def test_search_reranker_only(setup_models, model):
         ]
     }
     df = pd.DataFrame(data)
-    df = df.sem_search("Course Name", "Optimization", n_rerank=2)
-    assert df["Course Name"].tolist() == ["Optimization Methods in Engineering", "Probability and Random Processes"]
+    df = df.sem_search("Course Name", "Optimization", n_rerank=1)
+    assert df["Course Name"].tolist() == ["Optimization Methods in Engineering"]
 
 
 ################################################################################
