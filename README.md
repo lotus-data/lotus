@@ -28,6 +28,13 @@ conda activate lotus
 pip install lotus-ai
 ```
 
+For the latest features, you can alternatively install as follows:
+```
+pip install git+https://github.com/lotus-data/lotus.git@main
+
+```
+
+
 ## Running on Mac
 If you are running on mac, please install Faiss via conda:
 
