@@ -58,7 +58,11 @@ def sem_map(
     lm_output: LMOutput = model(inputs, progress_bar_desc=progress_bar_desc)
 
     # post process results
-    postprocess_output = postprocessor(lm_output.outputs, strategy in ["cot", "zs-cot"])
+    postprocess_output = postprocessor(
+        lm_output.outputs,
+        strategy=strategy,
+        cot_reasoning=strategy in ["cot", "zs-cot"]
+    )
     lotus.logger.debug(f"raw_outputs: {lm_output.outputs}")
     lotus.logger.debug(f"outputs: {postprocess_output.outputs}")
     lotus.logger.debug(f"explanations: {postprocess_output.explanations}")
