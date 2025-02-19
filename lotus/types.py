@@ -49,14 +49,14 @@ class LogprobsForFilterCascade:
 @dataclass
 class SemanticMapPostprocessOutput:
     raw_outputs: list[str]
-    outputs: list[str]
+    outputs: list[dict[str, str]]
     explanations: list[str | None]
 
 
 @dataclass
 class SemanticMapOutput:
     raw_outputs: list[str]
-    outputs: list[str]
+    outputs: list[dict[str, str]]
     explanations: list[str | None]
 
 

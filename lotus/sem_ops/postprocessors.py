@@ -1,5 +1,7 @@
 import json
 
+from pydantic import BaseModel
+
 import lotus
 from lotus.types import (
     SemanticExtractPostprocessOutput,
@@ -37,7 +39,9 @@ def map_postprocess_cot(llm_answers: list[str]) -> SemanticMapPostprocessOutput:
     return SemanticMapPostprocessOutput(raw_outputs=llm_answers, outputs=outputs, explanations=explanations)
 
 
-def map_postprocess(llm_answers: list[str], cot_reasoning: bool = False) -> SemanticMapPostprocessOutput:
+def map_postprocess(
+    llm_answers: list[str], response_format: type[BaseModel], cot_reasoning: bool = False
+) -> SemanticMapPostprocessOutput:
     """
     Postprocess the output of the map operator.
 
@@ -51,7 +55,9 @@ def map_postprocess(llm_answers: list[str], cot_reasoning: bool = False) -> Sema
     if cot_reasoning:
         return map_postprocess_cot(llm_answers)
 
-    outputs: list[str] = llm_answers
+    outputs: list[dict[str, str]] = [
+        response_format.model_validate_json(llm_answer).model_dump() for llm_answer in llm_answers
+    ]
     explanations: list[str | None] = [None] * len(llm_answers)
     return SemanticMapPostprocessOutput(raw_outputs=llm_answers, outputs=outputs, explanations=explanations)
 
