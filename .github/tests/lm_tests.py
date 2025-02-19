@@ -290,7 +290,7 @@ def test_filter_cascade(setup_models):
 def test_join_cascade(setup_models):
     models = setup_models
     rm = SentenceTransformersRM(model="intfloat/e5-base-v2")
-    vs = FaissVS() 
+    vs = FaissVS()
     lotus.settings.configure(lm=models["gpt-4o-mini"], rm=rm, vs=vs)
 
     data1 = {
@@ -503,7 +503,7 @@ def test_operator_cache(setup_models, model):
                 "Chemical Kinetics and Catalysis",
                 "Transport Phenomena and Separations",
             ],
-            "_map": [
+            "map_output": [
                 "Process Dynamics and Control",
                 "Advanced Optimization Techniques in Engineering",
                 "Reaction Kinetics and Mechanisms",
@@ -521,9 +521,13 @@ def test_operator_cache(setup_models, model):
     second_response = df.sem_map(user_instruction)
     assert lm.stats.total_usage.operator_cache_hits == 1
 
-    first_response["_map"] = first_response["_map"].str.replace(r"[^a-zA-Z\s]", "", regex=True).str.lower()
-    second_response["_map"] = second_response["_map"].str.replace(r"[^a-zA-Z\s]", "", regex=True).str.lower()
-    expected_response["_map"] = expected_response["_map"].str.replace(r"[^a-zA-Z\s]", "", regex=True).str.lower()
+    first_response["map_output"] = first_response["map_output"].str.replace(r"[^a-zA-Z\s]", "", regex=True).str.lower()
+    second_response["map_output"] = (
+        second_response["map_output"].str.replace(r"[^a-zA-Z\s]", "", regex=True).str.lower()
+    )
+    expected_response["map_output"] = (
+        expected_response["map_output"].str.replace(r"[^a-zA-Z\s]", "", regex=True).str.lower()
+    )
 
     pd.testing.assert_frame_equal(first_response, second_response)
     pd.testing.assert_frame_equal(first_response, expected_response)
@@ -562,7 +566,7 @@ def test_disable_operator_cache(setup_models, model):
                 "Chemical Kinetics and Catalysis",
                 "Transport Phenomena and Separations",
             ],
-            "_map": [
+            "map_output": [
                 "Process Dynamics and Control",
                 "Advanced Optimization Techniques in Engineering",
                 "Reaction Kinetics and Mechanisms",
@@ -575,11 +579,13 @@ def test_disable_operator_cache(setup_models, model):
     user_instruction = "What is a similar course to {Course Name}. Please just output the course name."
 
     first_response = df.sem_map(user_instruction)
-    first_response["_map"] = first_response["_map"].str.replace(r"[^a-zA-Z\s]", "", regex=True).str.lower()
+    first_response["map_output"] = first_response["map_output"].str.replace(r"[^a-zA-Z\s]", "", regex=True).str.lower()
     assert lm.stats.total_usage.operator_cache_hits == 0
 
     second_response = df.sem_map(user_instruction)
-    second_response["_map"] = second_response["_map"].str.replace(r"[^a-zA-Z\s]", "", regex=True).str.lower()
+    second_response["map_output"] = (
+        second_response["map_output"].str.replace(r"[^a-zA-Z\s]", "", regex=True).str.lower()
+    )
     assert lm.stats.total_usage.operator_cache_hits == 0
 
     pd.testing.assert_frame_equal(first_response, second_response)
@@ -587,13 +593,19 @@ def test_disable_operator_cache(setup_models, model):
     # Now enable operator cache.
     lotus.settings.configure(enable_cache=True)
     first_responses = df.sem_map(user_instruction)
-    first_responses["_map"] = first_responses["_map"].str.replace(r"[^a-zA-Z\s]", "", regex=True).str.lower()
+    first_responses["map_output"] = (
+        first_responses["map_output"].str.replace(r"[^a-zA-Z\s]", "", regex=True).str.lower()
+    )
     assert lm.stats.total_usage.operator_cache_hits == 0
     second_responses = df.sem_map(user_instruction)
-    second_responses["_map"] = second_responses["_map"].str.replace(r"[^a-zA-Z\s]", "", regex=True).str.lower()
+    second_responses["map_output"] = (
+        second_responses["map_output"].str.replace(r"[^a-zA-Z\s]", "", regex=True).str.lower()
+    )
     assert lm.stats.total_usage.operator_cache_hits == 1
 
-    expected_response["_map"] = expected_response["_map"].str.replace(r"[^a-zA-Z\s]", "", regex=True).str.lower()
+    expected_response["map_output"] = (
+        expected_response["map_output"].str.replace(r"[^a-zA-Z\s]", "", regex=True).str.lower()
+    )
 
     pd.testing.assert_frame_equal(first_responses, second_responses)
     pd.testing.assert_frame_equal(first_responses, expected_response)
