@@ -6,7 +6,6 @@ import pandas as pd
 from numpy.typing import NDArray
 from PIL import Image
 
-from lotus.models.rm import RM
 from lotus.types import RMOutput
 
 try:
@@ -16,7 +15,7 @@ except ImportError:
     pass
 
 
-class ColBERTv2RM(RM):
+class ColBERTv2RM():
     def __init__(self) -> None:
         self.docs: list[str] | None = None
         self.kwargs: dict[str, Any] = {"doc_maxlen": 300, "nbits": 2}
@@ -46,6 +45,9 @@ class ColBERTv2RM(RM):
     def get_vectors_from_index(self, index_dir: str, ids: list[int]) -> NDArray[np.float64]:
         raise NotImplementedError("This method is not implemented for ColBERTv2RM")
 
+
+
+   # this should be called in vs.py if it's 
     def __call__(
         self,
         queries: str | Image.Image | list | NDArray[np.float64],

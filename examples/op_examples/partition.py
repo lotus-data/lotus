@@ -2,11 +2,13 @@ import pandas as pd
 
 import lotus
 from lotus.models import LM, SentenceTransformersRM
+from lotus.vector_store import FaissVS
 
 lm = LM(max_tokens=2048)
 rm = SentenceTransformersRM(model="intfloat/e5-base-v2")
+vs = FaissVS() 
 
-lotus.settings.configure(lm=lm, rm=rm)
+lotus.settings.configure(lm=lm, rm=rm, vs=vs)
 data = {
     "Course Name": [
         "Probability and Random Processes",

@@ -1,4 +1,3 @@
-import faiss
 import numpy as np
 import pandas as pd
 import torch
@@ -7,20 +6,17 @@ from sentence_transformers import SentenceTransformer
 from tqdm import tqdm
 
 from lotus.dtype_extensions import convert_to_base_data
-from lotus.models.faiss_rm import FaissRM
+from lotus.models.rm import RM
 
 
-class SentenceTransformersRM(FaissRM):
+class SentenceTransformersRM(RM):
     def __init__(
         self,
         model: str = "intfloat/e5-base-v2",
         max_batch_size: int = 64,
         normalize_embeddings: bool = True,
         device: str | None = None,
-        factory_string: str = "Flat",
-        metric=faiss.METRIC_INNER_PRODUCT,
     ):
-        super().__init__(factory_string, metric)
         self.model: str = model
         self.max_batch_size: int = max_batch_size
         self.normalize_embeddings: bool = normalize_embeddings
