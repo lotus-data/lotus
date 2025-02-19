@@ -1,6 +1,7 @@
 from typing import Any, Callable
 
 import pandas as pd
+from pydantic import BaseModel, create_model
 
 import lotus
 from lotus.cache import operator_cache
@@ -15,7 +16,8 @@ def sem_map(
     docs: list[dict[str, Any]],
     model: lotus.models.LM,
     user_instruction: str,
-    postprocessor: Callable[[list[str], bool], SemanticMapPostprocessOutput] = map_postprocess,
+    response_format: type[BaseModel],
+    postprocessor: Callable[[list[str], type[BaseModel], bool], SemanticMapPostprocessOutput] = map_postprocess,
     examples_multimodal_data: list[dict[str, Any]] | None = None,
     examples_answers: list[str] | None = None,
     cot_reasoning: list[str] | None = None,
@@ -55,10 +57,10 @@ def sem_map(
         show_safe_mode(estimated_cost, estimated_LM_calls)
 
     # call model
-    lm_output: LMOutput = model(inputs, progress_bar_desc=progress_bar_desc)
+    lm_output: LMOutput = model(inputs, progress_bar_desc=progress_bar_desc, response_format=response_format)
 
     # post process results
-    postprocess_output = postprocessor(lm_output.outputs, strategy in ["cot", "zs-cot"])
+    postprocess_output = postprocessor(lm_output.outputs, response_format, strategy in ["cot", "zs-cot"])
     lotus.logger.debug(f"raw_outputs: {lm_output.outputs}")
     lotus.logger.debug(f"outputs: {postprocess_output.outputs}")
     lotus.logger.debug(f"explanations: {postprocess_output.explanations}")
@@ -89,7 +91,7 @@ class SemMapDataframe:
     def __call__(
         self,
         user_instruction: str,
-        postprocessor: Callable[[list[str], bool], SemanticMapPostprocessOutput] = map_postprocess,
+        postprocessor: Callable[[list[str], type[BaseModel], bool], SemanticMapPostprocessOutput] = map_postprocess,
         return_explanations: bool = False,
         return_raw_outputs: bool = False,
         suffix: str = "_map",
@@ -97,6 +99,7 @@ class SemMapDataframe:
         strategy: str | None = None,
         safe_mode: bool = False,
         progress_bar_desc: str = "Mapping",
+        response_format: type[BaseModel] | None = None,
     ) -> pd.DataFrame:
         """
         Applies semantic map over a dataframe.
@@ -140,6 +143,13 @@ class SemMapDataframe:
                 return_explanations = True
                 cot_reasoning = examples["Reasoning"].tolist()
 
+        # Create default response format if none provided
+        found_response_format: type[BaseModel]
+        if response_format is None:
+            found_response_format = create_model("ResponseFormat", map_output=(str, ...))
+        else:
+            found_response_format = response_format
+
         output = sem_map(
             multimodal_data,
             lotus.settings.lm,
@@ -151,10 +161,13 @@ class SemMapDataframe:
             strategy=strategy,
             safe_mode=safe_mode,
             progress_bar_desc=progress_bar_desc,
+            response_format=found_response_format,
         )
 
         new_df = self._obj.copy()
-        new_df[suffix] = output.outputs
+        for col in found_response_format.model_fields.keys():
+            new_df[col] = [x[col] for x in output.outputs]
+
         if return_explanations:
             new_df["explanation" + suffix] = output.explanations
         if return_raw_outputs:
