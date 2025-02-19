@@ -182,7 +182,7 @@ class SemFilterDataframe:
                 "The language model must be an instance of LM. Please configure a valid language model using lotus.settings.configure()"
             )
 
-        stats: dict[str, int] = {}
+        stats: dict[str, float] = {}
         lotus.logger.debug(user_instruction)
         col_li = lotus.nl_expression.parse_cols(user_instruction)
         lotus.logger.debug(col_li)
