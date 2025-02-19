@@ -13,7 +13,6 @@ from lotus.utils import show_safe_mode
 from .cascade_utils import calibrate_llm_logprobs, importance_sampling, learn_cascade_thresholds
 from .postprocessors import filter_postprocess
 
-
 def sem_filter(
     docs: list[dict[str, Any]],
     model: lotus.models.LM,
