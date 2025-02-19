@@ -369,7 +369,7 @@ class SemFilterDataframe:
             raw_outputs = output.raw_outputs
             explanations = output.explanations
 
-        if return_all == False:
+        if not return_all:
             # find indices where output is True
             ids = [i for i, x in enumerate(outputs) if x]
             idx_ids = [self._obj.index[i] for i, x in enumerate(outputs) if x]
