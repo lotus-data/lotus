@@ -1,7 +1,7 @@
 from typing import Any, Callable
 
 import pandas as pd
-from pydantic import BaseModel, create_model
+from pydantic import BaseModel
 
 import lotus
 from lotus.cache import operator_cache
@@ -72,6 +72,10 @@ def sem_map(
         outputs=postprocess_output.outputs,
         explanations=postprocess_output.explanations,
     )
+
+
+class DefaultResponseFormat(BaseModel):
+    map_output: str
 
 
 @pd.api.extensions.register_dataframe_accessor("sem_map")
@@ -146,7 +150,7 @@ class SemMapDataframe:
         # Create default response format if none provided
         found_response_format: type[BaseModel]
         if response_format is None:
-            found_response_format = create_model("ResponseFormat", map_output=(str, ...))
+            found_response_format = DefaultResponseFormat
         else:
             found_response_format = response_format
 
