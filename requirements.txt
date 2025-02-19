@@ -7,6 +7,3 @@ sentence-transformers==3.0.1
 tiktoken==0.7.0
 tqdm==4.66.4
 weaviate-client==4.10.2
-pinecone==5.4.2
-chromadb==0.6.2
-qdrant-client==1.12.2
