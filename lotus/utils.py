@@ -29,8 +29,6 @@ def cluster(col_name: str, ncentroids: int) -> Callable[[pd.DataFrame, int, bool
         verbose: bool = False,
         method: str = "kmeans",
     ) -> list[int]:
-        
-        
         import faiss
 
         """Cluster by column, and return a series in the dataframe with cluster-ids"""
@@ -65,7 +63,7 @@ def cluster(col_name: str, ncentroids: int) -> Callable[[pd.DataFrame, int, bool
 
         # get nearest centroid to each vector
         scores, indices = kmeans.index.search(vec_set, 1)
-        
+
         # get the cluster centroids
         # centroids = kmeans.centroids
         # return indices.flatten(), scores.flatten(), centroids

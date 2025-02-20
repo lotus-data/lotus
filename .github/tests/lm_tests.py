@@ -23,7 +23,7 @@ ENABLE_OLLAMA_TESTS = os.getenv("ENABLE_OLLAMA_TESTS", "false").lower() == "true
 MODEL_NAME_TO_ENABLED = {
     "gpt-4o-mini": ENABLE_OPENAI_TESTS,
     "gpt-4o": ENABLE_OPENAI_TESTS,
-    "ollama/llama3.1": ENABLE_OLLAMA_TESTS,
+    "ollama/llama3.3": ENABLE_OLLAMA_TESTS,
 }
 ENABLED_MODEL_NAMES = set([model_name for model_name, is_enabled in MODEL_NAME_TO_ENABLED.items() if is_enabled])
 
@@ -209,6 +209,108 @@ def test_sem_extract(setup_models, model):
         assert (
             str(row["Number of Championships"]) in row["Number of Championships_quote"]
         ), f"Number of Championships '{row['Number of Championships']}' not found in '{row['Number of Championships_quote']}'"
+
+
+################################################################################
+# CoT tests
+################################################################################
+@pytest.mark.parametrize("model", get_enabled("gpt-4o-mini", "ollama/llama3.1"))
+def test_filter_operation_cot(setup_models, model):
+    lm = setup_models[model]
+    lotus.settings.configure(lm=lm)
+
+    # Test filter operation on an easy dataframe
+    data = {
+        "Text": [
+            "I had two apples, then I gave away one",
+            "My friend gave me an apple",
+            "I gave away both of my apples",
+            "I gave away my apple, then a friend gave me his apple, then I threw my apple away",
+        ]
+    }
+    df = pd.DataFrame(data)
+    user_instruction = "{Text} I have at least one apple"
+    filtered_df = df.sem_filter(user_instruction, strategy="cot")
+    expected_df = pd.DataFrame({"Text": ["I had two apples, then I gave away one", "My friend gave me an apple"]})
+    assert filtered_df.equals(expected_df)
+
+
+@pytest.mark.parametrize("model", get_enabled("gpt-4o-mini", "ollama/llama3.1"))
+def test_filter_operation_cot_fewshot(setup_models, model):
+    lm = setup_models[model]
+    lotus.settings.configure(lm=lm)
+
+    # Test filter operation on an easy dataframe
+    data = {
+        "Sequence": [
+            "Five, Four, Three",
+            "A, B, C",
+            "Pond, Lake, Ocean",
+        ]
+    }
+    df = pd.DataFrame(data)
+    examples = {
+        "Sequence": ["1, 2, 3", "penny, nickel, dime, quarter", "villiage, town, city"],
+        "Answer": [True, True, True],
+        "Reasoning": [
+            "1, 2, 3 is an increasing sequence of numbers",
+            "penny, nickel, dime, quarter is an increasing sequence of coins",
+            "villiage, town, city is an increasing sequence of settlements",
+        ],
+    }
+    examples_df = pd.DataFrame(examples)
+
+    user_instruction = "{Sequence} is increasing"
+    filtered_df = df.sem_filter(
+        user_instruction,
+        strategy="cot",
+        examples=examples_df,
+        additional_cot_instructions="Assume the most typical or logical case.",
+    )
+    expected_df = pd.DataFrame(
+        {
+            "Sequence": [
+                "A, B, C",
+                "Pond, Lake, Ocean",
+            ]
+        },
+        index=[1, 2],
+    )
+    assert filtered_df.equals(expected_df)
+
+
+@pytest.mark.parametrize("model", get_enabled("gpt-4o-mini", "ollama/llama3.1"))
+def test_filter_operation_cot_fewshot_no_reasoning(setup_models, model):
+    lm = setup_models[model]
+    lotus.settings.configure(lm=lm)
+
+    # Test filter operation on an easy dataframe
+    data = {
+        "Sequence": [
+            "Five, Four, Three",
+            "A, B, C",
+            "Pond, Lake, Ocean",
+        ]
+    }
+    df = pd.DataFrame(data)
+    examples = {
+        "Sequence": ["1, 2, 3", "penny, nickel, dime, quarter", "villiage, town, city"],
+        "Answer": [True, True, True],
+    }
+    examples_df = pd.DataFrame(examples)
+
+    user_instruction = "{Sequence} is increasing"
+    filtered_df = df.sem_filter(user_instruction, strategy="cot", examples=examples_df)
+    expected_df = pd.DataFrame(
+        {
+            "Sequence": [
+                "A, B, C",
+                "Pond, Lake, Ocean",
+            ]
+        },
+        index=[1, 2],
+    )
+    assert filtered_df.equals(expected_df)
 
 
 ################################################################################
