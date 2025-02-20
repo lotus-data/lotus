@@ -25,18 +25,59 @@ Example: Loading from SQLite
     df = df.sem_filter(user_instruction)
     print(df)
 
-Output:
+Example: Loading from Postgres
+------------
+.. code-block:: python
 
-+----+--------------+-------------------+----------+----------------+-----------------------------------------------------+
-|    | title        | director          | rating   | release_year   | description                                         |
-+====+==============+===================+==========+================+=====================================================+
-|  0 | The Matrix   | Wachowskis        | 8.7      | 1999           | A hacker discovers the reality is simulated.        |
-+----+--------------+-------------------+----------+----------------+-----------------------------------------------------+
-|  1 | Inception    | Christopher Nolan | 8.8      | 2010           | A thief enters dreams to steal secrets.             |
-+----+--------------+-------------------+----------+----------------+-----------------------------------------------------+
-|  2 | Interstellar | Christopher Nolan | 8.6      | 2014           | A team travels through a wormhole to save humanity. |
-+----+--------------+-------------------+----------+----------------+-----------------------------------------------------+
+    import lotus
+    from lotus.data_connectors import DataConnector
+    from lotus.models import LM
 
+    lm = LM(model="gpt-4o-mini")
+    lotus.settings.configure(lm=lm)
+
+    query = "SELECT * FROM movies WHERE rating > 5.0"
+    df = DataConnector.load_from_db("postgresql+psycopg2://user:password@host:port/database", query=query)
+
+    user_instruction = "{title} that are science fiction"
+    df = df.sem_filter(user_instruction)
+    print(df)
+
+Example: Loading from Snowflake
+---------------
+.. code-block:: python
+
+    import lotus
+    from lotus.data_connectors import DataConnector
+    from lotus.models import LM
+
+    lm = LM(model="gpt-4o-mini")
+    lotus.settings.configure(lm=lm)
+
+    query = "SELECT * FROM movies WHERE genre = 'Horror'"
+    df = DataConnector.load_from_db("snowflake://<user>:<password>@<account>/<database>/<schema>?warehouse=<warehouse>&role=<role>", query=query)
+
+    user_instruction = "{title} that are science fiction"
+    df = df.sem_filter(user_instruction)
+    print(df)
+
+Example: Loading from Google Big Query
+--------------------------
+.. code-block:: python
+
+    import lotus
+    from lotus.data_connectors import DataConnector
+    from lotus.models import LM
+
+    lm = LM(model="gpt-4o-mini")
+    lotus.settings.configure(lm=lm)
+
+    query = "SELECT date, MAX(title) as title, AVG(rating) as rating FROM movies GROUPBY date ORDERBY rating desc"
+    df = DataConnector.load_from_db("bigquery://my-gcp-project/my_dataset", query=query)
+
+    user_instruction = "{title} that are science fiction"
+    df = df.sem_filter(user_instruction)
+    print(df)
 
 Example: Loading from S3
 -----------
@@ -79,17 +120,7 @@ Example: Loading from S3
     df = df.sem_filter(user_instruction)
     print(df)
 
-Output:
 
-+----+--------------+-------------------+----------+----------------+-----------------------------------------------------+
-|    | title        | director          | rating   | release_year   | description                                         |
-+====+==============+===================+==========+================+=====================================================+
-|  0 | The Matrix   | Wachowskis        | 8.7      | 1999           | A hacker discovers the reality is simulated.        |
-+----+--------------+-------------------+----------+----------------+-----------------------------------------------------+
-|  1 | Inception    | Christopher Nolan | 8.8      | 2010           | A thief enters dreams to steal secrets.             |
-+----+--------------+-------------------+----------+----------------+-----------------------------------------------------+
-|  2 | Interstellar | Christopher Nolan | 8.6      | 2014           | A team travels through a wormhole to save humanity. |
-+----+--------------+-------------------+----------+----------------+-----------------------------------------------------+
 
 Required DB Parameters
 ------------------------
