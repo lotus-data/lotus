@@ -6,6 +6,8 @@ Overview
 LOTUS' data connectors let you seamlessly load data from external stores (e.g. a SQL database) so that you can run LOTUS programs over them.
 Current data connections include most SQL databases supported by SQLAlchemy and any S3 serivice.
 
+Here are a list of supported DBs in SQLAlchemy: https://docs.sqlalchemy.org/en/14/dialects/
+
 
 Example: Loading from SQLite
 -----------
