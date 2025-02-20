@@ -162,7 +162,7 @@ class SemFilterDataframe:
         strategy: str | None = None,
         cascade_args: CascadeArgs | None = None,
         return_stats: bool = False,
-        return_probs: bool = False,
+        return_scores: bool = False,
         safe_mode: bool = False,
         progress_bar_desc: str = "Filtering",
         additional_cot_instructions: str = "",
@@ -184,7 +184,7 @@ class SemFilterDataframe:
                 sampling_percentage (float): The percentage of the data to sample when cascading. Defaults to 0.1.
                 failure_probability (float): The failure probability when cascading. Defaults to 0.2.
             return_stats (bool): Whether to return statistics. Defaults to False.
-            return_probs (bool): Whether to return probabilities. Defaults to False.
+            return_scores (bool): Whether to return probabilities. Defaults to False.
             additional_cot_instructions (str): Additional instructions for the CoT. Defaults to "".
 
         Returns:
@@ -332,11 +332,16 @@ class SemFilterDataframe:
             outputs: list[bool] = [False] * len(multimodal_data)
             raw_outputs: list[str] = [""] * len(multimodal_data)
             explanations: list[str | None] = [None] * len(multimodal_data)
-            probs: list[float] = [0.0] * len(multimodal_data)
+            scores: list[float] = [0.0] * len(multimodal_data)
+            score_methods: list[str] = [""] * len(multimodal_data)
 
             for idx in high_conf_idxs:
                 outputs[idx] = proxy_outputs[idx]
-                probs[idx] = proxy_scores[idx]
+                scores[idx] = proxy_scores[idx]
+                if proxy_model == ProxyModel.HELPER_LM:
+                    score_methods[idx] = "HELPER_LM"
+                else:
+                    score_methods[idx] = "EMBEDDING_MODEL"
 
             # If using helper LM, get raw outputs and explanations
             if proxy_model == ProxyModel.HELPER_LM:
@@ -362,12 +367,12 @@ class SemFilterDataframe:
                     strategy=strategy,
                     safe_mode=safe_mode,
                     progress_bar_desc="Running predicate evals with oracle LM",
-                    logprobs=return_probs,
+                    logprobs=return_scores,
                     additional_cot_instructions=additional_cot_instructions,
                 )
 
-                if return_probs:
-                    assert large_output.logprobs is not None, "Logprobs must be returned if return_probs is True"
+                if return_scores:
+                    assert large_output.logprobs is not None, "Logprobs must be returned if return_scores is True"
                     formatted_logprobs = lotus.settings.lm.format_logprobs_for_filter_cascade(large_output.logprobs)
                     large_probs = formatted_logprobs.true_probs
 
@@ -375,8 +380,9 @@ class SemFilterDataframe:
                     outputs[large_idx] = large_output.outputs[idx]
                     raw_outputs[large_idx] = large_output.raw_outputs[idx]
                     explanations[large_idx] = large_output.explanations[idx]
-                    if return_probs:
-                        probs[large_idx] = large_probs[idx]
+                    if return_scores:
+                        scores[large_idx] = large_probs[idx]
+                        score_methods[large_idx] = "LM"
 
             stats["filters_resolved_by_helper_model"] += len(high_conf_idxs)
             stats["filters_resolved_by_large_model"] += len(low_conf_idxs)
@@ -394,19 +400,21 @@ class SemFilterDataframe:
                 safe_mode=safe_mode,
                 show_progress_bar=True,
                 progress_bar_desc=progress_bar_desc,
-                logprobs=return_probs,
+                logprobs=return_scores,
                 additional_cot_instructions=additional_cot_instructions,
             )
             outputs = output.outputs
             raw_outputs = output.raw_outputs
             explanations = output.explanations
 
-            if return_probs:
-                assert output.logprobs is not None, "Logprobs must be returned if return_probs is True"
+            if return_scores:
+                assert output.logprobs is not None, "Logprobs must be returned if return_scores is True"
                 formatted_logprobs = lotus.settings.lm.format_logprobs_for_filter_cascade(output.logprobs)
-                probs = formatted_logprobs.true_probs
+                scores = formatted_logprobs.true_probs
+                score_methods = ["LM"] * len(multimodal_data)
             else:
-                probs = [0.0] * len(multimodal_data)
+                scores = [0.0] * len(multimodal_data)
+                score_methods = [""] * len(multimodal_data)
 
         if not return_all:
             # find indices where output is True
@@ -418,7 +426,8 @@ class SemFilterDataframe:
             [outputs[i] for i in ids]
             filtered_explanations = [explanations[i] for i in ids]
             filtered_raw_outputs = [raw_outputs[i] for i in ids]
-            filtered_probs = [probs[i] for i in ids]
+            filtered_scores = [scores[i] for i in ids]
+            filtered_score_methods = [score_methods[i] for i in ids]
             lotus.logger.debug(f"filtered_raw_outputs: {filtered_raw_outputs}")
 
             new_df = self._obj.iloc[ids]
@@ -438,7 +447,8 @@ class SemFilterDataframe:
             new_df[get_out_col_name(new_df, "filter_label")] = outputs
             filtered_explanations = explanations
             filtered_raw_outputs = raw_outputs
-            filtered_probs = probs
+            filtered_scores = scores
+            filtered_score_methods = score_methods
 
         # return rows where output is True
         if return_explanations and return_raw_outputs:
@@ -449,8 +459,9 @@ class SemFilterDataframe:
         elif return_raw_outputs:
             new_df["raw_output" + suffix] = filtered_raw_outputs
 
-        if return_probs:
-            new_df["probs" + suffix] = filtered_probs
+        if return_scores:
+            new_df["score"] = filtered_scores
+            new_df["score_method"] = filtered_score_methods
 
         if return_stats:
             return new_df, stats

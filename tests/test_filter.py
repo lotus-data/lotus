@@ -103,25 +103,27 @@ class TestSearch(BaseTest):
         assert all(0 <= score <= 1 for score in result["vec_scores_sim_score"])
 
 
-class TestFilterWithProbs(BaseTest):
-    def test_filter_with_probs(self, sample_df):
-        """Test semantic filter with probabilities returned to the user"""
+class TestFilterWithScores(BaseTest):
+    def test_filter_with_scores(self, sample_df):
+        """Test semantic filter with scores returned to the user"""
         lm = LM(model="gpt-4o-mini")
         lotus.settings.configure(lm=lm)
-        result = sample_df.sem_filter("{Course Name} will be fun", return_probs=True)
+        result = sample_df.sem_filter("{Course Name} will be fun", return_scores=True)
         print(result)
-        assert "probs_filter" in result.columns
+        assert "score" in result.columns
+        assert "score_method" in result.columns
 
-    def test_filter_with_probs_and_return_all(self, sample_df):
-        """Test semantic filter with probabilities returned to the user"""
+    def test_filter_with_scores_and_return_all(self, sample_df):
+        """Test semantic filter with scores returned to the user"""
         lm = LM(model="gpt-4o-mini")
         lotus.settings.configure(lm=lm)
-        result = sample_df.sem_filter("{Course Name} will be fun", return_probs=True, return_all=True)
+        result = sample_df.sem_filter("{Course Name} will be fun", return_scores=True, return_all=True)
         print(result)
-        assert "probs_filter" in result.columns
+        assert "score" in result.columns
+        assert "score_method" in result.columns
 
         for idx, row in result.iterrows():
             if row["filter_label"]:
-                assert row["probs_filter"] > 0.5
+                assert row["score"] > 0.5
             else:
-                assert row["probs_filter"] <= 0.5
+                assert row["score"] <= 0.5
