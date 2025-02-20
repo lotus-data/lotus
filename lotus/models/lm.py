@@ -192,10 +192,14 @@ class LM:
         for response_logprobs in logprobs:
             true_prob: float = 1  # Default if no true/false token found
 
-            for logprob in reversed(response_logprobs):
-                cleaned_token = logprob.token.lower().strip()
-                if cleaned_token not in ["true", "false"]:
-                    continue
+            # Find last true/false token by normalizing all tokens and searching in reverse
+            cleaned_tokens = [logprob.token.lower().strip() for logprob in response_logprobs]
+            true_false_indices = [i for i, token in enumerate(cleaned_tokens) if token in ["true", "false"]]
+
+            if true_false_indices:
+                last_true_false_idx = true_false_indices[-1]
+                logprob = response_logprobs[last_true_false_idx]
+                cleaned_token = cleaned_tokens[last_true_false_idx]
 
                 token_probs = {top.token: np.exp(top.logprob) for top in logprob.top_logprobs}
                 normalized_prob = get_normalized_true_prob(token_probs)
@@ -205,7 +209,6 @@ class LM:
                     true_prob = 1 if cleaned_token == "true" else 0
                 else:
                     true_prob = normalized_prob
-                break
 
             all_true_probs.append(true_prob)
 
