@@ -178,6 +178,7 @@ class LM:
             if "True" in token_probs and "False" in token_probs:
                 true_prob = token_probs["True"]
                 false_prob = token_probs["False"]
+                print(f"True probability: {true_prob}, False probability: {false_prob}")
                 return true_prob / (true_prob + false_prob)
             return None
 

@@ -173,7 +173,6 @@ class SemFilterDataframe:
                 sampling_percentage (float): The percentage of the data to sample when cascading. Defaults to 0.1.
                 failure_probability (float): The failure probability when cascading. Defaults to 0.2.
             return_stats (bool): Whether to return statistics. Defaults to False.
-
         Returns:
             pd.DataFrame | tuple[pd.DataFrame, dict[str, Any]]: The filtered dataframe or a tuple containing the filtered dataframe and statistics.
         """
@@ -182,7 +181,7 @@ class SemFilterDataframe:
                 "The language model must be an instance of LM. Please configure a valid language model using lotus.settings.configure()"
             )
 
-        stats = {}
+        stats: dict[str, Any] = {}
         lotus.logger.debug(user_instruction)
         col_li = lotus.nl_expression.parse_cols(user_instruction)
         lotus.logger.debug(col_li)
@@ -321,8 +320,13 @@ class SemFilterDataframe:
             raw_outputs: list[str] = [""] * len(multimodal_data)
             explanations: list[str | None] = [None] * len(multimodal_data)
 
+            if return_stats:
+                stats["probs"] = [0.0] * len(multimodal_data)
+
             for idx in high_conf_idxs:
                 outputs[idx] = proxy_outputs[idx]
+                if return_stats:
+                    stats["probs"][idx] = proxy_scores[idx]
 
             # If using helper LM, get raw outputs and explanations
             if proxy_model == ProxyModel.HELPER_LM:
@@ -348,12 +352,19 @@ class SemFilterDataframe:
                     strategy=strategy,
                     safe_mode=safe_mode,
                     progress_bar_desc="Running predicate evals with oracle LM",
+                    logprobs=return_stats,
                 )
+
+                if return_stats and large_output.logprobs:
+                    formatted_logprobs = lotus.settings.lm.format_logprobs_for_filter_cascade(large_output.logprobs)
+                    large_probs = formatted_logprobs.true_probs
 
                 for idx, large_idx in enumerate(low_conf_idxs):
                     outputs[large_idx] = large_output.outputs[idx]
                     raw_outputs[large_idx] = large_output.raw_outputs[idx]
                     explanations[large_idx] = large_output.explanations[idx]
+                    if return_stats:
+                        stats["probs"][large_idx] = large_probs[idx]
 
             stats["filters_resolved_by_helper_model"] += len(high_conf_idxs)
             stats["filters_resolved_by_large_model"] += len(low_conf_idxs)
@@ -371,10 +382,16 @@ class SemFilterDataframe:
                 safe_mode=safe_mode,
                 show_progress_bar=True,
                 progress_bar_desc=progress_bar_desc,
+                logprobs=return_stats,  # stats includes logprobs
             )
             outputs = output.outputs
             raw_outputs = output.raw_outputs
             explanations = output.explanations
+
+            if return_stats:
+                assert output.logprobs is not None, "logprobs must be returned to get stats"
+                formatted_logprobs = lotus.settings.lm.format_logprobs_for_filter_cascade(output.logprobs)
+                stats["probs"] = formatted_logprobs.true_probs
 
         # find indices where output is True
         ids = [i for i, x in enumerate(outputs) if x]
