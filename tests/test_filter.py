@@ -108,7 +108,6 @@ class TestFilterWithProbs(BaseTest):
         """Test semantic filter with probabilities returned to the user"""
         lm = LM(model="gpt-4o-mini")
         lotus.settings.configure(lm=lm)
-        result, stats = sample_df.sem_filter("{Course Name} is useful for life", return_stats=True)
+        result = sample_df.sem_filter("{Course Name} will be fun", return_probs=True)
         print(result)
-        print(stats)
-        assert "probs" in stats
+        assert "probs_filter" in result.columns
