@@ -8,8 +8,8 @@ Example models include but not limited to: OpenAI, Ollama, vLLM
 
 Example
 ---------
-To run a model, you can use the LM class. We use the liteLLMm library to interface with the model. This allows 
-ypu to use any model provider that is supported by liteLLM
+To run a model, you can use the LM class. We use the LiteLLM library to interface with the model. This allows
+you to use any model provider that is supported by LiteLLM.
 
 Creating a LM object for gpt-4o
 
