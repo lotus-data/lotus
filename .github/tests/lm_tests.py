@@ -392,7 +392,7 @@ def test_filter_cascade(setup_models):
 def test_join_cascade(setup_models):
     models = setup_models
     rm = SentenceTransformersRM(model="intfloat/e5-base-v2")
-    vs = FaissVS() 
+    vs = FaissVS()
     lotus.settings.configure(lm=models["gpt-4o-mini"], rm=rm, vs=vs)
 
     data1 = {
@@ -512,7 +512,7 @@ def test_cache(setup_models, model):
     ]
 
     first_responses = lm(first_batch).outputs
-    assert lm.stats.total_usage.cache_hits == 0
+    assert lm.stats.cache_hits == 0
 
     second_batch = [
         [{"role": "user", "content": "What is the capital of France?"}],
@@ -520,13 +520,13 @@ def test_cache(setup_models, model):
     ]
     second_responses = lm(second_batch).outputs
     assert second_responses[0] == first_responses[1]
-    assert lm.stats.total_usage.cache_hits == 1
+    assert lm.stats.cache_hits == 1
 
     # Test clearing cache
     lm.reset_cache()
     lm.reset_stats()
     lm(second_batch)
-    assert lm.stats.total_usage.cache_hits == 0
+    assert lm.stats.cache_hits == 0
 
 
 @pytest.mark.parametrize("model", get_enabled("gpt-4o-mini"))
@@ -540,16 +540,16 @@ def test_disable_cache(setup_models, model):
     ]
 
     lm(batch)
-    assert lm.stats.total_usage.cache_hits == 0
+    assert lm.stats.cache_hits == 0
     lm(batch)
-    assert lm.stats.total_usage.cache_hits == 0
+    assert lm.stats.cache_hits == 0
 
     # Now enable cache. Note that the first batch is not cached.
     lotus.settings.configure(enable_cache=True)
     first_responses = lm(batch).outputs
-    assert lm.stats.total_usage.cache_hits == 0
+    assert lm.stats.cache_hits == 0
     second_responses = lm(batch).outputs
-    assert lm.stats.total_usage.cache_hits == 2
+    assert lm.stats.cache_hits == 2
     assert first_responses == second_responses
 
 
@@ -563,21 +563,21 @@ def test_reset_cache(setup_models, model):
         [{"role": "user", "content": "What is the capital of France?"}],
     ]
     lm(batch)
-    assert lm.stats.total_usage.cache_hits == 0
+    assert lm.stats.cache_hits == 0
     lm(batch)
-    assert lm.stats.total_usage.cache_hits == 2
+    assert lm.stats.cache_hits == 2
 
     lm.reset_cache(max_size=1)
     lm(batch)
-    assert lm.stats.total_usage.cache_hits == 2
+    assert lm.stats.cache_hits == 2
     lm(batch)
-    assert lm.stats.total_usage.cache_hits == 3
+    assert lm.stats.cache_hits == 3
 
     lm.reset_cache(max_size=0)
     lm(batch)
-    assert lm.stats.total_usage.cache_hits == 3
+    assert lm.stats.cache_hits == 3
     lm(batch)
-    assert lm.stats.total_usage.cache_hits == 3
+    assert lm.stats.cache_hits == 3
 
 
 @pytest.mark.parametrize("model", get_enabled("gpt-4o-mini"))
@@ -618,10 +618,10 @@ def test_operator_cache(setup_models, model):
     user_instruction = "What is a similar course to {Course Name}. Please just output the course name."
 
     first_response = df.sem_map(user_instruction)
-    assert lm.stats.total_usage.operator_cache_hits == 0
+    assert lm.stats.operator_cache_hits == 0
 
     second_response = df.sem_map(user_instruction)
-    assert lm.stats.total_usage.operator_cache_hits == 1
+    assert lm.stats.operator_cache_hits == 1
 
     first_response["_map"] = first_response["_map"].str.replace(r"[^a-zA-Z\s]", "", regex=True).str.lower()
     second_response["_map"] = second_response["_map"].str.replace(r"[^a-zA-Z\s]", "", regex=True).str.lower()
@@ -633,7 +633,7 @@ def test_operator_cache(setup_models, model):
 
     lm.reset_cache()
     lm.reset_stats()
-    assert lm.stats.total_usage.operator_cache_hits == 0
+    assert lm.stats.operator_cache_hits == 0
 
 
 @pytest.mark.parametrize("model", get_enabled("gpt-4o-mini"))
@@ -678,11 +678,11 @@ def test_disable_operator_cache(setup_models, model):
 
     first_response = df.sem_map(user_instruction)
     first_response["_map"] = first_response["_map"].str.replace(r"[^a-zA-Z\s]", "", regex=True).str.lower()
-    assert lm.stats.total_usage.operator_cache_hits == 0
+    assert lm.stats.operator_cache_hits == 0
 
     second_response = df.sem_map(user_instruction)
     second_response["_map"] = second_response["_map"].str.replace(r"[^a-zA-Z\s]", "", regex=True).str.lower()
-    assert lm.stats.total_usage.operator_cache_hits == 0
+    assert lm.stats.operator_cache_hits == 0
 
     pd.testing.assert_frame_equal(first_response, second_response)
 
@@ -690,10 +690,10 @@ def test_disable_operator_cache(setup_models, model):
     lotus.settings.configure(enable_cache=True)
     first_responses = df.sem_map(user_instruction)
     first_responses["_map"] = first_responses["_map"].str.replace(r"[^a-zA-Z\s]", "", regex=True).str.lower()
-    assert lm.stats.total_usage.operator_cache_hits == 0
+    assert lm.stats.operator_cache_hits == 0
     second_responses = df.sem_map(user_instruction)
     second_responses["_map"] = second_responses["_map"].str.replace(r"[^a-zA-Z\s]", "", regex=True).str.lower()
-    assert lm.stats.total_usage.operator_cache_hits == 1
+    assert lm.stats.operator_cache_hits == 1
 
     expected_response["_map"] = expected_response["_map"].str.replace(r"[^a-zA-Z\s]", "", regex=True).str.lower()
 
