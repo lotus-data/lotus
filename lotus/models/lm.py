@@ -13,7 +13,14 @@ from tqdm import tqdm
 
 import lotus
 from lotus.cache import CacheFactory
-from lotus.types import LMOutput, LMStats, LogprobsForCascade, LogprobsForFilterCascade, LotusUsageLimitException
+from lotus.types import (
+    LMOutput,
+    LMStats,
+    LogprobsForCascade,
+    LogprobsForFilterCascade,
+    LotusUsageLimitException,
+    UsageLimit,
+)
 
 logging.getLogger("LiteLLM").setLevel(logging.CRITICAL)
 logging.getLogger("httpx").setLevel(logging.CRITICAL)
@@ -29,7 +36,7 @@ class LM:
         max_batch_size: int = 64,
         tokenizer: Tokenizer | None = None,
         cache=None,
-        token_usage_limit: float = float("inf"),
+        usage_limit: UsageLimit = UsageLimit(),
         **kwargs: dict[str, Any],
     ):
         """Language Model class for interacting with various LLM providers.
@@ -42,8 +49,7 @@ class LM:
             max_batch_size (int): Maximum batch size for concurrent requests. Defaults to 64.
             tokenizer (Tokenizer | None): Custom tokenizer instance. Defaults to None.
             cache: Cache instance to use. Defaults to None.
-            token_usage_limit (float): Maximum number of tokens to use before raising exception.
-                                     Defaults to infinity. Raises LotusUsageLimitException if exceeded.
+            usage_limit (UsageLimit): Usage limits for the model. Defaults to UsageLimit().
             **kwargs: Additional keyword arguments passed to the underlying LLM API.
         """
         self.model = model
@@ -54,7 +60,7 @@ class LM:
         self.kwargs = dict(temperature=temperature, max_tokens=max_tokens, **kwargs)
 
         self.stats: LMStats = LMStats()
-        self.token_usage_limit = token_usage_limit
+        self.usage_limit = usage_limit
 
         self.cache = cache or CacheFactory.create_default_cache()
 
@@ -155,9 +161,15 @@ class LM:
         self.stats.total_usage.completion_tokens += response.usage.completion_tokens
         self.stats.total_usage.total_tokens += response.usage.total_tokens
 
-        if self.stats.total_usage.total_tokens > self.token_usage_limit:
+        # Check if any usage limits are exceeded
+        if (
+            self.stats.total_usage.prompt_tokens > self.usage_limit.prompt_tokens_limit
+            or self.stats.total_usage.completion_tokens > self.usage_limit.completion_tokens_limit
+            or self.stats.total_usage.total_tokens > self.usage_limit.total_tokens_limit
+            or self.stats.total_usage.total_cost > self.usage_limit.total_cost_limit
+        ):
             raise LotusUsageLimitException(
-                f"Token usage limit of {self.token_usage_limit} exceeded. Current usage: {self.stats.total_usage.total_tokens}"
+                f"Usage limit exceeded. Current usage: {self.stats.total_usage}, Limit: {self.usage_limit}"
             )
 
         try:

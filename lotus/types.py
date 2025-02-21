@@ -165,6 +165,17 @@ class SerializationFormat(Enum):
 
 
 ################################################################################
+# Utility
+################################################################################
+@dataclass
+class UsageLimit:
+    prompt_tokens_limit: float = float("inf")
+    completion_tokens_limit: float = float("inf")
+    total_tokens_limit: float = float("inf")
+    total_cost_limit: float = float("inf")
+
+
+################################################################################
 # Exception related
 ################################################################################
 class LotusException(Exception):
