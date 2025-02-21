@@ -192,3 +192,9 @@ class LotusUsageLimitException(LotusException):
     """Exception raised when the usage limit is exceeded."""
 
     pass
+
+################################################################################
+# Structured Format
+################################################################################
+class DefaultStructuredFormat(BaseModel):
+    pass

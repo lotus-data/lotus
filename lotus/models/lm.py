@@ -1,6 +1,7 @@
 import hashlib
 import logging
-from typing import Any
+from typing import Any, Type
+from pydantic import BaseModel, ValidationError
 
 import litellm
 import numpy as np
@@ -20,6 +21,7 @@ from lotus.types import (
     LogprobsForFilterCascade,
     LotusUsageLimitException,
     UsageLimit,
+    DefaultStructuredFormat,
 )
 
 logging.getLogger("LiteLLM").setLevel(logging.CRITICAL)
@@ -37,6 +39,7 @@ class LM:
         tokenizer: Tokenizer | None = None,
         cache=None,
         usage_limit: UsageLimit = UsageLimit(),
+        structured_format: bool = False,
         **kwargs: dict[str, Any],
     ):
         """Language Model class for interacting with various LLM providers.
@@ -60,6 +63,7 @@ class LM:
         self.kwargs = dict(temperature=temperature, max_tokens=max_tokens, **kwargs)
 
         self.stats: LMStats = LMStats()
+        self.structured_format = structured_format
         self.usage_limit = usage_limit
 
         self.cache = cache or CacheFactory.create_default_cache()
@@ -117,8 +121,33 @@ class LM:
         logprobs = (
             [self._get_top_choice_logprobs(resp) for resp in all_responses] if all_kwargs.get("logprobs") else None
         )
+        if self.structured_output:
+           rf = response_format if response_format is not None else DefaultStructuredFormat
+           structured_responses = []
+           for raw_response in outputs:
+               structured_responses.append(self.structured_parse(raw_response, rf))
+           outputs = structured_responses
 
         return LMOutput(outputs=outputs, logprobs=logprobs)
+
+     def structured_parse(
+       self,
+       raw_response: str,
+       response_format: Type[BaseModel],
+       **kwargs: dict[str, Any]):
+       """parses a raw response from the model and converts it into a structured format using the provided response_format.
+       Args:
+           raw_response (str): The raw response from the model.
+           response_format (Type[BaseModel]): A Pydantic model class that defines the structure of the response.
+           **kwargs (dict[str, Any]): Additional keyword arguments to pass to the model.
+       """
+       try:
+           structured_response = response_format.model_validate(raw_response).model_dump()
+       except ValidationError as e:
+           raise ValueError(f"Failed to parse response: {e}") from e
+
+
+       return structured_response
 
     def _process_uncached_messages(self, uncached_data, all_kwargs, show_progress_bar, progress_bar_desc):
         """Processes uncached messages in batches and returns responses."""
