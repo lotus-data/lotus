@@ -32,6 +32,20 @@ class LM:
         token_usage_limit: float = float("inf"),
         **kwargs: dict[str, Any],
     ):
+        """Language Model class for interacting with various LLM providers.
+
+        Args:
+            model (str): Name of the model to use. Defaults to "gpt-4o-mini".
+            temperature (float): Sampling temperature. Defaults to 0.0.
+            max_ctx_len (int): Maximum context length in tokens. Defaults to 128000.
+            max_tokens (int): Maximum number of tokens to generate. Defaults to 512.
+            max_batch_size (int): Maximum batch size for concurrent requests. Defaults to 64.
+            tokenizer (Tokenizer | None): Custom tokenizer instance. Defaults to None.
+            cache: Cache instance to use. Defaults to None.
+            token_usage_limit (float): Maximum number of tokens to use before raising exception.
+                                     Defaults to infinity. Raises LotusUsageLimitException if exceeded.
+            **kwargs: Additional keyword arguments passed to the underlying LLM API.
+        """
         self.model = model
         self.max_ctx_len = max_ctx_len
         self.max_tokens = max_tokens
