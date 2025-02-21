@@ -121,7 +121,7 @@ class LM:
         logprobs = (
             [self._get_top_choice_logprobs(resp) for resp in all_responses] if all_kwargs.get("logprobs") else None
         )
-        if self.structured_output:
+        if self.structured_format:
            rf = response_format if response_format is not None else DefaultStructuredFormat
            structured_responses = []
            for raw_response in outputs:
