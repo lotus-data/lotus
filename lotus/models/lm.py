@@ -73,6 +73,7 @@ class LM:
         messages: list[list[dict[str, str]]],
         show_progress_bar: bool = True,
         progress_bar_desc: str = "Processing uncached messages",
+        response_format: Type[BaseModel] = None,
         **kwargs: dict[str, Any],
     ) -> LMOutput:
         all_kwargs = {**self.kwargs, **kwargs}
@@ -130,24 +131,24 @@ class LM:
 
         return LMOutput(outputs=outputs, logprobs=logprobs)
 
-        def structured_parse(
-            self,
-            raw_response: str,
-            response_format: Type[BaseModel],
-            **kwargs: dict[str, Any]
-        ):
-            """parses a raw response from the model and converts it into a structured format using the provided response_format.
+    def structured_parse(
+        self,
+        raw_response: str,
+        response_format: Type[BaseModel],
+        **kwargs: dict[str, Any]
+    ):
+        """parses a raw response from the model and converts it into a structured format using the provided response_format.
 
-            Args:
-            raw_response (str): The raw response from the model.
-            response_format (Type[BaseModel]): A Pydantic model class that defines the structure of the response.
-            **kwargs (dict[str, Any]): Additional keyword arguments to pass to the model.
-        """
-        try:
-            structured_response = response_format.model_validate(raw_response).model_dump()
-        except ValidationError as e:
-            raise ValueError(f"Failed to parse response: {e}") from e
-        return structured_response
+        Args:
+        raw_response (str): The raw response from the model.
+        response_format (Type[BaseModel]): A Pydantic model class that defines the structure of the response.
+        **kwargs (dict[str, Any]): Additional keyword arguments to pass to the model.
+    """
+    try:
+        structured_response = response_format.model_validate(raw_response).model_dump()
+    except ValidationError as e:
+        raise ValueError(f"Failed to parse response: {e}") from e
+    return structured_response
 
     def _process_uncached_messages(self, uncached_data, all_kwargs, show_progress_bar, progress_bar_desc):
         """Processes uncached messages in batches and returns responses."""
