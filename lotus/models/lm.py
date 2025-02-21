@@ -143,12 +143,12 @@ class LM:
         raw_response (str): The raw response from the model.
         response_format (Type[BaseModel]): A Pydantic model class that defines the structure of the response.
         **kwargs (dict[str, Any]): Additional keyword arguments to pass to the model.
-    """
-    try:
-        structured_response = response_format.model_validate(raw_response).model_dump()
-    except ValidationError as e:
-        raise ValueError(f"Failed to parse response: {e}") from e
-    return structured_response
+        """
+        try:
+            structured_response = response_format.model_validate(raw_response).model_dump()
+        except ValidationError as e:
+            raise ValueError(f"Failed to parse response: {e}") from e
+        return structured_response
 
     def _process_uncached_messages(self, uncached_data, all_kwargs, show_progress_bar, progress_bar_desc):
         """Processes uncached messages in batches and returns responses."""
