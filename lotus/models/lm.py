@@ -13,7 +13,7 @@ from tqdm import tqdm
 
 import lotus
 from lotus.cache import CacheFactory
-from lotus.types import LMOutput, LMStats, LogprobsForCascade, LogprobsForFilterCascade
+from lotus.types import LMOutput, LMStats, LogprobsForCascade, LogprobsForFilterCascade, LotusUsageLimitException
 
 logging.getLogger("LiteLLM").setLevel(logging.CRITICAL)
 logging.getLogger("httpx").setLevel(logging.CRITICAL)
@@ -29,6 +29,7 @@ class LM:
         max_batch_size: int = 64,
         tokenizer: Tokenizer | None = None,
         cache=None,
+        token_usage_limit: float = float("inf"),
         **kwargs: dict[str, Any],
     ):
         self.model = model
@@ -39,6 +40,7 @@ class LM:
         self.kwargs = dict(temperature=temperature, max_tokens=max_tokens, **kwargs)
 
         self.stats: LMStats = LMStats()
+        self.token_usage_limit = token_usage_limit
 
         self.cache = cache or CacheFactory.create_default_cache()
 
@@ -72,9 +74,11 @@ class LM:
         uncached_responses = self._process_uncached_messages(
             uncached_data, all_kwargs, show_progress_bar, progress_bar_desc
         )
-        if lotus.settings.enable_cache:
-            # Add new responses to cache
-            for resp, (_, hash) in zip(uncached_responses, uncached_data):
+
+        # Add new responses to cache and update stats
+        for resp, (_, hash) in zip(uncached_responses, uncached_data):
+            self._update_stats(resp)
+            if lotus.settings.enable_cache:
                 self._cache_response(resp, hash)
 
         # Merge all responses in original order and extract outputs
@@ -115,7 +119,6 @@ class LM:
         """Caches a response and updates stats if successful."""
         if isinstance(response, OpenAIError):
             raise response
-        self._update_stats(response)
         self.cache.insert(hash, response)
 
     def _hash_messages(self, messages: list[dict[str, str]], kwargs: dict[str, Any]) -> str:
@@ -137,6 +140,11 @@ class LM:
         self.stats.total_usage.prompt_tokens += response.usage.prompt_tokens
         self.stats.total_usage.completion_tokens += response.usage.completion_tokens
         self.stats.total_usage.total_tokens += response.usage.total_tokens
+
+        if self.stats.total_usage.total_tokens > self.token_usage_limit:
+            raise LotusUsageLimitException(
+                f"Token usage limit of {self.token_usage_limit} exceeded. Current usage: {self.stats.total_usage.total_tokens}"
+            )
 
         try:
             self.stats.total_usage.total_cost += completion_cost(completion_response=response)

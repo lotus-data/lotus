@@ -162,3 +162,18 @@ class SerializationFormat(Enum):
     JSON = "json"
     XML = "xml"
     DEFAULT = "default"
+
+
+################################################################################
+# Exception related
+################################################################################
+class LotusException(Exception):
+    """Base class for all Lotus exceptions."""
+
+    pass
+
+
+class LotusUsageLimitException(LotusException):
+    """Exception raised when the usage limit is exceeded."""
+
+    pass
