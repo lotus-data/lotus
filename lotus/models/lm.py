@@ -88,7 +88,7 @@ class LM:
             else [(msg, "no-cache") for msg in messages]
         )
 
-        self.stats.total_usage.cache_hits += len(messages) - len(uncached_data)
+        self.stats.cache_hits += len(messages) - len(uncached_data)
 
         # Process uncached messages in batches
         uncached_responses = self._process_uncached_messages(
@@ -97,9 +97,15 @@ class LM:
 
         # Add new responses to cache and update stats
         for resp, (_, hash) in zip(uncached_responses, uncached_data):
-            self._update_stats(resp)
+            self._update_stats(resp, is_cached=False)
             if lotus.settings.enable_cache:
                 self._cache_response(resp, hash)
+
+        # Update virtual stats for cached responses
+        if lotus.settings.enable_cache:
+            for resp in cached_responses:
+                if resp is not None:
+                    self._update_stats(resp, is_cached=True)
 
         # Merge all responses in original order and extract outputs
         all_responses = (
@@ -153,27 +159,37 @@ class LM:
         uncached_iter = iter(uncached_responses)
         return [resp if resp is not None else next(uncached_iter) for resp in cached_responses]
 
-    def _update_stats(self, response: ModelResponse):
+    def _update_stats(self, response: ModelResponse, is_cached: bool = False):
         if not hasattr(response, "usage"):
             return
 
-        self.stats.total_usage.prompt_tokens += response.usage.prompt_tokens
-        self.stats.total_usage.completion_tokens += response.usage.completion_tokens
-        self.stats.total_usage.total_tokens += response.usage.total_tokens
+        # Always update virtual usage
+        self.stats.virtual_usage.prompt_tokens += response.usage.prompt_tokens
+        self.stats.virtual_usage.completion_tokens += response.usage.completion_tokens
+        self.stats.virtual_usage.total_tokens += response.usage.total_tokens
 
-        # Check if any usage limits are exceeded
+        # Only update physical usage for non-cached responses
+        if not is_cached:
+            self.stats.physical_usage.prompt_tokens += response.usage.prompt_tokens
+            self.stats.physical_usage.completion_tokens += response.usage.completion_tokens
+            self.stats.physical_usage.total_tokens += response.usage.total_tokens
+
+        # Check if any usage limits are exceeded (using physical usage)
         if (
-            self.stats.total_usage.prompt_tokens > self.usage_limit.prompt_tokens_limit
-            or self.stats.total_usage.completion_tokens > self.usage_limit.completion_tokens_limit
-            or self.stats.total_usage.total_tokens > self.usage_limit.total_tokens_limit
-            or self.stats.total_usage.total_cost > self.usage_limit.total_cost_limit
+            self.stats.physical_usage.prompt_tokens > self.usage_limit.prompt_tokens_limit
+            or self.stats.physical_usage.completion_tokens > self.usage_limit.completion_tokens_limit
+            or self.stats.physical_usage.total_tokens > self.usage_limit.total_tokens_limit
+            or self.stats.physical_usage.total_cost > self.usage_limit.total_cost_limit
         ):
             raise LotusUsageLimitException(
-                f"Usage limit exceeded. Current usage: {self.stats.total_usage}, Limit: {self.usage_limit}"
+                f"Usage limit exceeded. Current usage: {self.stats.physical_usage}, Limit: {self.usage_limit}"
             )
 
         try:
-            self.stats.total_usage.total_cost += completion_cost(completion_response=response)
+            cost = completion_cost(completion_response=response)
+            self.stats.virtual_usage.total_cost += cost
+            if not is_cached:
+                self.stats.physical_usage.total_cost += cost
         except litellm.exceptions.NotFoundError as e:
             # Sometimes the model's pricing information is not available
             lotus.logger.debug(f"Error updating completion cost: {e}")
@@ -250,16 +266,17 @@ class LM:
         )
 
     def print_total_usage(self):
-        print(f"Total cost: ${self.stats.total_usage.total_cost:.6f}")
-        print(f"Total prompt tokens: {self.stats.total_usage.prompt_tokens}")
-        print(f"Total completion tokens: {self.stats.total_usage.completion_tokens}")
-        print(f"Total tokens: {self.stats.total_usage.total_tokens}")
-        print(f"Total cache hits: {self.stats.total_usage.cache_hits}")
+        print("\n=== Usage Statistics ===")
+        print("Virtual  = Total usage if no caching was used")
+        print("Physical = Actual usage with caching applied\n")
+        print(f"Virtual Cost:     ${self.stats.virtual_usage.total_cost:,.6f}")
+        print(f"Physical Cost:    ${self.stats.physical_usage.total_cost:,.6f}")
+        print(f"Virtual Tokens:   {self.stats.virtual_usage.total_tokens:,}")
+        print(f"Physical Tokens:  {self.stats.physical_usage.total_tokens:,}")
+        print(f"Cache Hits:       {self.stats.cache_hits:,}\n")
 
     def reset_stats(self):
-        self.stats = LMStats(
-            total_usage=LMStats.TotalUsage(prompt_tokens=0, completion_tokens=0, total_tokens=0, total_cost=0.0)
-        )
+        self.stats = LMStats()
 
     def reset_cache(self, max_size: int | None = None):
         self.cache.reset(max_size)

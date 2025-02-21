@@ -11,7 +11,7 @@ cache = CacheFactory.create_cache(cache_config)
 
 lm = LM(model="gpt-4o-mini", cache=cache)
 
-lotus.settings.configure(lm=lm, enable_message_cache=True)  # default caching is False
+lotus.settings.configure(lm=lm, enable_cache=True)  # default caching is False
 data = {
     "Course Name": [
         "Probability and Random Processes",
@@ -25,8 +25,10 @@ user_instruction = "{Course Name} requires a lot of math"
 df = df.sem_filter(user_instruction)
 print("====== intial run ======")
 print(df)
+lm.print_total_usage()
 
 # run a second time
 df = df.sem_filter(user_instruction)
 print("====== second run ======")
 print(df)
+lm.print_total_usage()

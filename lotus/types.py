@@ -24,10 +24,14 @@ class LMStats:
         completion_tokens: int = 0
         total_tokens: int = 0
         total_cost: float = 0.0
-        cache_hits: int = 0
-        operator_cache_hits: int = 0
 
-    total_usage: TotalUsage = field(default_factory=TotalUsage)
+    # Usage stats if there was no caching
+    virtual_usage: TotalUsage = field(default_factory=TotalUsage)
+    # Actual usage with caching applied
+    physical_usage: TotalUsage = field(default_factory=TotalUsage)
+
+    cache_hits: int = 0
+    operator_cache_hits: int = 0
 
 
 @dataclass
