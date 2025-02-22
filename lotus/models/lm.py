@@ -163,7 +163,6 @@ class LM:
         if not hasattr(response, "usage"):
             return
 
-        print(response.usage)
         # Always update virtual usage
         self.stats.virtual_usage.prompt_tokens += response.usage.prompt_tokens
         self.stats.virtual_usage.completion_tokens += response.usage.completion_tokens
