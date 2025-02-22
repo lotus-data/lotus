@@ -25,6 +25,22 @@ class LMStats:
         total_tokens: int = 0
         total_cost: float = 0.0
 
+        def __sub__(self, other: "LMStats.TotalUsage") -> "LMStats.TotalUsage":
+            return LMStats.TotalUsage(
+                prompt_tokens=self.prompt_tokens - other.prompt_tokens,
+                completion_tokens=self.completion_tokens - other.completion_tokens,
+                total_tokens=self.total_tokens - other.total_tokens,
+                total_cost=self.total_cost - other.total_cost,
+            )
+
+        def __add__(self, other: "LMStats.TotalUsage") -> "LMStats.TotalUsage":
+            return LMStats.TotalUsage(
+                prompt_tokens=self.prompt_tokens + other.prompt_tokens,
+                completion_tokens=self.completion_tokens + other.completion_tokens,
+                total_tokens=self.total_tokens + other.total_tokens,
+                total_cost=self.total_cost + other.total_cost,
+            )
+
     # Usage stats if there was no caching
     virtual_usage: TotalUsage = field(default_factory=TotalUsage)
     # Actual usage with caching applied
