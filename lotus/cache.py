@@ -77,7 +77,6 @@ def operator_cache(func: Callable) -> Callable:
                 model.stats.operator_cache_hits += 1
 
                 cached_virtual_usage = model.cache.get(virtual_usage_cache_key)
-                print(f"cached_virtual_usage: {cached_virtual_usage}")
                 if cached_virtual_usage is not None:
                     model.stats.virtual_usage += cached_virtual_usage
 
@@ -87,7 +86,6 @@ def operator_cache(func: Callable) -> Callable:
             virtual_usage_before = copy.deepcopy(lotus.settings.lm.stats.virtual_usage)
             result = func(self, *args, **kwargs)
             virtual_usage = lotus.settings.lm.stats.virtual_usage - virtual_usage_before
-            print(f"virtual_usage: {virtual_usage}")
             model.cache.insert(virtual_usage_cache_key, virtual_usage)
             model.cache.insert(cache_key, result)
             return result
