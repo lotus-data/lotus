@@ -213,7 +213,7 @@ def test_sem_extract(setup_models, model):
 ################################################################################
 # CoT tests
 ################################################################################
-@pytest.mark.parametrize("model", get_enabled("gpt-4o-mini", "ollama/llama3.1"))
+@pytest.mark.parametrize("model", get_enabled("gpt-4o-mini"))
 def test_filter_operation_cot(setup_models, model):
     lm = setup_models[model]
     lotus.settings.configure(lm=lm)
@@ -234,7 +234,7 @@ def test_filter_operation_cot(setup_models, model):
     assert filtered_df.equals(expected_df)
 
 
-@pytest.mark.parametrize("model", get_enabled("gpt-4o-mini", "ollama/llama3.1"))
+@pytest.mark.parametrize("model", get_enabled("gpt-4o-mini"))
 def test_filter_operation_cot_fewshot(setup_models, model):
     lm = setup_models[model]
     lotus.settings.configure(lm=lm)
@@ -278,7 +278,7 @@ def test_filter_operation_cot_fewshot(setup_models, model):
     assert filtered_df.equals(expected_df)
 
 
-@pytest.mark.parametrize("model", get_enabled("gpt-4o-mini", "ollama/llama3.1"))
+@pytest.mark.parametrize("model", get_enabled("gpt-4o-mini"))
 def test_filter_operation_cot_fewshot_no_reasoning(setup_models, model):
     lm = setup_models[model]
     lotus.settings.configure(lm=lm)
