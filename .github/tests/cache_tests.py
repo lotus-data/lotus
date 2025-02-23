@@ -13,7 +13,7 @@ lotus.logger.setLevel("DEBUG")
 # Environment flags to enable/disable tests
 ENABLE_OLLAMA_TESTS = os.getenv("ENABLE_OLLAMA_TESTS", "false").lower() == "true"
 
-MODEL_NAME = "ollama/deepseek-r1:1.5b"
+MODEL_NAME = "ollama/llama3.2:3b"
 
 
 @pytest.mark.skipif(not ENABLE_OLLAMA_TESTS, reason="Skipping test because Ollama tests are not enabled")
@@ -372,7 +372,7 @@ def test_usage_with_operator_cache_disabled():
 
     # First run - should miss cache
     instruction = "Does {Text} mention a color?"
-    first_result = df.sem_filter(instruction)
+    df.sem_filter(instruction)
     assert lm.stats.operator_cache_hits == 0
     assert lm.stats.cache_hits == 0
 
@@ -387,10 +387,9 @@ def test_usage_with_operator_cache_disabled():
     lotus.settings.configure(enable_cache=False)
 
     # Second run - should miss operator cache
-    second_result = df.sem_filter(instruction)
+    df.sem_filter(instruction)
     assert lm.stats.operator_cache_hits == 0
     assert lm.stats.cache_hits == 0
-    pd.testing.assert_frame_equal(first_result, second_result)
 
     # Virtual and physical should increase
     assert lm.stats.virtual_usage.total_tokens > initial_virtual

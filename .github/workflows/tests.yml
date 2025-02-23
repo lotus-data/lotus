@@ -305,7 +305,7 @@ jobs:
             sleep 1
             timeout=$((timeout - 1))
           done
-          docker exec $(docker ps -q) ollama run deepseek-r1:1.5b
+          docker exec $(docker ps -q) ollama run llama3.2:3b
 
       - name: Run Cache tests
         env:
