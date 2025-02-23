@@ -40,10 +40,12 @@ jobs:
       matrix:
         test-suite: [lm, rm, multimodality, utility_operators, cache]
         include:
-          - test-suite: lm
+          - test-suite: lm-openai
+            timeout: 10
+            requires-openai: true
+          - test-suite: lm-ollama
             timeout: 10
             requires-ollama: true
-            requires-openai: true
           - test-suite: rm
             timeout: 10
             requires-openai: true
