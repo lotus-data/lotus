@@ -130,7 +130,7 @@ class CacheFactory:
         if config.cache_type == CacheType.IN_MEMORY:
             return InMemoryCache(max_size=config.max_size)
         elif config.cache_type == CacheType.SQLITE:
-            cache_dir = config.kwargs.get("cache_dir", "~/.lotus/cache")
+            cache_dir = config.kwargs.get("cache_dir", os.path.expanduser("~/.lotus/cache"))
             if not isinstance(cache_dir, str):
                 raise ValueError("cache_dir must be a string")
             return SQLiteCache(max_size=config.max_size, cache_dir=cache_dir)

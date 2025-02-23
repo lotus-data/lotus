@@ -151,7 +151,6 @@ jobs:
           ENABLE_OLLAMA_TESTS: true
         run: pytest .github/tests/lm_tests.py
 
-
   rm_test:
     name: Retrieval Model Tests
     runs-on: ubuntu-latest
@@ -261,3 +260,54 @@ jobs:
 
       - name: Run Utility Operator tests
         run: pytest .github/tests/utility_operators_tests.py      
+
+  cache_test:
+    name: Cache Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -e .
+          pip install pytest
+
+      - name: Start Ollama container
+        run: |
+          docker pull ollama/ollama:latest
+          docker run -d -v ollama:/root/.ollama -p 11434:11434 --name ollama ollama/ollama
+          # Wait for Ollama server to be ready
+          timeout=30
+          while ! curl -s http://localhost:11434/ >/dev/null; do
+            if [ $timeout -le 0 ]; then
+              echo "Timed out waiting for Ollama server"
+              exit 1
+            fi
+            echo "Waiting for Ollama server to be ready..."
+            sleep 1
+            timeout=$((timeout - 1))
+          done
+          docker exec $(docker ps -q) ollama run deepseek-r1:1.5b
+
+      - name: Run Cache tests
+        env:
+          ENABLE_OLLAMA_TESTS: true
+        run: pytest .github/tests/cache_tests.py
