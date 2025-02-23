@@ -41,21 +41,27 @@ jobs:
         test-suite: [lm-openai, lm-ollama, rm, multimodality, utility_operators, cache]
         include:
           - test-suite: lm-openai
+            file: .github/tests/lm_tests.py
             timeout: 10
             requires-openai: true
           - test-suite: lm-ollama
+            file: .github/tests/lm_tests.py
             timeout: 10
             requires-ollama: true
           - test-suite: rm
+            file: .github/tests/rm_tests.py
             timeout: 10
             requires-openai: true
           - test-suite: multimodality
+            file: .github/tests/multimodality_tests.py
             timeout: 10
             requires-openai: true
           - test-suite: utility_operators
+            file: .github/tests/utility_operators_tests.py
             timeout: 10
             extra-deps: pymupdf
           - test-suite: cache
+            file: .github/tests/cache_tests.py
             timeout: 10
             requires-ollama: true
 
@@ -110,4 +116,4 @@ jobs:
           ENABLE_OLLAMA_TESTS: ${{ matrix.requires-ollama }}
           ENABLE_OPENAI_TESTS: ${{ matrix.requires-openai }}
           ENABLE_LOCAL_TESTS: ${{ matrix.test-suite == 'rm' }}
-        run: pytest .github/tests/${{ matrix.test-suite }}_tests.py
+        run: pytest .github/tests/${{ matrix.file }}
