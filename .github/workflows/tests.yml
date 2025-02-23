@@ -38,7 +38,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        test-suite: [lm, rm, multimodality, utility_operators, cache]
+        test-suite: [lm-openai, lm-ollama, rm, multimodality, utility_operators, cache]
         include:
           - test-suite: lm-openai
             timeout: 10
