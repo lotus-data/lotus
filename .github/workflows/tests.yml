@@ -36,7 +36,6 @@ jobs:
   tests:
     name: Run Tests
     runs-on: ubuntu-latest
-    needs: lint-and-type-check
     strategy:
       matrix:
         test-suite: [lm, rm, multimodality, utility_operators, cache]
