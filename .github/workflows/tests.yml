@@ -116,4 +116,4 @@ jobs:
           ENABLE_OLLAMA_TESTS: ${{ matrix.requires-ollama }}
           ENABLE_OPENAI_TESTS: ${{ matrix.requires-openai }}
           ENABLE_LOCAL_TESTS: ${{ matrix.test-suite == 'rm' }}
-        run: pytest .github/tests/${{ matrix.file }}
+        run: pytest ${{ matrix.file }}
