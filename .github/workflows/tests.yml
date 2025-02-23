@@ -37,6 +37,7 @@ jobs:
     name: Run Tests
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         test-suite: [lm-openai, lm-ollama, rm, multimodality, utility_operators, cache]
         include:
@@ -105,7 +106,7 @@ jobs:
             sleep 1
             timeout=$((timeout - 1))
           done
-          if [ "${{ matrix.test-suite }}" = "lm" ]; then
+          if [ "${{ matrix.test-suite }}" = "lm-ollama" ]; then
             docker exec $(docker ps -q) ollama run llama3.1
           elif [ "${{ matrix.test-suite }}" = "cache" ]; then
             docker exec $(docker ps -q) ollama run llama3.2:3b
