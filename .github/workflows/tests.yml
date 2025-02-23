@@ -24,8 +24,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install ruff==0.7.2 mypy==1.13.0
-          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
           pip install -e .
 
       - name: Run ruff
@@ -50,10 +49,10 @@ jobs:
             timeout: 10
             requires-openai: true
           - test-suite: multimodality
-            timeout: 5
+            timeout: 10
             requires-openai: true
           - test-suite: utility_operators
-            timeout: 5
+            timeout: 10
             extra-deps: pymupdf
           - test-suite: cache
             timeout: 10
@@ -78,9 +77,8 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
           pip install -e .
-          pip install pytest
           if [ "${{ matrix.extra-deps }}" != "" ]; then
             pip install ${{ matrix.extra-deps }}
           fi
