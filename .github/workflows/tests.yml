@@ -87,7 +87,7 @@ jobs:
         run: |
           docker pull ollama/ollama:latest
           docker run -d -v ollama:/root/.ollama -p 11434:11434 --name ollama ollama/ollama
-          timeout=30
+          timeout=60
           while ! curl -s http://localhost:11434/ >/dev/null; do
             if [ $timeout -le 0 ]; then
               echo "Timed out waiting for Ollama server"
