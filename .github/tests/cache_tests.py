@@ -313,3 +313,85 @@ def test_usage_with_cache_disabled():
     assert virtual_increase > 0
     assert physical_increase > 0
     assert virtual_increase == physical_increase
+
+
+@pytest.mark.skipif(not ENABLE_OLLAMA_TESTS, reason="Skipping test because Ollama tests are not enabled")
+def test_usage_with_operator_cache():
+    """Test usage with operator cache."""
+    lm = LM(model=MODEL_NAME)
+    lotus.settings.configure(lm=lm, enable_cache=True)
+
+    data = {"Text": ["The sky is blue", "The grass is green", "The sun is yellow"]}
+    df = pd.DataFrame(data)
+
+    # First run - should miss cache
+    instruction = "Does {Text} mention a color?"
+    first_result = df.sem_filter(instruction)
+    assert lm.stats.operator_cache_hits == 0
+    assert lm.stats.cache_hits == 0
+
+    initial_virtual = lm.stats.virtual_usage.total_tokens
+    initial_physical = lm.stats.physical_usage.total_tokens
+
+    assert initial_virtual > 0
+    assert initial_physical > 0
+    assert initial_virtual == initial_physical
+
+    # Second run - should hit operator cache
+    second_result = df.sem_filter(instruction)
+    assert lm.stats.operator_cache_hits == 1
+    assert lm.stats.cache_hits == 0
+    pd.testing.assert_frame_equal(first_result, second_result)
+
+    # Virtual tokens should increase by 2x, physical should not change
+    assert lm.stats.virtual_usage.total_tokens == initial_virtual * 2
+    assert lm.stats.physical_usage.total_tokens == initial_physical
+
+    initial_virtual = lm.stats.virtual_usage.total_tokens
+    initial_physical = lm.stats.physical_usage.total_tokens
+
+    # New instruction should miss operator cache
+    map_instruction = "Map {Text} to a color"
+    df.sem_map(map_instruction)
+    assert lm.stats.operator_cache_hits == 1
+    assert lm.stats.cache_hits == 0
+
+    # Both virtual and physical should increase
+    assert lm.stats.virtual_usage.total_tokens > initial_virtual
+    assert lm.stats.physical_usage.total_tokens > initial_physical
+
+
+@pytest.mark.skipif(not ENABLE_OLLAMA_TESTS, reason="Skipping test because Ollama tests are not enabled")
+def test_usage_with_operator_cache_disabled():
+    """Test usage with operator cache enabled then disabled."""
+    lm = LM(model=MODEL_NAME)
+    lotus.settings.configure(lm=lm, enable_cache=True)
+
+    data = {"Text": ["The sky is blue", "The grass is green", "The sun is yellow"]}
+    df = pd.DataFrame(data)
+
+    # First run - should miss cache
+    instruction = "Does {Text} mention a color?"
+    first_result = df.sem_filter(instruction)
+    assert lm.stats.operator_cache_hits == 0
+    assert lm.stats.cache_hits == 0
+
+    initial_virtual = lm.stats.virtual_usage.total_tokens
+    initial_physical = lm.stats.physical_usage.total_tokens
+
+    assert initial_virtual > 0
+    assert initial_physical > 0
+    assert initial_virtual == initial_physical
+
+    # Disable operator cache
+    lotus.settings.configure(enable_cache=False)
+
+    # Second run - should miss operator cache
+    second_result = df.sem_filter(instruction)
+    assert lm.stats.operator_cache_hits == 0
+    assert lm.stats.cache_hits == 0
+    pd.testing.assert_frame_equal(first_result, second_result)
+
+    # Virtual and physical should increase
+    assert lm.stats.virtual_usage.total_tokens > initial_virtual
+    assert lm.stats.physical_usage.total_tokens > initial_physical
