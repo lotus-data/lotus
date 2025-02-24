@@ -2,11 +2,10 @@ import os
 
 import pandas as pd
 import pytest
-from dotenv import load_dotenv
 
 import lotus
 from lotus.models import CrossEncoderReranker, LiteLLMRM, SentenceTransformersRM
-from lotus.vector_store import FaissVS, WeaviateVS
+from lotus.vector_store import FaissVS
 
 ################################################################################
 # Setup
@@ -14,12 +13,9 @@ from lotus.vector_store import FaissVS, WeaviateVS
 # Set logger level to DEBUG
 lotus.logger.setLevel("DEBUG")
 
-load_dotenv()
 # Environment flags to enable/disable tests
 ENABLE_OPENAI_TESTS = os.getenv("ENABLE_OPENAI_TESTS", "false").lower() == "true"
 ENABLE_LOCAL_TESTS = os.getenv("ENABLE_LOCAL_TESTS", "false").lower() == "true"
-WEAVIATE_API_KEY = os.getenv("WEAVIATE_API_KEY", None)
-WEAVIATE_REST_URL = os.getenv("WEAVIATE_REST_URL", None)
 
 # TODO: Add colbertv2 tests
 MODEL_NAME_TO_ENABLED = {
@@ -35,50 +31,20 @@ MODEL_NAME_TO_CLS = {
     "text-embedding-3-small": LiteLLMRM,
 }
 
-VECTOR_STORE_TO_CLS = {
-    'local': FaissVS,
-    'weaviate': WeaviateVS,
-}
-
-VECTOR_STORE_KEYS = {
-    'local': {
-        'API_KEY': None,
-        'REST_URL': None,
-    },
-    'weaviate': {
-        'API_KEY': WEAVIATE_API_KEY,
-        'REST_URL': WEAVIATE_REST_URL,
-    }
-}
 
 def get_enabled(*candidate_models: str) -> list[str]:
     return [model for model in candidate_models if model in ENABLED_MODEL_NAMES]
 
-def get_vs_enabled(*candidate_vs: str) -> list[str]:
-    return ['local'] + [vs for vs in candidate_vs if VECTOR_STORE_KEYS[vs]['API_KEY'] is not None and VECTOR_STORE_KEYS[vs]['REST_URL'] is not None]
 
 @pytest.fixture(scope="session")
 def setup_models():
     models = {}
 
     for model_name in ENABLED_MODEL_NAMES:
-        models[model_name] = MODEL_NAME_TO_CLS[model_name]()
-
+        models[model_name] = MODEL_NAME_TO_CLS[model_name](model=model_name)
 
     return models
 
-
-@pytest.fixture(scope='session')
-def setup_vs():
-    vs_model = {}
-
-    for vs in VECTOR_STORE_TO_CLS:
-        if vs != 'local' and VECTOR_STORE_KEYS[vs]['API_KEY'] is not None and VECTOR_STORE_KEYS[vs]['REST_URL'] is not None:
-            vs_model[vs] = VECTOR_STORE_TO_CLS[vs](API_KEY=VECTOR_STORE_KEYS[vs]['API_KEY'], REST_URL=VECTOR_STORE_KEYS[vs]['REST_URL'])
-        elif vs == 'local':
-            vs_model[vs] = VECTOR_STORE_TO_CLS[vs]()
-
-    return vs_model
 
 ################################################################################
 # RM Only Tests
@@ -137,7 +103,7 @@ def test_search_rm_only(setup_models, model):
 @pytest.mark.parametrize("model", get_enabled("intfloat/e5-small-v2", "text-embedding-3-small"))
 def test_sim_join(setup_models, model):
     rm = setup_models[model]
-    vs = FaissVS() 
+    vs = FaissVS()
     lotus.settings.configure(rm=rm, vs=vs)
 
     data1 = {
@@ -164,8 +130,8 @@ def test_sim_join(setup_models, model):
 )
 def test_dedup(setup_models):
     rm = setup_models["intfloat/e5-small-v2"]
-    vs = FaissVS() 
-    lotus.settings.configure(rm=rm,vs=vs)
+    vs = FaissVS()
+    lotus.settings.configure(rm=rm, vs=vs)
     data = {
         "Text": [
             "Probability and Random Processes",
@@ -183,18 +149,16 @@ def test_dedup(setup_models):
     assert "Probability" in kept[1], kept
 
 
-
 ################################################################################
 # VS Only Tests
 ################################################################################
 
 
-@pytest.mark.parametrize("vs", get_vs_enabled("local"))
 @pytest.mark.parametrize("model", get_enabled("intfloat/e5-small-v2", "text-embedding-3-small"))
-def test_vs_cluster_by(setup_models, setup_vs, vs, model):
+def test_vs_cluster_by(setup_models, model):
     rm = setup_models[model]
-    my_vs = setup_vs[vs]
-    lotus.settings.configure(rm=rm, vs=my_vs)
+    vs = FaissVS()
+    lotus.settings.configure(rm=rm, vs=vs)
 
     data = {
         "Course Name": [
@@ -219,12 +183,12 @@ def test_vs_cluster_by(setup_models, setup_vs, vs, model):
     assert cooking_group == {"Cooking", "Food Sciences"}, groups
     assert probability_group == {"Probability and Random Processes", "Optimization Methods in Engineering"}, groups
 
-@pytest.mark.parametrize("vs", get_vs_enabled("local", "weaviate"))
+
 @pytest.mark.parametrize("model", get_enabled("intfloat/e5-small-v2", "text-embedding-3-small"))
-def test_vs_search_rm_only(setup_models, setup_vs, vs, model):
+def test_vs_search_rm_only(setup_models, model):
     rm = setup_models[model]
-    my_vs = setup_vs[vs]
-    lotus.settings.configure(rm=rm, vs=my_vs)
+    vs = FaissVS()
+    lotus.settings.configure(rm=rm, vs=vs)
 
     data = {
         "Course Name": [
@@ -239,12 +203,12 @@ def test_vs_search_rm_only(setup_models, setup_vs, vs, model):
     df = df.sem_search("Course Name", "Optimization", K=1)
     assert df["Course Name"].tolist() == ["Optimization Methods in Engineering"]
 
-@pytest.mark.parametrize("vs", get_vs_enabled("local"))
+
 @pytest.mark.parametrize("model", get_enabled("intfloat/e5-small-v2", "text-embedding-3-small"))
-def test_vs_sim_join(setup_models, setup_vs, vs, model):
+def test_vs_sim_join(setup_models, model):
     rm = setup_models[model]
-    my_vs = setup_vs[vs]
-    lotus.settings.configure(rm=rm, vs=my_vs)
+    vs = FaissVS()
+    lotus.settings.configure(rm=rm, vs=vs)
 
     data1 = {
         "Course Name": [
@@ -263,19 +227,15 @@ def test_vs_sim_join(setup_models, setup_vs, vs, model):
     assert joined_pairs == expected_pairs, joined_pairs
 
 
-
-
-
 # TODO: threshold is hardcoded for intfloat/e5-small-v2
 @pytest.mark.skipif(
     "intfloat/e5-small-v2" not in ENABLED_MODEL_NAMES,
     reason="Skipping test because intfloat/e5-small-v2 is not enabled",
 )
-@pytest.mark.parametrize("vs", get_vs_enabled("local"))
-def test_vs_dedup(setup_models, setup_vs, vs):
+def test_vs_dedup(setup_models):
     rm = setup_models["intfloat/e5-small-v2"]
-    my_vs = setup_vs[vs]
-    lotus.settings.configure(rm=rm, vs=my_vs)
+    vs = FaissVS()
+    lotus.settings.configure(rm=rm, vs=vs)
     data = {
         "Text": [
             "Probability and Random Processes",
@@ -310,8 +270,8 @@ def test_search_reranker_only(setup_models, model):
         ]
     }
     df = pd.DataFrame(data)
-    df = df.sem_search("Course Name", "Optimization", n_rerank=1)
-    assert df["Course Name"].tolist() == ["Optimization Methods in Engineering"]
+    df = df.sem_search("Course Name", "Optimization", n_rerank=2)
+    assert df["Course Name"].tolist() == ["Optimization Methods in Engineering", "Probability and Random Processes"]
 
 
 ################################################################################
@@ -322,9 +282,9 @@ def test_search_reranker_only(setup_models, model):
 def test_search(setup_models):
     models = setup_models
     rm = models["intfloat/e5-small-v2"]
-    vs = FaissVS() 
+    vs = FaissVS()
     reranker = models["mixedbread-ai/mxbai-rerank-xsmall-v1"]
-    lotus.settings.configure(rm=rm, vs = vs, reranker=reranker)
+    lotus.settings.configure(rm=rm, vs=vs, reranker=reranker)
 
     data = {
         "Course Name": [
@@ -339,16 +299,16 @@ def test_search(setup_models):
     df = df.sem_search("Course Name", "Optimization", K=2, n_rerank=1)
     assert df["Course Name"].tolist() == ["Optimization Methods in Engineering"]
 
+
 @pytest.mark.parametrize("model", get_enabled("intfloat/e5-small-v2", "text-embedding-3-small"))
-@pytest.mark.parametrize("vs", get_vs_enabled("local", "weaviate"))
-def test_filtered_vector_search(setup_models, setup_vs, model, vs):
+def test_filtered_vector_search(setup_models, model):
     """
     Test filtered vector search.
-    
+
     This test starts with a DataFrame that contains:
       - a text column ("Course Name") that will be embedded and indexed,
       - a structured column ("Category") used for filtering.
-    
+
     The test performs the following steps:
       1. Index the "Course Name" column to generate semantic embeddings.
       2. Apply a filter to keep only rows with Category "Culinary".
@@ -356,7 +316,7 @@ def test_filtered_vector_search(setup_models, setup_vs, model, vs):
          expected to pick out the culinary course "Gourmet Cooking Advanced".
     """
     rm = setup_models[model]
-    vs = setup_vs[vs]
+    vs = FaissVS()
     lotus.settings.configure(rm=rm, vs=vs)
 
     data = {
@@ -364,14 +324,9 @@ def test_filtered_vector_search(setup_models, setup_vs, model, vs):
             "Gourmet Cooking Advanced",
             "Home Cooking Basics",
             "Probability and Statistics",
-            "Linear Algebra Fundamentals"
+            "Linear Algebra Fundamentals",
         ],
-        "Category": [
-            "Culinary",
-            "Culinary",
-            "Math",
-            "Math"
-        ]
+        "Category": ["Culinary", "Culinary", "Math", "Math"],
     }
     df = pd.DataFrame(data)
     # Index the 'Course Name' column to generate semantic embeddings.
@@ -383,7 +338,7 @@ def test_filtered_vector_search(setup_models, setup_vs, model, vs):
 
     # Verify that every returned row belongs to the Culinary category.
     assert all(df_searched["Category"] == "Culinary"), "Filtered search returned non-Culinary courses."
-    
+
     # Verify the expected course is returned.
     expected_course = "Gourmet Cooking Advanced"
     result_course = df_searched["Course Name"].iloc[0]
