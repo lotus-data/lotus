@@ -27,7 +27,7 @@ def test_parse_pdf_per_page():
 
     # Check if the content is split into pages and the page numbers are correct
     assert len(df) == 15
-    assert sorted(df["page"].unique()) == list(range(1, 16))
+    assert sorted(df["page_label"].unique()) == list(range(1, 16))
 
     # Check if all rows have the filepath set to the URL
     assert all(df["file_path"] == pdf_url)

@@ -60,6 +60,7 @@ def load_files(
     temp_dir = tempfile.mkdtemp()
     filtered_file_paths = []
     directories = []
+    file_path_mappings = {}
     for file_path in file_paths:
         if is_url(file_path):
             response = requests.get(file_path)
@@ -74,10 +75,11 @@ def load_files(
             else:
                 extension = "bin"
             file_name = Path(file_path).name + "." + extension
-            file_path = Path(temp_dir) / file_name
-            with open(file_path, "wb") as f:
+            _file_path = Path(temp_dir) / file_name
+            file_path_mappings[str(_file_path)] = file_path
+            with open(_file_path, "wb") as f:
                 f.write(response.content)
-            filtered_file_paths.append(file_path)
+            filtered_file_paths.append(_file_path)
         elif Path(file_path).is_file():
             filtered_file_paths.append(file_path)
         elif Path(file_path).is_dir():
@@ -97,8 +99,14 @@ def load_files(
         if len(docs) > 1 and not per_page:
             metadata = docs[0].metadata
             metadata.pop("page_label", None)
+            metadata["file_path"] = file_path_mappings.get(metadata.get("file_path"), metadata.get("file_path"))
             all_data.append({"content": page_separator.join([doc.text for doc in docs]), **metadata})
         else:
+            for doc in docs:
+                doc.metadata["file_path"] = file_path_mappings.get(
+                    doc.metadata.get("file_path"), doc.metadata.get("file_path")
+                )
+                doc.metadata["page_label"] = int(doc.metadata.get("page_label", 1))
             all_data.extend([{"content": doc.text, **doc.metadata} for doc in docs])
     df = pd.DataFrame(all_data)
     shutil.rmtree(temp_dir)
