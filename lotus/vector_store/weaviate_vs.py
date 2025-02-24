@@ -1,4 +1,4 @@
-from typing import Any, List, Optional
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -26,7 +26,7 @@ class WeaviateVS(VS):
             auth_credentials=Auth.api_key(api_key),
         )
         self.vector_index_config = vector_index_config
-        self.embedding_dim: Optional[int] = None
+        self.embedding_dim: int | None = None
 
     def __del__(self):
         self.client.close()
@@ -73,7 +73,7 @@ class WeaviateVS(VS):
         except weaviate.exceptions.UnexpectedStatusCodeException:
             raise ValueError(f"Collection {index_dir} not found")
 
-    def __call__(self, query_vectors, K: int, ids: Optional[list[int]] = None, **kwargs: dict[str, Any]) -> RMOutput:
+    def __call__(self, query_vectors, K: int, ids: list[int] | None = None, **kwargs: dict[str, Any]) -> RMOutput:
         """Perform vector search using pre-computed query vectors"""
         if self.index_dir is None:
             raise ValueError("No collection loaded. Call load_index first.")
@@ -100,8 +100,8 @@ class WeaviateVS(VS):
         for result in results:
             objects = result.objects
 
-            distances: List[float] = []
-            indices = []
+            distances: list[float] = []
+            indices: list[int] = []
             for obj in objects:
                 indices.append(obj.properties.get("doc_id", -1))
                 # Convert cosine distance to similarity score
