@@ -10,10 +10,10 @@ import requests  # type: ignore
 import lotus
 
 
-def get_custom_readers():
+def get_custom_readers(custom_reader_configs: dict[str, dict] = {}):
     from .pptx import PptxReader
 
-    pptx_custom_reader = PptxReader()
+    pptx_custom_reader = PptxReader(custom_reader_configs.get("pptx", {}))
     return {
         ".pptx": pptx_custom_reader,
         ".ppt": pptx_custom_reader,
@@ -39,6 +39,7 @@ def load_files(
     recursive: bool = False,
     per_page: bool = True,
     page_separator: str = "\n",
+    custom_reader_configs: dict[str, dict] = {},
     show_progress: bool = False,
 ) -> pd.DataFrame:
     """
@@ -49,6 +50,7 @@ def load_files(
         recursive (bool): If True, load files from subdirectories as well for directories in file_paths. Else, only load files from the specified directories. Default is False.
         per_page (bool): If True, return the content of each page as a separate row if the document has multiple pages. Default is True.
         page_separator (str): The separator to use when joining the content of each page in case per_page is False. Default is "\n".
+        custom_reader_configs (dict): A dictionary containing configurations for custom readers. The key should be the file extension and the value should be a dictionary containing the configurations for the custom reader.
         show_progress (bool): If True, show a progress bar while loading files. Default is False.
     """
     try:
@@ -66,7 +68,7 @@ def load_files(
     with tempfile.TemporaryDirectory() as temp_dir:
         file_path_mappings = {}
         directory_reader = DirectoryReader(
-            recursive=recursive, filename_as_id=True, file_extractor=get_custom_readers()
+            recursive=recursive, filename_as_id=True, file_extractor=get_custom_readers(custom_reader_configs)
         )
         for file_path in file_paths:
             if is_url(file_path):
