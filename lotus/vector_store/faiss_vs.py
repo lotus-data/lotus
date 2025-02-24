@@ -41,32 +41,30 @@ class FaissVS(VS):
             vecs: NDArray[np.float64] = pickle.load(fp)
         return vecs[ids]
 
-    def __call__(
-        self, query_vectors, K: int, ids: Optional[list[int]] = None, **kwargs: dict[str, Any]
-    ) -> RMOutput:
+    def __call__(self, query_vectors, K: int, ids: Optional[list[int]] = None, **kwargs: dict[str, Any]) -> RMOutput:
         """
         Search for nearest neighbors using pre-embedded query vectors.
-        
+
         Note:
           - The query vectors are expected to be pre-computed (e.g. via the RM module).
-          - If the `ids` parameter is provided, the search is performed only on the subset of vectors 
+          - If the `ids` parameter is provided, the search is performed only on the subset of vectors
             corresponding to these ids.
         """
         if self.faiss_index is None or self.index_dir is None:
             raise ValueError("Index not loaded")
-        
+
         if ids is not None:
             # Get the subset of vectors corresponding to the provided ids.
             subset_vecs = self.get_vectors_from_index(self.index_dir, ids)
-            
+
             # Create a temporary FAISS index for the subset. This means we assume the same
             # dimensionality, factory, and metric as the main index.
             tmp_index = faiss.index_factory(subset_vecs.shape[1], self.factory_string, self.metric)
             tmp_index.add(subset_vecs)
-            
+
             # Perform search on the temporary index.
             distances, sub_indices = tmp_index.search(query_vectors, K)
-            
+
             # Remap the sub-indices to the original global ids.
             # Here we convert the list of filtered ids into a NumPy array so that we can index it.
             subset_ids = np.array(ids)
@@ -74,6 +72,5 @@ class FaissVS(VS):
         else:
             # Otherwise, search against the entire index.
             distances, indices = self.faiss_index.search(query_vectors, K)
-        
-        return RMOutput(distances=distances, indices=indices)
 
+        return RMOutput(distances=distances, indices=indices)  # type: ignore

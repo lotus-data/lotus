@@ -46,8 +46,11 @@ serpapi = [
 arxiv = [
     "arxiv",
 ]
-pdf_parser = [
+file_extractor = [
+    "llama-index",
     "pymupdf",
+    "docx2txt",
+    "python-pptx"
 ]
 
 [tool.ruff]

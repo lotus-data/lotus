@@ -255,7 +255,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install -e .
-          pip install pymupdf
+          pip install llama-index pymupdf docx2txt
           pip install pytest
 
       - name: Run Utility Operator tests
