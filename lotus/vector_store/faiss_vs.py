@@ -1,10 +1,9 @@
 import os
 import pickle
-from typing import Any, Optional
+from typing import Any
 
 import faiss
 import numpy as np
-import pandas as pd
 from numpy.typing import NDArray
 
 from lotus.types import RMOutput
@@ -20,7 +19,7 @@ class FaissVS(VS):
         self.faiss_index: faiss.Index | None = None
         self.vecs: NDArray[np.float64] | None = None
 
-    def index(self, docs: pd.Series, embeddings, index_dir: str, **kwargs: dict[str, Any]) -> None:
+    def index(self, docs: list[str], embeddings: NDArray[np.float64], index_dir: str, **kwargs: dict[str, Any]) -> None:
         self.faiss_index = faiss.index_factory(embeddings.shape[1], self.factory_string, self.metric)
         self.faiss_index.add(embeddings)
         self.index_dir = index_dir
@@ -42,31 +41,31 @@ class FaissVS(VS):
         return vecs[ids]
 
     def __call__(
-        self, query_vectors, K: int, ids: Optional[list[int]] = None, **kwargs: dict[str, Any]
+        self, query_vectors: NDArray[np.float64], K: int, ids: list[int] | None = None, **kwargs: dict[str, Any]
     ) -> RMOutput:
         """
         Search for nearest neighbors using pre-embedded query vectors.
-        
+
         Note:
           - The query vectors are expected to be pre-computed (e.g. via the RM module).
-          - If the `ids` parameter is provided, the search is performed only on the subset of vectors 
+          - If the `ids` parameter is provided, the search is performed only on the subset of vectors
             corresponding to these ids.
         """
         if self.faiss_index is None or self.index_dir is None:
             raise ValueError("Index not loaded")
-        
+
         if ids is not None:
             # Get the subset of vectors corresponding to the provided ids.
             subset_vecs = self.get_vectors_from_index(self.index_dir, ids)
-            
+
             # Create a temporary FAISS index for the subset. This means we assume the same
             # dimensionality, factory, and metric as the main index.
             tmp_index = faiss.index_factory(subset_vecs.shape[1], self.factory_string, self.metric)
             tmp_index.add(subset_vecs)
-            
+
             # Perform search on the temporary index.
             distances, sub_indices = tmp_index.search(query_vectors, K)
-            
+
             # Remap the sub-indices to the original global ids.
             # Here we convert the list of filtered ids into a NumPy array so that we can index it.
             subset_ids = np.array(ids)
@@ -74,6 +73,5 @@ class FaissVS(VS):
         else:
             # Otherwise, search against the entire index.
             distances, indices = self.faiss_index.search(query_vectors, K)
-        
-        return RMOutput(distances=distances, indices=indices)
 
+        return RMOutput(distances=distances, indices=indices)

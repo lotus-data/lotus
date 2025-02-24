@@ -1,7 +1,6 @@
 from typing import Any
 
 import numpy as np
-import pandas as pd
 from numpy.typing import NDArray
 
 from lotus.types import RMOutput
@@ -31,7 +30,7 @@ class WeaviateVS(VS):
     def __del__(self):
         self.client.close()
 
-    def index(self, docs: pd.Series, embeddings, index_dir: str, **kwargs: dict[str, Any]):
+    def index(self, docs: list[str], embeddings: NDArray[np.float64], index_dir: str, **kwargs: dict[str, Any]):
         """Create a collection and add documents with their embeddings"""
         self.index_dir = index_dir
 
@@ -52,12 +51,9 @@ class WeaviateVS(VS):
             vector_index_config=self.vector_index_config,
         )
 
-        # Generate embeddings for all documents
-        docs_list = docs.tolist() if isinstance(docs, pd.Series) else docs
-
         # Add documents to collection with their embeddings
         with collection.batch.dynamic() as batch:
-            for idx, (doc, embedding) in enumerate(zip(docs_list, embeddings)):
+            for idx, (doc, embedding) in enumerate(zip(docs, embeddings)):
                 properties = {"content": doc, "doc_id": idx}
                 batch.add_object(
                     properties=properties,

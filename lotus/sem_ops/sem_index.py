@@ -33,18 +33,18 @@ class SemIndexDataframe:
             pd.DataFrame: The DataFrame with the index directory saved.
         """
 
-        lotus.logger.warning('Do not reset the dataframe index to ensure proper functionality of get_vectors_from_index')
+        lotus.logger.warning(
+            "Do not reset the dataframe index to ensure proper functionality of get_vectors_from_index"
+        )
 
-        rm = lotus.settings.rm 
+        rm = lotus.settings.rm
         vs = lotus.settings.vs
         if rm is None or vs is None:
             raise ValueError(
                 "The retrieval model must be an instance of RM, and the vector store must be an instance of VS. Please configure a valid retrieval model using lotus.settings.configure()"
             )
 
-
-        
-        embeddings = rm(self._obj[col_name])
+        embeddings = rm(self._obj[col_name].tolist())
         vs.index(self._obj[col_name], embeddings, index_dir)
         self._obj.attrs["index_dirs"][col_name] = index_dir
         return self._obj

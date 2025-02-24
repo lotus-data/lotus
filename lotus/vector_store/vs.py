@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 from numpy.typing import NDArray
@@ -14,7 +14,7 @@ class VS(ABC):
         self.index_dir: str | None = None
 
     @abstractmethod
-    def index(self, docs, embeddings: Any, index_dir: str, **kwargs: dict[str, Any]):
+    def index(self, docs: list[str], embeddings: NDArray[np.float64], index_dir: str, **kwargs: dict[str, Any]):
         """
         Create index and store it in vector store.
         """
@@ -30,9 +30,9 @@ class VS(ABC):
     @abstractmethod
     def __call__(
         self,
-        query_vectors: Any,
+        query_vectors: NDArray[np.float64],
         K: int,
-        ids: Optional[list[Any]] = None,
+        ids: list[int] | None = None,
         **kwargs: dict[str, Any],
     ) -> RMOutput:
         """
@@ -51,7 +51,7 @@ class VS(ABC):
         pass
 
     @abstractmethod
-    def get_vectors_from_index(self, index_dir: str, ids: list[Any]) -> NDArray[np.float64]:
+    def get_vectors_from_index(self, index_dir: str, ids: list[int]) -> NDArray[np.float64]:
         """
         Retrieve vectors from a stored index given specific ids.
         """
