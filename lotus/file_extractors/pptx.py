@@ -2,7 +2,6 @@
 
 from io import BytesIO
 from pathlib import Path
-from typing import Dict, List, Optional
 
 from fsspec import AbstractFileSystem
 from llama_index.core.readers.base import BaseReader
@@ -15,10 +14,15 @@ class PptxReader(BaseReader):
 
     Extract text and return it page by page.
 
+    Args:
+        should_caption_images (bool): Whether to caption images in the slides.
+        caption_model (str): The model to use for image captioning.
+        **gen_kwargs: Keyword arguments to pass to the model for image captioning.
     """
 
-    def __init__(self, should_caption_images=False) -> None:
-        """Init parser."""
+    def __init__(
+        self, should_caption_images=False, caption_model="nlpconnect/vit-gpt2-image-captioning", **gen_kwargs
+    ) -> None:
         try:
             from pptx import Presentation  # noqa
         except ImportError:
@@ -29,10 +33,11 @@ class PptxReader(BaseReader):
             )
 
         if should_caption_images:
-            self._init_caption_images()
+            self._init_caption_images(caption_model)
+            self.gen_kwargs = gen_kwargs or {"max_length": 16, "num_beams": 4}
         self.should_caption_images = should_caption_images
 
-    def _init_caption_images(self):
+    def _init_caption_images(self, caption_model):
         try:
             import torch  # noqa
             from PIL import Image  # noqa
@@ -47,9 +52,9 @@ class PptxReader(BaseReader):
                 "the PptxReader with Image captions: "
                 "`pip install torch transformers python-pptx Pillow`"
             )
-        model = VisionEncoderDecoderModel.from_pretrained("nlpconnect/vit-gpt2-image-captioning")
-        feature_extractor = ViTFeatureExtractor.from_pretrained("nlpconnect/vit-gpt2-image-captioning")
-        tokenizer = AutoTokenizer.from_pretrained("nlpconnect/vit-gpt2-image-captioning")
+        model = VisionEncoderDecoderModel.from_pretrained(caption_model)
+        feature_extractor = ViTFeatureExtractor.from_pretrained(caption_model)
+        tokenizer = AutoTokenizer.from_pretrained(caption_model)
 
         self.parser_config = {
             "feature_extractor": feature_extractor,
@@ -68,10 +73,6 @@ class PptxReader(BaseReader):
         device = infer_torch_device()
         model.to(device)
 
-        max_length = 16
-        num_beams = 4
-        gen_kwargs = {"max_length": max_length, "num_beams": num_beams}
-
         i_image: Image.ImageFile.ImageFile | Image.Image = Image.open(BytesIO(image_bytes))
         if i_image.mode != "RGB":
             i_image = i_image.convert(mode="RGB")
@@ -79,7 +80,7 @@ class PptxReader(BaseReader):
         pixel_values = feature_extractor(images=[i_image], return_tensors="pt").pixel_values
         pixel_values = pixel_values.to(device)
 
-        output_ids = model.generate(pixel_values, **gen_kwargs)
+        output_ids = model.generate(pixel_values, **self.gen_kwargs)
 
         preds = tokenizer.batch_decode(output_ids, skip_special_tokens=True)
         return preds[0].strip()
@@ -87,9 +88,9 @@ class PptxReader(BaseReader):
     def load_data(
         self,
         file: Path,
-        extra_info: Optional[Dict] = None,
-        fs: Optional[AbstractFileSystem] = None,
-    ) -> List[Document]:
+        extra_info: dict | None = None,
+        fs: AbstractFileSystem | None = None,
+    ) -> list[Document]:
         """Parse file."""
         from pptx import Presentation
 
