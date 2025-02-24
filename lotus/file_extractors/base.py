@@ -3,7 +3,6 @@ import tempfile
 from pathlib import Path
 from urllib.parse import urlparse
 
-import magic
 import pandas as pd
 import requests  # type: ignore
 
@@ -30,6 +29,8 @@ def is_url(path: str | Path) -> bool:
 
 
 def get_extension(content):
+    import magic
+
     mime = magic.Magic(mime=True).from_buffer(content) or "application/octet-stream"
     return mimetypes.guess_extension(mime) or ".bin"
 
