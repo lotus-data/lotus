@@ -36,7 +36,8 @@ class LM:
         max_batch_size: int = 64,
         tokenizer: Tokenizer | None = None,
         cache=None,
-        usage_limit: UsageLimit = UsageLimit(),
+        physical_usage_limit: UsageLimit = UsageLimit(),
+        virtual_usage_limit: UsageLimit = UsageLimit(),
         **kwargs: dict[str, Any],
     ):
         """Language Model class for interacting with various LLM providers.
@@ -60,7 +61,8 @@ class LM:
         self.kwargs = dict(temperature=temperature, max_tokens=max_tokens, **kwargs)
 
         self.stats: LMStats = LMStats()
-        self.usage_limit = usage_limit
+        self.physical_usage_limit = physical_usage_limit
+        self.virtual_usage_limit = virtual_usage_limit
 
         self.cache = cache or CacheFactory.create_default_cache()
 
@@ -159,40 +161,45 @@ class LM:
         uncached_iter = iter(uncached_responses)
         return [resp if resp is not None else next(uncached_iter) for resp in cached_responses]
 
+    def _check_usage_limit(self, usage: LMStats.TotalUsage, limit: UsageLimit, usage_type: str):
+        """Helper to check if usage exceeds limits"""
+        if (
+            usage.prompt_tokens > limit.prompt_tokens_limit
+            or usage.completion_tokens > limit.completion_tokens_limit
+            or usage.total_tokens > limit.total_tokens_limit
+            or usage.total_cost > limit.total_cost_limit
+        ):
+            raise LotusUsageLimitException(f"Usage limit exceeded. Current {usage_type} usage: {usage}, Limit: {limit}")
+
+    def _update_usage_stats(self, usage: LMStats.TotalUsage, response: ModelResponse, cost: float | None):
+        """Helper to update usage statistics"""
+        if hasattr(response, "usage"):
+            usage.prompt_tokens += response.usage.prompt_tokens
+            usage.completion_tokens += response.usage.completion_tokens
+            usage.total_tokens += response.usage.total_tokens
+            if cost is not None:
+                usage.total_cost += cost
+
     def _update_stats(self, response: ModelResponse, is_cached: bool = False):
         if not hasattr(response, "usage"):
             return
 
-        # Always update virtual usage
-        self.stats.virtual_usage.prompt_tokens += response.usage.prompt_tokens
-        self.stats.virtual_usage.completion_tokens += response.usage.completion_tokens
-        self.stats.virtual_usage.total_tokens += response.usage.total_tokens
-
-        # Only update physical usage for non-cached responses
-        if not is_cached:
-            self.stats.physical_usage.prompt_tokens += response.usage.prompt_tokens
-            self.stats.physical_usage.completion_tokens += response.usage.completion_tokens
-            self.stats.physical_usage.total_tokens += response.usage.total_tokens
-
-        # Check if any usage limits are exceeded (using physical usage)
-        if (
-            self.stats.physical_usage.prompt_tokens > self.usage_limit.prompt_tokens_limit
-            or self.stats.physical_usage.completion_tokens > self.usage_limit.completion_tokens_limit
-            or self.stats.physical_usage.total_tokens > self.usage_limit.total_tokens_limit
-            or self.stats.physical_usage.total_cost > self.usage_limit.total_cost_limit
-        ):
-            raise LotusUsageLimitException(
-                f"Usage limit exceeded. Current usage: {self.stats.physical_usage}, Limit: {self.usage_limit}"
-            )
-
+        # Calculate cost once
         try:
             cost = completion_cost(completion_response=response)
-            self.stats.virtual_usage.total_cost += cost
-            if not is_cached:
-                self.stats.physical_usage.total_cost += cost
         except litellm.exceptions.NotFoundError as e:
             # Sometimes the model's pricing information is not available
             lotus.logger.debug(f"Error updating completion cost: {e}")
+            cost = None
+
+        # Always update virtual usage
+        self._update_usage_stats(self.stats.virtual_usage, response, cost)
+        self._check_usage_limit(self.stats.virtual_usage, self.virtual_usage_limit, "virtual")
+
+        # Only update physical usage for non-cached responses
+        if not is_cached:
+            self._update_usage_stats(self.stats.physical_usage, response, cost)
+            self._check_usage_limit(self.stats.physical_usage, self.physical_usage_limit, "physical")
 
     def _get_top_choice(self, response: ModelResponse) -> str:
         choice = response.choices[0]
