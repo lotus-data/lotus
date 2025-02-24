@@ -11,8 +11,7 @@ class VS(ABC):
     """Abstract class for vector stores."""
 
     def __init__(self) -> None:
-        self.index_dir: str | None = None 
-        self.max_batch_size: int = 64
+        self.index_dir: str | None = None
 
     @abstractmethod
     def index(self, docs, embeddings: Any, index_dir: str, **kwargs: dict[str, Any]):
@@ -26,9 +25,9 @@ class VS(ABC):
         """
         Load the index from the vector store into memory if needed.
         """
-        pass 
+        pass
 
-    @abstractmethod 
+    @abstractmethod
     def __call__(
         self,
         query_vectors: Any,
@@ -49,11 +48,11 @@ class VS(ABC):
         Returns:
             RMOutput: The output containing distances and indices.
         """
-        pass 
-    
+        pass
+
     @abstractmethod
     def get_vectors_from_index(self, index_dir: str, ids: list[Any]) -> NDArray[np.float64]:
         """
         Retrieve vectors from a stored index given specific ids.
         """
-        pass 
+        pass
