@@ -16,9 +16,7 @@ except ImportError:
 
 
 class WeaviateVS(VS):
-    def __init__(
-        self, vector_index_config=Configure.VectorIndex.hnsw(), api_key: str | None = None, rest_url: str | None = None
-    ):
+    def __init__(self, vector_index_config=None, api_key: str | None = None, rest_url: str | None = None):
         if weaviate is None:
             raise ImportError("Please install the weaviate client using `pip install lotus[weaviate]`")
 
@@ -27,6 +25,9 @@ class WeaviateVS(VS):
             cluster_url=rest_url,
             auth_credentials=Auth.api_key(api_key),
         )
+
+        if vector_index_config is None:
+            vector_index_config = Configure.VectorIndex.hnsw()
         self.vector_index_config = vector_index_config
         self.embedding_dim: int | None = None
 
