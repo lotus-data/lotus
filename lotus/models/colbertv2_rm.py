@@ -43,7 +43,6 @@ class ColBERTv2RM:
     def get_vectors_from_index(self, index_dir: str, ids: list[int]) -> NDArray[np.float64]:
         raise NotImplementedError("This method is not implemented for ColBERTv2RM")
 
-    # this should be called in vs.py if it's
     def __call__(
         self,
         queries: str | Image.Image | list | NDArray[np.float64],

@@ -11,14 +11,17 @@ try:
     from weaviate.classes.config import Configure, DataType, Property
     from weaviate.classes.init import Auth
     from weaviate.classes.query import Filter, MetadataQuery
-except ImportError as err:
-    raise ImportError("Please install the weaviate client") from err
+except ImportError:
+    weaviate = None
 
 
 class WeaviateVS(VS):
     def __init__(
         self, vector_index_config=Configure.VectorIndex.hnsw(), api_key: str | None = None, rest_url: str | None = None
     ):
+        if weaviate is None:
+            raise ImportError("Please install the weaviate client using `pip install lotus[weaviate]`")
+
         super().__init__()
         self.client = weaviate.connect_to_weaviate_cloud(
             cluster_url=rest_url,

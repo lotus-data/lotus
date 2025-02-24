@@ -49,6 +49,9 @@ arxiv = [
 pdf_parser = [
     "pymupdf",
 ]
+weaviate = [
+    "weaviate-client",
+]
 
 [tool.ruff]
 line-length = 120
