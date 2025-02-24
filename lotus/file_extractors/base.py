@@ -8,10 +8,10 @@ import requests  # type: ignore
 
 from lotus import logger
 
-from .pptx import PptxReader
-
 
 def get_custom_readers():
+    from .pptx import PptxReader
+
     pptx_custom_reader = PptxReader()
     return {
         ".pptx": pptx_custom_reader,
