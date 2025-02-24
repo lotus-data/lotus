@@ -1,7 +1,6 @@
-from typing import Any, List, Optional
+from typing import Any
 
 import numpy as np
-import pandas as pd
 from numpy.typing import NDArray
 
 from lotus.types import RMOutput
@@ -12,37 +11,30 @@ try:
     from weaviate.classes.config import Configure, DataType, Property
     from weaviate.classes.init import Auth
     from weaviate.classes.query import Filter, MetadataQuery
-except ImportError as err:
-    raise ImportError("Please install the weaviate client") from err
+except ImportError:
+    weaviate = None
 
 
 class WeaviateVS(VS):
-    def __init__(
-        self, max_batch_size: int = 64, vector_index_config=Configure.VectorIndex.hnsw(), API_KEY=None, REST_URL=None
-    ):
-        weaviate_client: weaviate.WeaviateClient | None = None
+    def __init__(self, vector_index_config=None, api_key: str | None = None, rest_url: str | None = None):
+        if weaviate is None:
+            raise ImportError("Please install the weaviate client using `pip install lotus[weaviate]`")
 
-        weaviate_client = weaviate.connect_to_weaviate_cloud(
-            cluster_url=REST_URL,
-            auth_credentials=Auth.api_key(API_KEY),
+        super().__init__()
+        self.client = weaviate.connect_to_weaviate_cloud(
+            cluster_url=rest_url,
+            auth_credentials=Auth.api_key(api_key),
         )
 
-        """Initialize with Weaviate client and embedding model"""
-        super()
-        self.client = weaviate_client
-        self.max_batch_size = max_batch_size
+        if vector_index_config is None:
+            vector_index_config = Configure.VectorIndex.hnsw()
         self.vector_index_config = vector_index_config
-        self.embedding_dim: Optional[int] = None
+        self.embedding_dim: int | None = None
 
     def __del__(self):
         self.client.close()
 
-    def get_collection_dimension(self, index_dir):
-        if not self.embedding_dim:
-            self.embedding_dim = self.client.collections.get(index_dir).config
-        return self.embedding_dim
-
-    def index(self, docs: pd.Series, embeddings, index_dir: str, **kwargs: dict[str, Any]):
+    def index(self, docs: list[str], embeddings: NDArray[np.float64], index_dir: str, **kwargs: dict[str, Any]):
         """Create a collection and add documents with their embeddings"""
         self.index_dir = index_dir
 
@@ -63,12 +55,9 @@ class WeaviateVS(VS):
             vector_index_config=self.vector_index_config,
         )
 
-        # Generate embeddings for all documents
-        docs_list = docs.tolist() if isinstance(docs, pd.Series) else docs
-
         # Add documents to collection with their embeddings
         with collection.batch.dynamic() as batch:
-            for idx, (doc, embedding) in enumerate(zip(docs_list, embeddings)):
+            for idx, (doc, embedding) in enumerate(zip(docs, embeddings)):
                 properties = {"content": doc, "doc_id": idx}
                 batch.add_object(
                     properties=properties,
@@ -84,7 +73,7 @@ class WeaviateVS(VS):
         except weaviate.exceptions.UnexpectedStatusCodeException:
             raise ValueError(f"Collection {index_dir} not found")
 
-    def __call__(self, query_vectors, K: int, ids: Optional[list[int]] = None, **kwargs: dict[str, Any]) -> RMOutput:
+    def __call__(self, query_vectors, K: int, ids: list[int] | None = None, **kwargs: dict[str, Any]) -> RMOutput:
         """Perform vector search using pre-computed query vectors"""
         if self.index_dir is None:
             raise ValueError("No collection loaded. Call load_index first.")
@@ -111,8 +100,8 @@ class WeaviateVS(VS):
         for result in results:
             objects = result.objects
 
-            distances: List[float] = []
-            indices = []
+            distances: list[float] = []
+            indices: list[int] = []
             for obj in objects:
                 indices.append(obj.properties.get("doc_id", -1))
                 # Convert cosine distance to similarity score

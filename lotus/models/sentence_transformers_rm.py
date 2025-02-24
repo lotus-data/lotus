@@ -1,5 +1,4 @@
 import numpy as np
-import pandas as pd
 import torch
 from numpy.typing import NDArray
 from sentence_transformers import SentenceTransformer
@@ -22,7 +21,7 @@ class SentenceTransformersRM(RM):
         self.normalize_embeddings: bool = normalize_embeddings
         self.transformer: SentenceTransformer = SentenceTransformer(model, device=device)
 
-    def _embed(self, docs: pd.Series | list) -> NDArray[np.float64]:
+    def _embed(self, docs: list[str]) -> NDArray[np.float64]:
         all_embeddings = []
         for i in tqdm(range(0, len(docs), self.max_batch_size)):
             batch = docs[i : i + self.max_batch_size]

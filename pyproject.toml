@@ -52,6 +52,9 @@ file_extractor = [
     "docx2txt",
     "python-pptx"
 ]
+weaviate = [
+    "weaviate-client",
+]
 
 [tool.ruff]
 line-length = 120

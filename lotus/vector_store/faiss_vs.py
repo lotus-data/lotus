@@ -1,10 +1,9 @@
 import os
 import pickle
-from typing import Any, Optional
+from typing import Any
 
 import faiss
 import numpy as np
-import pandas as pd
 from numpy.typing import NDArray
 
 from lotus.types import RMOutput
@@ -20,7 +19,7 @@ class FaissVS(VS):
         self.faiss_index: faiss.Index | None = None
         self.vecs: NDArray[np.float64] | None = None
 
-    def index(self, docs: pd.Series, embeddings, index_dir: str, **kwargs: dict[str, Any]) -> None:
+    def index(self, docs: list[str], embeddings: NDArray[np.float64], index_dir: str, **kwargs: dict[str, Any]) -> None:
         self.faiss_index = faiss.index_factory(embeddings.shape[1], self.factory_string, self.metric)
         self.faiss_index.add(embeddings)
         self.index_dir = index_dir
@@ -41,7 +40,9 @@ class FaissVS(VS):
             vecs: NDArray[np.float64] = pickle.load(fp)
         return vecs[ids]
 
-    def __call__(self, query_vectors, K: int, ids: Optional[list[int]] = None, **kwargs: dict[str, Any]) -> RMOutput:
+    def __call__(
+        self, query_vectors: NDArray[np.float64], K: int, ids: list[int] | None = None, **kwargs: dict[str, Any]
+    ) -> RMOutput:
         """
         Search for nearest neighbors using pre-embedded query vectors.
 

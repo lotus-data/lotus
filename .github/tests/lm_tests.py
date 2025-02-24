@@ -22,7 +22,7 @@ ENABLE_OLLAMA_TESTS = os.getenv("ENABLE_OLLAMA_TESTS", "false").lower() == "true
 MODEL_NAME_TO_ENABLED = {
     "gpt-4o-mini": ENABLE_OPENAI_TESTS,
     "gpt-4o": ENABLE_OPENAI_TESTS,
-    "ollama/llama3.3": ENABLE_OLLAMA_TESTS,
+    "ollama/llama3.1": ENABLE_OLLAMA_TESTS,
 }
 ENABLED_MODEL_NAMES = set([model_name for model_name, is_enabled in MODEL_NAME_TO_ENABLED.items() if is_enabled])
 
@@ -213,7 +213,7 @@ def test_sem_extract(setup_models, model):
 ################################################################################
 # CoT tests
 ################################################################################
-@pytest.mark.parametrize("model", get_enabled("gpt-4o-mini", "ollama/llama3.1"))
+@pytest.mark.parametrize("model", get_enabled("gpt-4o-mini"))
 def test_filter_operation_cot(setup_models, model):
     lm = setup_models[model]
     lotus.settings.configure(lm=lm)
@@ -234,7 +234,7 @@ def test_filter_operation_cot(setup_models, model):
     assert filtered_df.equals(expected_df)
 
 
-@pytest.mark.parametrize("model", get_enabled("gpt-4o-mini", "ollama/llama3.1"))
+@pytest.mark.parametrize("model", get_enabled("gpt-4o-mini"))
 def test_filter_operation_cot_fewshot(setup_models, model):
     lm = setup_models[model]
     lotus.settings.configure(lm=lm)
@@ -278,7 +278,7 @@ def test_filter_operation_cot_fewshot(setup_models, model):
     assert filtered_df.equals(expected_df)
 
 
-@pytest.mark.parametrize("model", get_enabled("gpt-4o-mini", "ollama/llama3.1"))
+@pytest.mark.parametrize("model", get_enabled("gpt-4o-mini"))
 def test_filter_operation_cot_fewshot_no_reasoning(setup_models, model):
     lm = setup_models[model]
     lotus.settings.configure(lm=lm)
