@@ -6,7 +6,7 @@ from urllib.parse import urlparse
 import pandas as pd
 import requests  # type: ignore
 
-from lotus import logger
+import lotus
 
 
 def get_custom_readers():
@@ -64,7 +64,7 @@ def load_files(
         if is_url(file_path):
             response = requests.get(file_path)
             if response.status_code != 200:
-                logger.error(
+                lotus.logger.error(
                     f"Failed to download file from {file_path}. Status code: {response.status_code}. Skipping..."
                 )
                 continue
@@ -83,7 +83,7 @@ def load_files(
         elif Path(file_path).is_dir():
             directories.append(file_path)
         else:
-            logger.error(f"{file_path} is not a valid file or directory. Skipping...")
+            lotus.logger.error(f"{file_path} is not a valid file or directory. Skipping...")
 
     directory_reader = SimpleDirectoryReader(
         input_files=filtered_file_paths, recursive=recursive, filename_as_id=True, file_extractor=get_custom_readers()
