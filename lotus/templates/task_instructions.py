@@ -213,6 +213,8 @@ def map_formatter(
     sys_instruction = (
         "The user will provide an instruction and some relevant context.\n"
         "Your job is to answer the user's instruction given the context."
+        "Please provide your answer as a valid JSON object with a key named Answer."
+        "For example your answer should be: {\"Answer\": \"your answer\"}"
     )
     messages = [
         {"role": "system", "content": sys_instruction},
@@ -224,7 +226,7 @@ def map_formatter(
             messages.extend(
                 [
                     user_message_formatter(ex_df_txt, f"Instruction: {user_instruction}"),
-                    {"role": "assistant", "content": str(ex_ans)},
+                    {"role": "assistant", "content": answer_only_formatter(str(ex_ans))},
                 ]
             )
 

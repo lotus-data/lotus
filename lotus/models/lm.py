@@ -2,6 +2,8 @@ import hashlib
 import logging
 from typing import Any, Type
 from pydantic import BaseModel, ValidationError
+import re
+import json
 
 import litellm
 import numpy as np
@@ -137,15 +139,15 @@ class LM:
         response_format: Type[BaseModel],
         **kwargs: dict[str, Any]
     ):
-        """parses a raw response from the model and converts it into a structured format using the provided response_format.
+        """parses a raw response from the model and converts it into a structured format using the provided response_format."""
+        match = re.search(r"```(?:json)?\s*(\{.*\})\s*```", raw_response, re.DOTALL)
+        if match:
+            cleaned_response = match.group(1)
+        else:
+            cleaned_response = raw_response.strip()
 
-        Args:
-        raw_response (str): The raw response from the model.
-        response_format (Type[BaseModel]): A Pydantic model class that defines the structure of the response.
-        **kwargs (dict[str, Any]): Additional keyword arguments to pass to the model.
-        """
         try:
-            structured_response = response_format.model_validate(raw_response).model_dump()
+            structured_response = response_format.model_validate_json(cleaned_response).model_dump()
         except ValidationError as e:
             raise ValueError(f"Failed to parse response: {e}") from e
         return structured_response

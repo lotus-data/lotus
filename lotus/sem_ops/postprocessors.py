@@ -71,7 +71,7 @@ def map_postprocess(llm_answers: list[str], cot_reasoning: bool = False) -> Sema
     if cot_reasoning:
         return map_postprocess_cot(llm_answers)
 
-    outputs: list[str] = llm_answers
+    outputs: list[str] = [ans["Answer"] if isinstance(ans, dict) and "Answer" in ans else ans for ans in llm_answers]
     explanations: list[str | None] = [None] * len(llm_answers)
     return SemanticMapPostprocessOutput(raw_outputs=llm_answers, outputs=outputs, explanations=explanations)
 

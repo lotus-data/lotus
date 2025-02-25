@@ -197,4 +197,4 @@ class LotusUsageLimitException(LotusException):
 # Structured Format
 ################################################################################
 class DefaultStructuredFormat(BaseModel):
-    pass
+    Answer: str
