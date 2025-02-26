@@ -6,6 +6,9 @@ def parse_cols(text: str) -> list[str]:
     pattern = r"(?<!\{)\{(?!\{)(.*?)(?<!\})\}(?!\})"
     # Find all matches in the text
     matches = re.findall(pattern, text)
+
+    if not matches:
+        raise ValueError("No columns found in the text")
     return matches
 
 
