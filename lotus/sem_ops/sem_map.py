@@ -153,8 +153,7 @@ class SemMapDataframe:
             examples_multimodal_data = task_instructions.df2multimodal_info(examples, col_li)
             examples_answers = examples["Answer"].tolist()
 
-            if strategy == "cot":
-                return_explanations = True
+            if strategy == "cot" and "Reasoning" in examples.columns:
                 cot_reasoning = examples["Reasoning"].tolist()
 
         output = sem_map(
