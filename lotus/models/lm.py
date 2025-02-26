@@ -1,9 +1,7 @@
 import hashlib
 import logging
-from typing import Any, Type
-from pydantic import BaseModel, ValidationError
 import re
-import json
+from typing import Any, Type
 
 import litellm
 import numpy as np
@@ -11,6 +9,7 @@ from litellm import batch_completion, completion_cost
 from litellm.types.utils import ChatCompletionTokenLogprob, Choices, ModelResponse
 from litellm.utils import token_counter
 from openai import OpenAIError
+from pydantic import BaseModel, ValidationError
 from tokenizers import Tokenizer
 from tqdm import tqdm
 
@@ -23,7 +22,6 @@ from lotus.types import (
     LogprobsForFilterCascade,
     LotusUsageLimitException,
     UsageLimit,
-    DefaultStructuredFormat,
 )
 
 logging.getLogger("LiteLLM").setLevel(logging.CRITICAL)
@@ -125,20 +123,14 @@ class LM:
             [self._get_top_choice_logprobs(resp) for resp in all_responses] if all_kwargs.get("logprobs") else None
         )
         if self.structured_format:
-           rf = response_format if response_format is not None else DefaultStructuredFormat
-           structured_responses = []
-           for raw_response in outputs:
-               structured_responses.append(self.structured_parse(raw_response, rf))
-           outputs = structured_responses
+            structured_responses = []
+            for raw_response in outputs:
+                structured_responses.append(self.structured_parse(raw_response, response_format))
+            outputs = structured_responses
 
         return LMOutput(outputs=outputs, logprobs=logprobs)
 
-    def structured_parse(
-        self,
-        raw_response: str,
-        response_format: Type[BaseModel],
-        **kwargs: dict[str, Any]
-    ):
+    def structured_parse(self, raw_response: str, response_format: Type[BaseModel], **kwargs: dict[str, Any]):
         """parses a raw response from the model and converts it into a structured format using the provided response_format."""
         match = re.search(r"```(?:json)?\s*(\{.*\})\s*```", raw_response, re.DOTALL)
         if match:

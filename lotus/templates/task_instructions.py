@@ -1,7 +1,8 @@
 import re
-from typing import Any
+from typing import Any, Optional, Type
 
 import pandas as pd
+from pydantic import BaseModel
 
 import lotus
 from lotus.dtype_extensions import ImageDtype
@@ -197,6 +198,7 @@ def map_formatter_zs_cot(
 def map_formatter(
     multimodal_data: dict[str, Any],
     user_instruction: str,
+    response_format: Type[BaseModel] = None,
     examples_multimodal_data: list[dict[str, Any]] | None = None,
     examples_answer: list[str] | None = None,
     cot_reasoning: list[str] | None = None,
@@ -210,12 +212,21 @@ def map_formatter(
     elif strategy == "zs-cot":
         return map_formatter_zs_cot(multimodal_data, user_instruction)
 
-    sys_instruction = (
-        "The user will provide an instruction and some relevant context.\n"
-        "Your job is to answer the user's instruction given the context."
-        "Please provide your answer as a valid JSON object with a key named Answer."
-        "For example your answer should be: {\"Answer\": \"your answer\"}"
-    )
+    if response_format is not None:
+        keys = list(response_format.model_fields.keys())
+        keys_str = ", ".join(keys)
+        example_json = "{" + ", ".join([f'"{k}": "example {k}"' for k in keys]) + "}"
+        sys_instruction = (
+            "The user will provide an instruction and some relevant context.\n"
+            "Your job is to answer the user's instruction given the context.\n"
+            "Please provide your answer as a valid JSON object with the following keys: " + keys_str + ".\n"
+            "For example, your answer should be: " + example_json
+        )
+    else:
+        sys_instruction = (
+            "The user will provide an instruction and some relevant context.\n"
+            "Your job is to answer the user's instruction given the context."
+        )
     messages = [
         {"role": "system", "content": sys_instruction},
     ]
@@ -226,7 +237,7 @@ def map_formatter(
             messages.extend(
                 [
                     user_message_formatter(ex_df_txt, f"Instruction: {user_instruction}"),
-                    {"role": "assistant", "content": answer_only_formatter(str(ex_ans))},
+                    {"role": "assistant", "content": str(ex_ans)},
                 ]
             )
 
