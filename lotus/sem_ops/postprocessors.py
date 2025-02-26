@@ -12,15 +12,15 @@ def cot_postprocessor(llm_answers: list[str]):
     outputs: list[str | None] = []
     explanations: list[str | None] = []
     for llm_answer in llm_answers:
-        reasoning_idx = llm_answer.find("Reasoning:\n")
+        reasoning_idx = llm_answer.find("Reasoning: \n")
         if reasoning_idx == -1:
             reasoning_idx = 0
         else:
             reasoning_idx += len("Reasoning:\n")
 
-        answer_idx = llm_answer.find("Answer:")
+        answer_idx = llm_answer.find("Answer: ")
         reasoning = llm_answer[reasoning_idx:answer_idx].rstrip("\n").lstrip("\n")
-        answer = llm_answer[answer_idx + len("Answer:") :]
+        answer = llm_answer[answer_idx + len("Answer: ") :]
 
         explanations.append(reasoning)
         outputs.append(answer)
