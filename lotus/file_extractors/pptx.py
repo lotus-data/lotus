@@ -17,14 +17,15 @@ class PptxReader(BaseReader):
     Args:
         should_caption_images (bool): Whether to caption images in the slides.
         caption_model (str): The model to use for image captioning.
+        device (str | None): The device to use for image captioning. If None, it will be inferred.
         **gen_kwargs: Keyword arguments to pass to the model for image captioning.
     """
 
     def __init__(
         self,
-        should_caption_images=False,
-        caption_model="nlpconnect/vit-gpt2-image-captioning",
-        device=None,
+        should_caption_images: bool = False,
+        caption_model: str = "nlpconnect/vit-gpt2-image-captioning",
+        device: str | None = None,
         **gen_kwargs,
     ) -> None:
         try:
@@ -85,6 +86,12 @@ class PptxReader(BaseReader):
         """Parse file."""
         from pptx import Presentation
 
+        def get_shape_text(shape):
+            text = f"{shape.text}\n" if hasattr(shape, "text") else ""
+            if hasattr(shape, "image") and self.should_caption_images:
+                text += f"Image: {self.caption_image(shape.image.blob)}\n\n"
+            return text
+
         if fs:
             with fs.open(file) as f:
                 presentation = Presentation(f)
@@ -93,12 +100,7 @@ class PptxReader(BaseReader):
 
         docs = []
         for i, slide in enumerate(presentation.slides):
-            text = ""
-            for shape in slide.shapes:
-                if hasattr(shape, "text"):
-                    text += f"{shape.text}\n"
-                if hasattr(shape, "image") and self.should_caption_images:
-                    text += f"Image: {self.caption_image(shape.image.blob)}\n\n"
+            text = "".join(get_shape_text(shape) for shape in slide.shapes)
             metadata = {"page_label": i + 1, "file_name": file.name}
             if extra_info is not None:
                 metadata.update(extra_info)
