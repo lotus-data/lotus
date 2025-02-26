@@ -1,7 +1,7 @@
 import pandas as pd
 
 import lotus
-from lotus.file_extractors import load_files
+from lotus.file_extractors import DirectoryReader
 
 ################################################################################
 # Setup
@@ -13,7 +13,8 @@ lotus.logger.setLevel("DEBUG")
 def test_parse_pdf():
     pdf_urls = ["https://arxiv.org/pdf/1706.03762", "https://arxiv.org/pdf/2407.11418"]
 
-    df = load_files(pdf_urls, per_page=False)
+    df = DirectoryReader().add_multiple(pdf_urls).to_df(per_page=False)
+
     assert isinstance(df, pd.DataFrame)
     assert len(df) == 2
     assert df["file_path"].tolist() == pdf_urls
@@ -21,7 +22,7 @@ def test_parse_pdf():
 
 def test_parse_pdf_per_page():
     pdf_url = "https://arxiv.org/pdf/1706.03762"
-    df = load_files(pdf_url, per_page=True)
+    df = DirectoryReader().add(pdf_url).to_df(per_page=True)
 
     assert isinstance(df, pd.DataFrame)
 

@@ -1,3 +1,3 @@
-from .base import load_files
+from .directory_reader import DirectoryReader
 
-__all__ = ["load_files"]
+__all__ = ["DirectoryReader"]

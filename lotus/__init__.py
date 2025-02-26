@@ -21,7 +21,6 @@ from lotus.sem_ops import (
     sem_topk,
 )
 from lotus.web_search import web_search, WebSearchCorpus
-from lotus.file_extractors import load_files
 from lotus.settings import settings  # type: ignore[attr-defined]
 
 
@@ -52,5 +51,4 @@ __all__ = [
     "dtype_extensions",
     "web_search",
     "WebSearchCorpus",
-    "load_files",
 ]
