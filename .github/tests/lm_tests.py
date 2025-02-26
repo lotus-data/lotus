@@ -477,10 +477,6 @@ def test_map_operation_cot_fewshot_no_reasoning(setup_models, model):
     examples = {
         "Sequence": ["A, B, C", "Kindergarten, First Grade, Second Grade"],
         "Answer": ["D", "Third Grade"],
-        "Reasoning": [
-            "D is the next letter in the alphabet after C",
-            "Third Grade is the next grade after Second Grade",
-        ],
     }
     examples_df = pd.DataFrame(examples)
     user_instruction = "What should be the next item in the sequence: {Sequence}"
