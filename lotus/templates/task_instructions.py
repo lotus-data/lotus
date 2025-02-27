@@ -78,6 +78,42 @@ def user_message_formatter(
     }
 
 
+def deepseek_prompt_formatter(
+    multimodal_data: dict[str, Any],
+    user_instruction: str,
+    examples_multimodal_data: list[dict[str, Any]] | None = None,
+    examples_answer: list[str] | None = None,
+    cot_reasoning: list[str] | None = None,
+    strategy: str | None = None,
+) -> list[dict[str, str]]:
+    sys_instruction = (
+        "The user will provide an instruction and some relevant context.\n"
+        "Your job is to answer the user's instruction given the context."
+        "You must put your reasoning inside the <think></think> tags, then provide your final answer after the </think> tag with the format: Answer: your answer."
+    )
+    messages = [
+        {"role": "system", "content": sys_instruction},
+    ]
+
+    if examples_multimodal_data and examples_answer:
+        for idx in range(len(examples_multimodal_data)):
+            example_data = examples_multimodal_data[idx]
+            example_answer = examples_answer[idx]
+
+            if cot_reasoning and idx < len(cot_reasoning):
+                example_content = f"<think>{cot_reasoning[idx]}</think>\n: {example_answer}"
+
+            messages.extend(
+                [
+                    user_message_formatter(example_data, f"Instruction: {user_instruction}"),
+                    {"role": "assistant", "content": example_content},
+                ]
+            )
+
+    messages.append(user_message_formatter(multimodal_data, f"Instruction: {user_instruction}"))
+    return messages
+
+
 def filter_formatter(
     multimodal_data: dict[str, Any],
     user_instruction: str,
