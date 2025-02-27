@@ -28,7 +28,7 @@ def cot_postprocessor(llm_answers: list[str]):
     return outputs, explanations
 
 
-def deepseek_cot_postprocessor(llm_answers: list[str]):
+def deepseek_cot_postprocessor(llm_answers: list[str], for_extract: bool = False):
     """
     Postprocess outputs from DeepSeek models with CoT reasoning.
 
@@ -63,6 +63,17 @@ def deepseek_cot_postprocessor(llm_answers: list[str]):
             answer = llm_answer.strip()
 
         explanations.append(reasoning)
+
+        if for_extract:
+            for llm_answer in llm_answers:
+                try:
+                    json_obj = json.loads(llm_answer)
+                except json.JSONDecodeError:
+                    lotus.logger.info(f"\t Failed to parse: {llm_answer}")
+                    json_obj = {}
+            json_obj = {key: str(value) for key, value in json_obj.items()}
+            outputs.append(json_obj)
+
         outputs.append(answer)
 
     return outputs, explanations
@@ -125,7 +136,7 @@ def map_postprocess(
     return SemanticMapPostprocessOutput(raw_outputs=llm_answers, outputs=outputs, explanations=explanations)
 
 
-def extract_postprocess(llm_answers: list[str]) -> SemanticExtractPostprocessOutput:
+def extract_postprocess(llm_answers: list[str], cot_reasoning: bool = False) -> SemanticExtractPostprocessOutput:
     """
     Postprocess the output of the extract operator to extract the schema.
 
@@ -136,6 +147,14 @@ def extract_postprocess(llm_answers: list[str]) -> SemanticExtractPostprocessOut
         SemanticExtractPostprocessOutput
     """
     extract_data = []
+    explanations: list[str | None] = [None] * len(llm_answers)
+
+    if cot_reasoning:
+        deepseek_outputs, deepseek_explanations = deepseek_cot_postprocessor(llm_answers, for_extract=True)
+        return SemanticExtractPostprocessOutput(
+            raw_outputs=llm_answers, outputs=deepseek_outputs, explanations=deepseek_explanations
+        )
+
     for llm_answer in llm_answers:
         try:
             output = json.loads(llm_answer)
@@ -146,7 +165,7 @@ def extract_postprocess(llm_answers: list[str]) -> SemanticExtractPostprocessOut
         output = {key: str(value) for key, value in output.items()}
         extract_data.append(output)
 
-    return SemanticExtractPostprocessOutput(raw_outputs=llm_answers, outputs=extract_data)
+    return SemanticExtractPostprocessOutput(raw_outputs=llm_answers, outputs=extract_data, explanations=explanations)
 
 
 def filter_postprocess(

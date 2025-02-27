@@ -43,7 +43,7 @@ def sem_map(
     inputs = []
     for doc in docs:
         if model_type == "deepseek":
-            prompt = lotus.templates.task_instructions.deepseek_prompt_formatter(
+            prompt = lotus.templates.task_instructions.deepseek_map_formatter(
                 doc,
                 user_instruction,
                 examples_multimodal_data,
