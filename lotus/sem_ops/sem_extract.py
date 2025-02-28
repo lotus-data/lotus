@@ -20,7 +20,6 @@ def sem_extract(
     postprocessor: Callable[[list[str], bool], SemanticExtractPostprocessOutput] = extract_postprocess,
     safe_mode: bool = False,
     progress_bar_desc: str = "Extracting",
-    strategy: str | None = None,
     return_explanations: bool = False,
 ) -> SemanticExtractOutput:
     """
@@ -57,7 +56,7 @@ def sem_extract(
     lm_output: LMOutput = model(inputs, response_format={"type": "json_object"}, progress_bar_desc=progress_bar_desc)
 
     # post process results
-    postprocess_output = postprocessor(lm_output.outputs, strategy in ["zs-cot"])
+    postprocess_output = postprocessor(lm_output.outputs, return_explanations)
     lotus.logger.debug(f"raw_outputs: {lm_output.outputs}")
     lotus.logger.debug(f"outputs: {postprocess_output.outputs}")
     lotus.logger.debug(f"explanations: {postprocess_output.explanations}")
@@ -92,7 +91,6 @@ class SemExtractDataFrame:
         return_raw_outputs: bool = False,
         safe_mode: bool = False,
         progress_bar_desc: str = "Extracting",
-        strategy: str | None = None,
         return_explanations: bool = False,
     ) -> pd.DataFrame:
         """
@@ -128,7 +126,6 @@ class SemExtractDataFrame:
             postprocessor=postprocessor,
             safe_mode=safe_mode,
             progress_bar_desc=progress_bar_desc,
-            strategy=strategy,
             return_explanations=return_explanations,
         )
 

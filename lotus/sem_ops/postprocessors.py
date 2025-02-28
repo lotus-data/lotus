@@ -1,4 +1,5 @@
 import json
+from typing import Callable, Tuple
 
 import lotus
 from lotus.types import (
@@ -65,16 +66,15 @@ def deepseek_cot_postprocessor(llm_answers: list[str], for_extract: bool = False
         explanations.append(reasoning)
 
         if for_extract:
-            for llm_answer in llm_answers:
-                try:
-                    json_obj = json.loads(llm_answer)
-                except json.JSONDecodeError:
-                    lotus.logger.info(f"\t Failed to parse: {llm_answer}")
-                    json_obj = {}
+            try:
+                json_obj = json.loads(llm_answer)
+            except json.JSONDecodeError:
+                lotus.logger.info(f"\t Failed to parse: {llm_answer}")
+                json_obj = {}
             json_obj = {key: str(value) for key, value in json_obj.items()}
             outputs.append(json_obj)
-
-        outputs.append(answer)
+        else:
+            outputs.append(answer)
 
     return outputs, explanations
 
@@ -109,7 +109,9 @@ def map_postprocess_cot(llm_answers: list[str]) -> SemanticMapPostprocessOutput:
 
 
 def map_postprocess(
-    llm_answers: list[str], cot_reasoning: bool = False, model_type: str = "default"
+    llm_answers: list[str],
+    cot_reasoning: bool = False,
+    reasoning_parser: Callable[[list[str], bool], Tuple] | None = None,
 ) -> SemanticMapPostprocessOutput:
     """
     Postprocess the output of the map operator.
@@ -117,19 +119,19 @@ def map_postprocess(
     Args:
         llm_answers (list[str]): The list of llm answers.
         cot_reasoning (bool): Whether there is CoT reasoning.
-        model_type (str): The model type. ("defualt", "deepseek")
+        reasoning_parser (Callable[[list[str], bool], Tuple]): The function to parse the reasoning.
 
     Returns:
         SemanticMapPostprocessOutput
     """
     if cot_reasoning:
-        if model_type == "deepseek":
-            deepseek_outputs, deepseek_explanations = deepseek_cot_postprocessor(llm_answers)
-            return SemanticMapPostprocessOutput(
-                raw_outputs=llm_answers, outputs=deepseek_outputs, explanations=deepseek_explanations
-            )
-        else:
-            return map_postprocess_cot(llm_answers)
+        return map_postprocess_cot(llm_answers)
+
+    if reasoning_parser == deepseek_cot_postprocessor:
+        deepseek_outputs, deepseek_explanations = deepseek_cot_postprocessor(llm_answers)
+        return SemanticMapPostprocessOutput(
+            raw_outputs=llm_answers, outputs=deepseek_outputs, explanations=deepseek_explanations
+        )
 
     outputs: list[str] = llm_answers
     explanations: list[str | None] = [None] * len(llm_answers)

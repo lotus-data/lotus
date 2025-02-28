@@ -283,11 +283,13 @@ def deepseek_extract_cot_formatter(
 
     sys_instruction = (
         "The user will provide the columns that need to be extracted and some relevant context.\n"
-        "First you will reason and put your reasoning inside the <think></think> tags.\n"
-        f"Then your next job is to extract these columns and provide only a concise value for each field "
-        f"and the corresponding full quote for each field in the '{', '.join([f'{col}_quote' for col in output_col_names])}' fields.\n"
-        f"Here is a description of each field: {output_cols_with_desc}\n"
-        f"The answer should be valid JSON format with the following fields: {fields_str}.\n"
+        "Your task is to extract specific information into a JSON object.\n\n"
+        "Step 1: Analyze the context and provide your reasoning enclosed in <think> and </think> tags. "
+        "This reasoning should explain how you identified each field.\n\n"
+        "Step 2: After the </think> tag, output a JSON object that includes only the following fields: "
+        f"{fields_str}.\n\n"
+        f"Field Descriptions: {output_cols_with_desc}.\n"
+        "Ensure that the final output is valid JSON and does not include any extra text outside the JSON.\n"
     )
 
     messages = [
