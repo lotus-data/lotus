@@ -1,3 +1,4 @@
+import logging
 import os
 from enum import Enum
 
@@ -6,10 +7,13 @@ import pandas as pd
 
 class WebSearchCorpus(Enum):
     GOOGLE = "google"
+    GOOGLE_SCHOLAR = "google_scholar"
     ARXIV = "arxiv"
 
 
-def _web_search_google(query: str, K: int, cols: list[str] | None = None) -> pd.DataFrame:
+def _web_search_google(
+    query: str, K: int, cols: list[str] | None = None, engine: str | None = "google"
+) -> pd.DataFrame:
     try:
         from serpapi import GoogleSearch
     except ImportError:
@@ -27,6 +31,7 @@ def _web_search_google(query: str, K: int, cols: list[str] | None = None) -> pd.
             "api_key": api_key,
             "q": query,
             "num": K,
+            "engine": engine,
         }
     )
 
@@ -43,6 +48,9 @@ def _web_search_google(query: str, K: int, cols: list[str] | None = None) -> pd.
         "extracted_cited_by",
         "favicon",
         "snippet",
+        "inline_links" "publication_info",
+        "publication_info",
+        "inline_links.cited_by.total",
     ]
 
     results = search.get_dict()
@@ -50,8 +58,14 @@ def _web_search_google(query: str, K: int, cols: list[str] | None = None) -> pd.
         raise ValueError("No organic_results found in the response from GoogleSearch")
 
     df = pd.DataFrame(results["organic_results"])
+    # Unnest nested columns using pandas json_normalize
+    if len(df) > 0:  # Only normalize if dataframe is not empty
+        df = pd.json_normalize(df.to_dict("records"))
+    logging.info("Pruning raw columns: %s", df.columns)
     columns_to_use = cols if cols is not None else default_cols
-    df = df[[col for col in columns_to_use if col in df.columns]]
+    # Keep columns that start with any of the default column names
+    cols_to_keep = [col for col in df.columns if any(col.startswith(default_col) for default_col in columns_to_use)]
+    df = df[cols_to_keep]
     return df
 
 
@@ -88,8 +102,10 @@ def _web_search_arxiv(query: str, K: int, cols: list[str] | None = None) -> pd.D
     return df
 
 
-def web_search(corpus: WebSearchCorpus, query: str, K: int) -> pd.DataFrame:
+def web_search(corpus: WebSearchCorpus, query: str, K: int, cols: list[str] | None = None) -> pd.DataFrame:
     if corpus == WebSearchCorpus.GOOGLE:
-        return _web_search_google(query, K)
+        return _web_search_google(query, K, cols=cols)
     elif corpus == WebSearchCorpus.ARXIV:
-        return _web_search_arxiv(query, K)
+        return _web_search_arxiv(query, K, cols=cols)
+    elif corpus == WebSearchCorpus.GOOGLE_SCHOLAR:
+        return _web_search_google(query, K, engine="google_scholar", cols=cols)
