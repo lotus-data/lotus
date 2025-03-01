@@ -173,6 +173,7 @@ def extract_postprocess(llm_answers: list[str], cot_reasoning: bool = False) -> 
 def filter_postprocess(
     llm_answers: list[str],
     default: bool = True,
+    reasoning_parser: Callable[[list[str], bool], Tuple] | None = None,
 ) -> SemanticFilterPostprocessOutput:
     """
     Postprocess the output of the filter operator.
@@ -184,8 +185,8 @@ def filter_postprocess(
 
     Returns:
         SemanticFilterPostprocessOutput
+
     """
-    outputs, explanations = cot_postprocessor(llm_answers)
 
     def process_outputs(answer):
         if answer is None:
@@ -200,6 +201,18 @@ def filter_postprocess(
             lotus.logger.info(f"\t Failed to parse {answer}: defaulting to {default}")
             return default
 
-    outputs = [process_outputs(answer) for answer in outputs]
+    if reasoning_parser == deepseek_cot_postprocessor:
+        deepseek_outputs, deepseek_explanations = deepseek_cot_postprocessor(llm_answers)
 
-    return SemanticFilterPostprocessOutput(raw_outputs=llm_answers, outputs=outputs, explanations=explanations)
+        outputs = [process_outputs(answer) for answer in deepseek_outputs]
+
+        return SemanticFilterPostprocessOutput(
+            raw_outputs=llm_answers, outputs=outputs, explanations=deepseek_explanations
+        )
+
+    else:
+        outputs, explanations = cot_postprocessor(llm_answers)
+
+        outputs = [process_outputs(answer) for answer in outputs]
+
+        return SemanticFilterPostprocessOutput(raw_outputs=llm_answers, outputs=outputs, explanations=explanations)

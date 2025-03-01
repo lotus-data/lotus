@@ -78,6 +78,60 @@ def user_message_formatter(
     }
 
 
+def deepseek_filter_formatter(
+    multimodal_data: dict[str, Any],
+    user_instruction: str,
+    examples_multimodal_data: list[dict[str, Any]] | None = None,
+    examples_answer: list[bool] | None = None,
+    cot_reasoning: list[str] | None = None,
+    strategy: str | None = None,
+    reasoning_instructions: str = "",
+) -> list[dict[str, str]]:
+    sys_instruction = """The user will provide a claim and some relevant context.
+    Your job is to determine whether the claim is true for the given context.
+    Please tink through your reasoning step by step, then provide your final answer.
+    
+    You must put your reasoning inside the <think></think> tags, then provide your final answer after the </think> tag with the format: Answer: your answer."""
+
+    messages = [
+        {"role": "system", "content": sys_instruction},
+    ]
+
+    if examples_multimodal_data:
+        assert examples_answer is not None
+        assert isinstance(examples_multimodal_data, list) and isinstance(examples_answer, list)
+        assert len(examples_multimodal_data) == len(examples_answer)
+
+        if cot_reasoning:
+            # users don't have to provide cot reasoning examples
+            # but if they do, the number of examples must match
+            assert isinstance(cot_reasoning, list)
+            assert len(examples_multimodal_data) == len(examples_answer) == len(cot_reasoning)
+
+        for idx in range(len(examples_multimodal_data)):
+            ex_multimodal_data = examples_multimodal_data[idx]
+            ex_ans = examples_answer[idx]
+
+            # Format the example response for DeepSeek
+            if cot_reasoning:
+                example_content = f"<think>{cot_reasoning[idx]}</think>\nAnswer: {str(ex_ans)}"
+            else:
+                example_content = f"<think>Reasoning omitted</think>\nAnswer: {str(ex_ans)}"
+
+            messages.extend(
+                [
+                    user_message_formatter(ex_multimodal_data, f"Claim: {user_instruction}"),
+                    {
+                        "role": "assistant",
+                        "content": example_content,
+                    },
+                ]
+            )
+
+    messages.append(user_message_formatter(multimodal_data, f"Claim: {user_instruction}"))
+    return messages
+
+
 def filter_formatter(
     multimodal_data: dict[str, Any],
     user_instruction: str,
