@@ -339,7 +339,6 @@ class DirectoryReader:
         for temp_file in list(self.temp_file_to_url_map.keys()):
             if Path(temp_file).exists():
                 try:
-                    print(f"Deleting temporary file: {temp_file}")
                     Path(temp_file).unlink()
                     del self.temp_file_to_url_map[temp_file]
                 except Exception:
