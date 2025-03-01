@@ -60,7 +60,7 @@ Example setting usage limits:
         total_tokens_limit=3000,
         total_cost_limit=1.00
     )
-    lm = LM(model="gpt-4o", usage_limit=usage_limit)
+    lm = LM(model="gpt-4o", physical_usage_limit=usage_limit)
 
     try:
         course_df = pd.read_csv("course_df.csv")
