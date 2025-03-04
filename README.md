@@ -7,7 +7,6 @@
 [![Documentation Status](https://readthedocs.org/projects/lotus-ai/badge/?version=latest)](https://lotus-ai.readthedocs.io/en/latest/?badge=latest)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/lotus-ai)][#pypi-package]
 [![PyPI](https://img.shields.io/pypi/v/lotus-ai)][#pypi-package]
-[![GitHub license](https://img.shields.io/badge/License-MIT-blu.svg)][#license-gh-package]
 
 [#license-gh-package]: https://lbesson.mit-license.org/
 [#arxiv-paper-package]: https://arxiv.org/abs/2407.11418
