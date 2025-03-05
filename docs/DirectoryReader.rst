@@ -114,9 +114,9 @@ Available Methods
 
 
 
-Integration with LOTUS Semantic Methods
+Integration with LOTUS Semantic Operators
 --------------------
-You can seamlessly integrate extracted content with LOTUS semantic filtering and ranking methods:
+Once you've loaded your data files, you can proceed to seamlessly use LOTUS' semantic operators!
 
 .. code-block:: python
 
