@@ -1,4 +1,4 @@
-Data Connectors
+Database Connectors
 =================
 
 Overview

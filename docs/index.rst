@@ -46,7 +46,6 @@ LOTUS implements the semantic operator programming model and provides an optimiz
    sem_index
    sem_dedup
    web_search
-   DirectoryReader
 
 .. toctree::
    :hidden:
@@ -70,7 +69,9 @@ LOTUS implements the semantic operator programming model and provides an optimiz
 .. toctree::
    :hidden:
    :maxdepth: 1
-   :caption: Data Connectors
+   :caption: Data Loading and DB Connectors
 
    data_connectors
+   DirectoryReader
+
 
