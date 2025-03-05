@@ -13,7 +13,14 @@ Supported File Types
 - EPUB
 - PowerPoint files (PPT, PPTX, PPTM)
 - Word files (DOCX, DOC): `per_page` mode is not supported for such files.
-- Text-based files (`.txt`, `.py`, `.md`, etc.): `per_page` mode is not supported for such files. 
+- Text-based files (`.txt`, `.py`, `.md`, etc.): `per_page` mode is not supported for such files.
+
+Intstallation
+To get started, you will need to install the lotus submodule as follows:
+-------------
+.. code-block:: shell
+
+    pip install lotus[file_extractor]
 
 PDF Example
 --------

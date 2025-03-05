@@ -8,6 +8,11 @@ Different search engines are supported, including Google, Google Scholar and Arx
 
 Arxiv Example
 --------
+To get started, you will need to install the lotus submodule as follows:
+.. code-block:: shell
+    pip install lotus[arxiv]
+
+Then you can run your lotus program:
 .. code-block:: python
 
     import lotus
@@ -26,7 +31,11 @@ Arxiv Example
 
 Google Example
 --------
-Before running the following example, you need to set the `SERPAPI_API_KEY` environment variable.
+Before running the following example, you need to set the `SERPAPI_API_KEY` environment variable. You will also need to install the lotus submodule as follows:
+.. code-block:: shell
+    pip install lotus[serpapi]
+
+Then you can run your lotus program:
 
 .. code-block:: python
 
