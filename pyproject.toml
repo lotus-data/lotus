@@ -52,6 +52,11 @@ pdf_parser = [
 weaviate = [
     "weaviate-client",
 ]
+data_connectors = [
+    "sqlalchemy",
+    "boto3",
+    "io",
+]
 
 [tool.ruff]
 line-length = 120
