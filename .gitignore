@@ -7,4 +7,5 @@ docs/_build
 .ruff_cache
 .mypy_cache
 .pytest_cache
-.env.idea/
+.env
+.idea/
