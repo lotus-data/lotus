@@ -69,7 +69,7 @@ def _web_search_google(
     return df
 
 
-def _web_search_arxiv(query: str, K: int, cols: list[str] | None = None) -> pd.DataFrame:
+def _web_search_arxiv(query: str, K: int, cols: list[str] | None = None, sort_by_date=False) -> pd.DataFrame:
     try:
         import arxiv
     except ImportError:
@@ -80,7 +80,14 @@ def _web_search_arxiv(query: str, K: int, cols: list[str] | None = None) -> pd.D
         )
 
     client = arxiv.Client()
-    search = arxiv.Search(query=query, max_results=K, sort_by=arxiv.SortCriterion.Relevance)
+    if sort_by_date:
+        search = arxiv.Search(query=query, max_results=K, sort_by=arxiv.SortCriterion.SubmittedDate)
+        search = arxiv.Search(query=query, max_results=K, sort_by=arxiv.SortCriterion.Relevance)
+
+    else:
+        search = arxiv.Search(query=query, max_results=K, sort_by=arxiv.SortCriterion.Relevance)
+        search = arxiv.Search(query=query, max_results=K, sort_by=arxiv.SortCriterion.Relevance)
+
     default_cols = ["id", "title", "link", "abstract", "published", "authors", "categories"]
 
     articles = []
@@ -102,10 +109,12 @@ def _web_search_arxiv(query: str, K: int, cols: list[str] | None = None) -> pd.D
     return df
 
 
-def web_search(corpus: WebSearchCorpus, query: str, K: int, cols: list[str] | None = None) -> pd.DataFrame:
+def web_search(
+    corpus: WebSearchCorpus, query: str, K: int, cols: list[str] | None = None, sort_by_date=False
+) -> pd.DataFrame:
     if corpus == WebSearchCorpus.GOOGLE:
         return _web_search_google(query, K, cols=cols)
     elif corpus == WebSearchCorpus.ARXIV:
-        return _web_search_arxiv(query, K, cols=cols)
+        return _web_search_arxiv(query, K, cols=cols, sort_by_date=sort_by_date)
     elif corpus == WebSearchCorpus.GOOGLE_SCHOLAR:
         return _web_search_google(query, K, engine="google_scholar", cols=cols)
