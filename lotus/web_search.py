@@ -112,15 +112,11 @@ def _web_search_you(query: str, K: int, cols: list[str] | None = None) -> pd.Dat
         raise ValueError("YOU_API_KEY is not set. It is required to use You.com search.")
 
     url = "https://api.ydc-index.io/search"
-    # params = {"q": query, "count": K}
     params: dict[str, str] = {"q": str(query), "count": str(K)}
-    # params = {"q": query, "page": 1, "count": K}
     headers = {"X-API-Key": api_key}
 
-    response = requests.get(url, headers=headers, params=params)
-    if response.status_code != 200:
-        # print(f"You.com API Error: {response.text}")
-        raise ValueError(f"You.com API request failed: {response.status_code}")
+    with requests.get(url, headers=headers, params=params) as response:
+        response.raise_for_status()
 
     results = response.json().get("results", [])
     df = pd.DataFrame(results)
@@ -139,13 +135,10 @@ def _web_search_bing(query: str, K: int, cols: list[str] | None = None) -> pd.Da
 
     url = "https://api.bing.microsoft.com/v7.0/search"
     headers = {"Ocp-Apim-Subscription-Key": api_key}
-    # params = {"q": query, "count": K}
     params: dict[str, str] = {"q": str(query), "count": str(K)}
 
-    response = requests.get(url, headers=headers, params=params)
-    if response.status_code != 200:
-        # print(f"Bing API Error: {response.text}")
-        raise ValueError(f"Bing API request failed: {response.status_code}")
+    with requests.get(url, headers=headers, params=params) as response:
+        response.raise_for_status()
 
     results = response.json().get("webPages", {}).get("value", [])
     df = pd.DataFrame(results)
@@ -166,10 +159,8 @@ def _web_search_tavily(query: str, K: int, cols: list[str] | None = None) -> pd.
     params = {"query": query, "num_results": K, "api_key": api_key}
     headers = {"Authorization": f"Bearer {api_key}"}
 
-    response = requests.post(url, headers=headers, json=params)
-    if response.status_code != 200:
-        # print(f"Tavily API Error: {response.text}")
-        raise ValueError(f"Tavily API request failed: {response.status_code}")
+    with requests.post(url, headers=headers, json=params) as response:
+        response.raise_for_status()
 
     results = response.json().get("results", [])
     df = pd.DataFrame(results)
