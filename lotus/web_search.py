@@ -82,10 +82,7 @@ def _web_search_arxiv(query: str, K: int, cols: list[str] | None = None, sort_by
     client = arxiv.Client()
     if sort_by_date:
         search = arxiv.Search(query=query, max_results=K, sort_by=arxiv.SortCriterion.SubmittedDate)
-        search = arxiv.Search(query=query, max_results=K, sort_by=arxiv.SortCriterion.Relevance)
-
     else:
-        search = arxiv.Search(query=query, max_results=K, sort_by=arxiv.SortCriterion.Relevance)
         search = arxiv.Search(query=query, max_results=K, sort_by=arxiv.SortCriterion.Relevance)
 
     default_cols = ["id", "title", "link", "abstract", "published", "authors", "categories"]
