@@ -4,6 +4,9 @@ from enum import Enum
 
 import pandas as pd
 import requests  # type: ignore
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
 class WebSearchCorpus(Enum):
