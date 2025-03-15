@@ -56,6 +56,9 @@ file_extractor = [
 weaviate = [
     "weaviate-client",
 ]
+qdrant = [
+    "qdrant-client",
+]
 data_connectors = [
     "sqlalchemy",
     "boto3",
