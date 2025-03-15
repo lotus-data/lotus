@@ -9,22 +9,18 @@ from lotus.vector_store.vs import VS
 try:
     import weaviate
     from weaviate.classes.config import Configure, DataType, Property
-    from weaviate.classes.init import Auth
     from weaviate.classes.query import Filter, MetadataQuery
 except ImportError:
     weaviate = None
 
 
 class WeaviateVS(VS):
-    def __init__(self, vector_index_config=None, api_key: str | None = None, rest_url: str | None = None):
+    def __init__(self, client, vector_index_config=None):
         if weaviate is None:
             raise ImportError("Please install the weaviate client using `pip install lotus[weaviate]`")
 
         super().__init__()
-        self.client = weaviate.connect_to_weaviate_cloud(
-            cluster_url=rest_url,
-            auth_credentials=Auth.api_key(api_key),
-        )
+        self.client = client
 
         if vector_index_config is None:
             vector_index_config = Configure.VectorIndex.hnsw()
