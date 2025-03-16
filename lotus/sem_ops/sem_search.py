@@ -48,8 +48,8 @@ class SemSearchDataframe:
         if K is not None:
             # get retriever model and index
             rm = lotus.settings.rm
-            vs = lotus.settings.vs 
-            if rm is None or vs is None :
+            vs = lotus.settings.vs
+            if rm is None or vs is None:
                 raise ValueError(
                     "The retrieval model must be an instance of RM, and the vector store should be an instance of VS. Please configure a valid retrieval model and vector store using lotus.settings.configure()"
                 )
@@ -61,7 +61,7 @@ class SemSearchDataframe:
 
             df_idxs = self._obj.index
             cur_min = len(df_idxs)
-            K = min(K, cur_min)   
+            K = min(K, cur_min)
             search_K = K
             while True:
                 query_vectors = rm.convert_query_to_query_vector(query)

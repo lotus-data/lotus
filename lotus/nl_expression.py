@@ -8,7 +8,9 @@ def parse_cols(text: str) -> list[str]:
     matches = re.findall(pattern, text)
 
     if not matches:
-        raise ValueError("Language expression contains no parameterized columns. Please specify the name of the relevant data column(s) in brackets {} within your language expression.")
+        raise ValueError(
+            "Language expression contains no parameterized columns. Please specify the name of the relevant data column(s) in brackets {} within your language expression."
+        )
     return matches
 
 

@@ -114,7 +114,7 @@ There are 3 main model classes in LOTUS:
 # Feature Requests and Contributing
 If you have a feature request, we're happy to hear from you! Please open an issue.
 
-If you're interested in contributing, we'd be happy to coordinate on ongoing efforts! Please send an email to Liana (lianapat@stanford.edu) or reach out on our [slack](https://join.slack.com/t/lotus-fnm8919/shared_invite/zt-2tnq6948j-juGuSIR0__fsh~kUmZ6TJw). 
+If you're interested in contributing, we'd be happy to coordinate on ongoing efforts! Please send an email to Liana (lianapat@stanford.edu) or reach out on our [slack](https://join.slack.com/t/lotus-fnm8919/shared_invite/zt-319k232lx-nEcLF~5w274dcQLmw2Wqyg). 
 
 # References
 For recent updates related to LOTUS, follow [@lianapatel_](https://x.com/lianapatel_) on X.

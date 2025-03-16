@@ -52,13 +52,13 @@ class SemSimJoinDataframe:
                 raise ValueError("Other Series must have a name")
             other = pd.DataFrame({other.name: other})
 
-        rm = lotus.settings.rm 
+        rm = lotus.settings.rm
         vs = lotus.settings.vs
         if not isinstance(rm, RM) or not isinstance(vs, VS):
             raise ValueError(
                 "The retrieval model must be an instance of RM, and the vector store must be an instance of VS. Please configure a valid retrieval model or vector store using lotus.settings.configure()"
             )
-        
+
         # load query embeddings from index if they exist
         if left_on in self._obj.attrs.get("index_dirs", []):
             query_index_dir = self._obj.attrs["index_dirs"][left_on]

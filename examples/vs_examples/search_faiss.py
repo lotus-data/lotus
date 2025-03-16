@@ -1,15 +1,13 @@
 import pandas as pd
 
 import lotus
-from lotus.models import LM, CrossEncoderReranker, SentenceTransformersRM
+from lotus.models import SentenceTransformersRM
 from lotus.vector_store import FaissVS
 
-lm = LM(model="gpt-4o-mini")
 rm = SentenceTransformersRM(model="intfloat/e5-base-v2")
-reranker = CrossEncoderReranker(model="mixedbread-ai/mxbai-rerank-large-v1")
 vs = FaissVS()
 
-lotus.settings.configure(lm=lm, rm=rm, reranker=reranker, vs=vs)
+lotus.settings.configure(rm=rm, vs=vs)
 data = {
     "Course Name": [
         "Probability and Random Processes",
@@ -32,8 +30,7 @@ df = pd.DataFrame(data)
 
 df = df.sem_index("Course Name", "index_dir").sem_search(
     "Course Name",
-    "Which course name is most related to computer security?",
+    "Which course name is most related to machine learning?",
     K=8,
-    n_rerank=4,
 )
 print(df)
