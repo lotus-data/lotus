@@ -137,12 +137,12 @@ class CascadeArgs(BaseModel):
     proxy_model: ProxyModel = ProxyModel.HELPER_LM
 
     # Filter cascade args
-    cascade_IS_weight: float = 0.5
+    cascade_IS_weight: float = 0.9
     cascade_num_calibration_quantiles: int = 50
 
     # Join cascade args
     min_join_cascade_size: int = 100
-    cascade_IS_max_sample_range: int = 100
+    cascade_IS_max_sample_range: int = 250
     cascade_IS_random_seed: int | None = None
 
     # to enable pandas
