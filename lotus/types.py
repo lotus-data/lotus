@@ -142,7 +142,7 @@ class CascadeArgs(BaseModel):
 
     # Join cascade args
     min_join_cascade_size: int = 100
-    cascade_IS_max_sample_range: int = 250
+    cascade_IS_max_sample_range: int = 200
     cascade_IS_random_seed: int | None = None
 
     # to enable pandas
