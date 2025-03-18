@@ -1,5 +1,4 @@
 import json
-from typing import Callable, Tuple
 
 import lotus
 from lotus.types import (
@@ -7,6 +6,7 @@ from lotus.types import (
     SemanticFilterPostprocessOutput,
     SemanticMapPostprocessOutput,
 )
+from lotus.utils import get_model_name
 
 
 def cot_postprocessor(llm_answers: list[str]):
@@ -110,8 +110,8 @@ def map_postprocess_cot(llm_answers: list[str]) -> SemanticMapPostprocessOutput:
 
 def map_postprocess(
     llm_answers: list[str],
+    model: lotus.models.LM,
     cot_reasoning: bool = False,
-    reasoning_parser: Callable[[list[str], bool], Tuple] | None = None,
 ) -> SemanticMapPostprocessOutput:
     """
     Postprocess the output of the map operator.
@@ -124,14 +124,14 @@ def map_postprocess(
     Returns:
         SemanticMapPostprocessOutput
     """
-    if cot_reasoning:
-        return map_postprocess_cot(llm_answers)
 
-    if reasoning_parser == deepseek_cot_postprocessor:
+    if get_model_name(model) == "deepseek-r1" and cot_reasoning:
         deepseek_outputs, deepseek_explanations = deepseek_cot_postprocessor(llm_answers)
         return SemanticMapPostprocessOutput(
             raw_outputs=llm_answers, outputs=deepseek_outputs, explanations=deepseek_explanations
         )
+    elif cot_reasoning:
+        return map_postprocess_cot(llm_answers)
 
     outputs: list[str] = llm_answers
     explanations: list[str | None] = [None] * len(llm_answers)
@@ -172,8 +172,8 @@ def extract_postprocess(llm_answers: list[str], cot_reasoning: bool = False) -> 
 
 def filter_postprocess(
     llm_answers: list[str],
+    model: lotus.models.LM,
     default: bool = True,
-    reasoning_parser: Callable[[list[str], bool], Tuple] | None = None,
 ) -> SemanticFilterPostprocessOutput:
     """
     Postprocess the output of the filter operator.
@@ -201,7 +201,7 @@ def filter_postprocess(
             lotus.logger.info(f"\t Failed to parse {answer}: defaulting to {default}")
             return default
 
-    if reasoning_parser == deepseek_cot_postprocessor:
+    if get_model_name(model) == "deepseek-r1":
         deepseek_outputs, deepseek_explanations = deepseek_cot_postprocessor(llm_answers)
 
         outputs = [process_outputs(answer) for answer in deepseek_outputs]

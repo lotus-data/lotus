@@ -40,7 +40,7 @@ def cluster(col_name: str, ncentroids: int) -> Callable[[pd.DataFrame, int, bool
 
         # get rmodel and index
         rm = lotus.settings.rm
-        vs = lotus.settings.vs 
+        vs = lotus.settings.vs
         if rm is None or vs is None:
             raise ValueError(
                 "The retrieval model must be an instance of RM, and the vector store must be an instance of VS. Please configure a valid retrieval model using lotus.settings.configure()"
@@ -132,3 +132,21 @@ def show_safe_mode(estimated_cost, estimated_LM_calls):
     except KeyboardInterrupt:
         print("\nExecution cancelled by user")
         exit(0)
+
+
+def get_model_name(model: "lotus.models.LM") -> str:
+    raw_model = getattr(model, "model", "")
+    if not raw_model:
+        return ""
+
+    # If a slash is present, assume the model name is after the last slash.
+    if "/" in raw_model:
+        candidate = raw_model.split("/")[-1]
+    else:
+        candidate = raw_model
+
+    # If a colon is present, assume the model version is appended and remove it.
+    if ":" in candidate:
+        candidate = candidate.split(":")[0]
+
+    return candidate.lower()

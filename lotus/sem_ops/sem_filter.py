@@ -1,4 +1,4 @@
-from typing import Any, Callable, Tuple
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -11,7 +11,7 @@ from lotus.types import CascadeArgs, LMOutput, LogprobsForFilterCascade, ProxyMo
 from lotus.utils import show_safe_mode
 
 from .cascade_utils import calibrate_llm_logprobs, importance_sampling, learn_cascade_thresholds
-from .postprocessors import deepseek_cot_postprocessor, filter_postprocess
+from .postprocessors import filter_postprocess
 
 
 def sem_filter(
@@ -28,7 +28,6 @@ def sem_filter(
     show_progress_bar: bool = True,
     progress_bar_desc: str = "Filtering",
     additional_cot_instructions: str = "",
-    reasoning_parser: Callable[[list[str], bool], Tuple] | None = None,
 ) -> SemanticFilterOutput:
     """
     Filters a list of documents based on a given user instruction using a language model.
@@ -49,26 +48,16 @@ def sem_filter(
     """
     inputs = []
     for doc in docs:
-        if reasoning_parser == deepseek_cot_postprocessor:
-            prompt = lotus.templates.task_instructions.deepseek_filter_formatter(
-                doc,
-                user_instruction,
-                examples_multimodal_data,
-                examples_answers,
-                cot_reasoning,
-                strategy,
-                reasoning_instructions=additional_cot_instructions,
-            )
-        else:
-            prompt = lotus.templates.task_instructions.filter_formatter(
-                doc,
-                user_instruction,
-                examples_multimodal_data,
-                examples_answers,
-                cot_reasoning,
-                strategy,
-                reasoning_instructions=additional_cot_instructions,
-            )
+        prompt = lotus.templates.task_instructions.filter_formatter(
+            model,
+            doc,
+            user_instruction,
+            examples_multimodal_data,
+            examples_answers,
+            cot_reasoning,
+            strategy,
+            reasoning_instructions=additional_cot_instructions,
+        )
         lotus.logger.debug(f"input to model: {prompt}")
         inputs.append(prompt)
     kwargs: dict[str, Any] = {"logprobs": logprobs}
@@ -82,7 +71,7 @@ def sem_filter(
         inputs, show_progress_bar=show_progress_bar, progress_bar_desc=progress_bar_desc, **kwargs
     )
 
-    postprocess_output = filter_postprocess(lm_output.outputs, default, deepseek_cot_postprocessor)
+    postprocess_output = filter_postprocess(lm_output.outputs, model, default)
     lotus.logger.debug(f"outputs: {postprocess_output.outputs}")
     lotus.logger.debug(f"raw_outputs: {postprocess_output.raw_outputs}")
     lotus.logger.debug(f"explanations: {postprocess_output.explanations}")
@@ -111,7 +100,6 @@ def learn_filter_cascade_thresholds(
     cot_reasoning: list[str] | None = None,
     strategy: str | None = None,
     additional_cot_instructions: str = "",
-    reasoning_parser: Callable[[list[str], bool], Tuple] | None = None,
 ) -> tuple[float, float]:
     """Automatically learns the cascade thresholds for a cascade
     filter given a sample of data and doing a search across threshold
@@ -130,7 +118,6 @@ def learn_filter_cascade_thresholds(
             safe_mode=False,
             progress_bar_desc="Running oracle for threshold learning",
             additional_cot_instructions=additional_cot_instructions,
-            reasoning_parser=reasoning_parser,
         ).outputs
 
         best_combination, _ = learn_cascade_thresholds(
@@ -179,7 +166,6 @@ class SemFilterDataframe:
         safe_mode: bool = False,
         progress_bar_desc: str = "Filtering",
         additional_cot_instructions: str = "",
-        reasoning_parser: Callable[[list[str], bool], Tuple] | None = None,
     ) -> pd.DataFrame | tuple[pd.DataFrame, dict[str, Any]]:
         """
         Applies semantic filter over a dataframe.
@@ -280,7 +266,6 @@ class SemFilterDataframe:
                     safe_mode=safe_mode,
                     show_progress_bar=True,
                     progress_bar_desc="Running helper LM",
-                    reasoning_parser=reasoning_parser,
                 )
                 _, helper_logprobs = helper_output.outputs, helper_output.logprobs
                 assert helper_logprobs is not None
@@ -375,7 +360,6 @@ class SemFilterDataframe:
                     safe_mode=safe_mode,
                     progress_bar_desc="Running predicate evals with oracle LM",
                     additional_cot_instructions=additional_cot_instructions,
-                    reasoning_parser=reasoning_parser,
                 )
 
                 for idx, large_idx in enumerate(low_conf_idxs):
@@ -400,7 +384,6 @@ class SemFilterDataframe:
                 show_progress_bar=True,
                 progress_bar_desc=progress_bar_desc,
                 additional_cot_instructions=additional_cot_instructions,
-                reasoning_parser=reasoning_parser,
             )
             outputs = output.outputs
             raw_outputs = output.raw_outputs

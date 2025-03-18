@@ -6,6 +6,7 @@ import pandas as pd
 import lotus
 from lotus.dtype_extensions import ImageDtype
 from lotus.types import SerializationFormat
+from lotus.utils import get_model_name
 
 
 def cot_formatter(reasoning, answer):
@@ -14,6 +15,11 @@ def cot_formatter(reasoning, answer):
 
 def answer_only_formatter(answer):
     return f"""Answer: {answer}"""
+
+
+def deepseek_cot_formatter():
+    return """Please think through your reasoning step by step, then provide your final answer.
+    You must put your reasoning inside the <think></think> tags, then provide your final answer after the </think> tag with the format: Answer: your answer."""
 
 
 def cot_prompt_formatter(reasoning_instructions: str = "", answer_instructions: str = "") -> str:
@@ -78,61 +84,8 @@ def user_message_formatter(
     }
 
 
-def deepseek_filter_formatter(
-    multimodal_data: dict[str, Any],
-    user_instruction: str,
-    examples_multimodal_data: list[dict[str, Any]] | None = None,
-    examples_answer: list[bool] | None = None,
-    cot_reasoning: list[str] | None = None,
-    strategy: str | None = None,
-    reasoning_instructions: str = "",
-) -> list[dict[str, str]]:
-    sys_instruction = """The user will provide a claim and some relevant context.
-    Your job is to determine whether the claim is true for the given context.
-    Please tink through your reasoning step by step, then provide your final answer.
-    
-    You must put your reasoning inside the <think></think> tags, then provide your final answer after the </think> tag with the format: Answer: your answer."""
-
-    messages = [
-        {"role": "system", "content": sys_instruction},
-    ]
-
-    if examples_multimodal_data:
-        assert examples_answer is not None
-        assert isinstance(examples_multimodal_data, list) and isinstance(examples_answer, list)
-        assert len(examples_multimodal_data) == len(examples_answer)
-
-        if cot_reasoning:
-            # users don't have to provide cot reasoning examples
-            # but if they do, the number of examples must match
-            assert isinstance(cot_reasoning, list)
-            assert len(examples_multimodal_data) == len(examples_answer) == len(cot_reasoning)
-
-        for idx in range(len(examples_multimodal_data)):
-            ex_multimodal_data = examples_multimodal_data[idx]
-            ex_ans = examples_answer[idx]
-
-            # Format the example response for DeepSeek
-            if cot_reasoning:
-                example_content = f"<think>{cot_reasoning[idx]}</think>\nAnswer: {str(ex_ans)}"
-            else:
-                example_content = f"<think>Reasoning omitted</think>\nAnswer: {str(ex_ans)}"
-
-            messages.extend(
-                [
-                    user_message_formatter(ex_multimodal_data, f"Claim: {user_instruction}"),
-                    {
-                        "role": "assistant",
-                        "content": example_content,
-                    },
-                ]
-            )
-
-    messages.append(user_message_formatter(multimodal_data, f"Claim: {user_instruction}"))
-    return messages
-
-
 def filter_formatter(
+    model: lotus.models.LM,
     multimodal_data: dict[str, Any],
     user_instruction: str,
     examples_multimodal_data: list[dict[str, Any]] | None = None,
@@ -151,6 +104,8 @@ def filter_formatter(
         sys_instruction += cot_prompt_formatter(
             reasoning_instructions=reasoning_instructions, answer_instructions=answer_instructions
         )
+    elif strategy == "zs-cot" and get_model_name(model) == "deepseek-r1":
+        sys_instruction += deepseek_cot_formatter()
     else:
         sys_instruction += non_cot_prompt_formatter(answer_instructions=answer_instructions)
 
@@ -248,7 +203,8 @@ def map_formatter_zs_cot(
     return messages
 
 
-def deepseek_map_formatter(
+def map_formatter(
+    model: lotus.models.LM,
     multimodal_data: dict[str, Any],
     user_instruction: str,
     examples_multimodal_data: list[dict[str, Any]] | None = None,
@@ -259,51 +215,17 @@ def deepseek_map_formatter(
     sys_instruction = (
         "The user will provide an instruction and some relevant context.\n"
         "Your job is to answer the user's instruction given the context."
-        "You must put your reasoning inside the <think></think> tags, then provide your final answer after the </think> tag with the format: Answer: your answer."
     )
-    messages = [
-        {"role": "system", "content": sys_instruction},
-    ]
-
-    if examples_multimodal_data and examples_answer:
-        for idx in range(len(examples_multimodal_data)):
-            example_data = examples_multimodal_data[idx]
-            example_answer = examples_answer[idx]
-
-            if cot_reasoning and idx < len(cot_reasoning):
-                example_content = f"<think>{cot_reasoning[idx]}</think>\n: {example_answer}"
-
-            messages.extend(
-                [
-                    user_message_formatter(example_data, f"Instruction: {user_instruction}"),
-                    {"role": "assistant", "content": example_content},
-                ]
-            )
-
-    messages.append(user_message_formatter(multimodal_data, f"Instruction: {user_instruction}"))
-    return messages
-
-
-def map_formatter(
-    multimodal_data: dict[str, Any],
-    user_instruction: str,
-    examples_multimodal_data: list[dict[str, Any]] | None = None,
-    examples_answer: list[str] | None = None,
-    cot_reasoning: list[str] | None = None,
-    strategy: str | None = None,
-) -> list[dict[str, str]]:
     if cot_reasoning:
         assert examples_multimodal_data is not None and examples_answer is not None
         return map_formatter_cot(
             multimodal_data, user_instruction, examples_multimodal_data, examples_answer, cot_reasoning
         )
+    elif strategy == "zs-cot" and get_model_name(model) == "deepseek-r1":
+        sys_instruction += deepseek_cot_formatter()
     elif strategy == "zs-cot":
         return map_formatter_zs_cot(multimodal_data, user_instruction)
 
-    sys_instruction = (
-        "The user will provide an instruction and some relevant context.\n"
-        "Your job is to answer the user's instruction given the context."
-    )
     messages = [
         {"role": "system", "content": sys_instruction},
     ]

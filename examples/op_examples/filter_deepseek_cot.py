@@ -2,7 +2,6 @@ import pandas as pd
 
 import lotus
 from lotus.models import LM
-from lotus.sem_ops.postprocessors import deepseek_cot_postprocessor
 
 lm = LM(model="ollama/deepseek-r1:7b")
 
@@ -19,7 +18,6 @@ data = {
 }
 df = pd.DataFrame(data)
 user_instruction = "{Reviews} are positive reviews"
-df = df.sem_filter(
-    user_instruction, return_explanations=True, return_all=True, reasoning_parser=deepseek_cot_postprocessor
-)
+df = df.sem_filter(user_instruction, return_explanations=True, return_all=True)
+
 print(df)
