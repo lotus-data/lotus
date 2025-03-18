@@ -5,7 +5,6 @@ import pytest
 
 import lotus
 from lotus.models import LM
-from lotus.sem_ops.postprocessors import deepseek_cot_postprocessor
 
 lotus.logger.setLevel("DEBUG")
 
@@ -27,9 +26,7 @@ def test_deepseek_filter_cot_basic():
     df = pd.DataFrame(data)
     user_instruction = "{Text} implies I have at least one apple"
 
-    filtered_df = df.sem_filter(
-        user_instruction, return_explanations=True, return_all=True, reasoning_parser=deepseek_cot_postprocessor
-    )
+    filtered_df = df.sem_filter(user_instruction, return_explanations=True, return_all=True)
 
     # Check that extra columns are present.
     assert "explanation_filter" in filtered_df.columns
@@ -53,7 +50,7 @@ def test_deepseek_map_cot_basic():
     data = {"Text": ["Paris is the capital of France", "Berlin is the capital of Germany"]}
     df = pd.DataFrame(data)
     user_instruction = "Extract the capital city from the sentence: {Text}"
-    result = df.sem_map(user_instruction, return_explanations=True, reasoning_parser=deepseek_cot_postprocessor)
+    result = df.sem_map(user_instruction, return_explanations=True, strategy="zs-cot")
 
     # Check that the mapping column and explanation column exist.
     assert "_map" in result.columns
@@ -95,7 +92,6 @@ def test_deepseek_filter_cot_fewshot():
         examples=examples,
         return_explanations=True,
         return_all=True,
-        reasoning_parser=deepseek_cot_postprocessor,
         strategy="cot",
     )
 
@@ -128,7 +124,6 @@ def test_deepseek_map_cot_fewshot():
         user_instruction,
         examples=examples,
         return_explanations=True,
-        reasoning_parser=deepseek_cot_postprocessor,
         strategy="cot",
     )
 
