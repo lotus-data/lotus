@@ -6,6 +6,7 @@ import pandas as pd
 import lotus
 from lotus.dtype_extensions import ImageDtype
 from lotus.types import SerializationFormat
+from lotus.utils import get_model_name
 
 
 def cot_formatter(reasoning, answer):
@@ -14,6 +15,11 @@ def cot_formatter(reasoning, answer):
 
 def answer_only_formatter(answer):
     return f"""Answer: {answer}"""
+
+
+def deepseek_cot_formatter():
+    return """Please think through your reasoning step by step, then provide your final answer.
+    You must put your reasoning inside the <think></think> tags, then provide your final answer after the </think> tag with the format: Answer: your answer."""
 
 
 def cot_prompt_formatter(reasoning_instructions: str = "", answer_instructions: str = "") -> str:
@@ -79,6 +85,7 @@ def user_message_formatter(
 
 
 def filter_formatter(
+    model: lotus.models.LM,
     multimodal_data: dict[str, Any],
     user_instruction: str,
     examples_multimodal_data: list[dict[str, Any]] | None = None,
@@ -97,6 +104,8 @@ def filter_formatter(
         sys_instruction += cot_prompt_formatter(
             reasoning_instructions=reasoning_instructions, answer_instructions=answer_instructions
         )
+    elif strategy == "zs-cot" and get_model_name(model) == "deepseek-r1":
+        sys_instruction += deepseek_cot_formatter()
     else:
         sys_instruction += non_cot_prompt_formatter(answer_instructions=answer_instructions)
 
@@ -195,6 +204,7 @@ def map_formatter_zs_cot(
 
 
 def map_formatter(
+    model: lotus.models.LM,
     multimodal_data: dict[str, Any],
     user_instruction: str,
     examples_multimodal_data: list[dict[str, Any]] | None = None,
@@ -202,18 +212,20 @@ def map_formatter(
     cot_reasoning: list[str] | None = None,
     strategy: str | None = None,
 ) -> list[dict[str, str]]:
+    sys_instruction = (
+        "The user will provide an instruction and some relevant context.\n"
+        "Your job is to answer the user's instruction given the context."
+    )
     if cot_reasoning:
         assert examples_multimodal_data is not None and examples_answer is not None
         return map_formatter_cot(
             multimodal_data, user_instruction, examples_multimodal_data, examples_answer, cot_reasoning
         )
+    elif strategy == "zs-cot" and get_model_name(model) == "deepseek-r1":
+        sys_instruction += deepseek_cot_formatter()
     elif strategy == "zs-cot":
         return map_formatter_zs_cot(multimodal_data, user_instruction)
 
-    sys_instruction = (
-        "The user will provide an instruction and some relevant context.\n"
-        "Your job is to answer the user's instruction given the context."
-    )
     messages = [
         {"role": "system", "content": sys_instruction},
     ]
@@ -229,6 +241,37 @@ def map_formatter(
             )
 
     messages.append(user_message_formatter(multimodal_data, f"Instruction: {user_instruction}"))
+    return messages
+
+
+def deepseek_extract_cot_formatter(
+    multimodal_data: dict[str, Any], output_cols: dict[str, str | None], extract_quotes: bool = True
+) -> list[dict[str, str]]:
+    output_col_names = list(output_cols.keys())
+    output_cols_with_desc = {col: col if desc is None else desc for col, desc in output_cols.items()}
+
+    all_fields = output_col_names
+    if extract_quotes:
+        quote_fields = [f"{col}_quote" for col in output_col_names]
+        all_fields += quote_fields
+
+    fields_str = ", ".join(all_fields)
+
+    sys_instruction = (
+        "The user will provide the columns that need to be extracted and some relevant context.\n"
+        "Your task is to extract specific information into a JSON object.\n\n"
+        "Step 1: Analyze the context and provide your reasoning enclosed in <think> and </think> tags. "
+        "This reasoning should explain how you identified each field.\n\n"
+        "Step 2: After the </think> tag, output a JSON object that includes only the following fields: "
+        f"{fields_str}.\n\n"
+        f"Field Descriptions: {output_cols_with_desc}.\n"
+        "Ensure that the final output is valid JSON and does not include any extra text outside the JSON.\n"
+    )
+
+    messages = [
+        {"role": "system", "content": sys_instruction},
+        user_message_formatter(multimodal_data, "Extract the rquired fields"),
+    ]
     return messages
 
 

@@ -49,6 +49,7 @@ def sem_filter(
     inputs = []
     for doc in docs:
         prompt = lotus.templates.task_instructions.filter_formatter(
+            model,
             doc,
             user_instruction,
             examples_multimodal_data,
@@ -70,7 +71,7 @@ def sem_filter(
         inputs, show_progress_bar=show_progress_bar, progress_bar_desc=progress_bar_desc, **kwargs
     )
 
-    postprocess_output = filter_postprocess(lm_output.outputs, default=default)
+    postprocess_output = filter_postprocess(lm_output.outputs, model, default)
     lotus.logger.debug(f"outputs: {postprocess_output.outputs}")
     lotus.logger.debug(f"raw_outputs: {postprocess_output.raw_outputs}")
     lotus.logger.debug(f"explanations: {postprocess_output.explanations}")

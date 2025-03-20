@@ -132,3 +132,21 @@ def show_safe_mode(estimated_cost, estimated_LM_calls):
     except KeyboardInterrupt:
         print("\nExecution cancelled by user")
         exit(0)
+
+
+def get_model_name(model: "lotus.models.LM") -> str:
+    raw_model = getattr(model, "model", "")
+    if not raw_model:
+        return ""
+
+    # If a slash is present, assume the model name is after the last slash.
+    if "/" in raw_model:
+        candidate = raw_model.split("/")[-1]
+    else:
+        candidate = raw_model
+
+    # If a colon is present, assume the model version is appended and remove it.
+    if ":" in candidate:
+        candidate = candidate.split(":")[0]
+
+    return candidate.lower()

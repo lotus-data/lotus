@@ -64,7 +64,13 @@ def sem_join(
         sample_docs = task_instructions.merge_multimodal_info([left_multimodal_data[0]], right_multimodal_data)
         estimated_tokens_per_call = model.count_tokens(
             lotus.templates.task_instructions.filter_formatter(
-                sample_docs[0], user_instruction, examples_multimodal_data, examples_answers, cot_reasoning, strategy
+                model,
+                sample_docs[0],
+                user_instruction,
+                examples_multimodal_data,
+                examples_answers,
+                cot_reasoning,
+                strategy,
             )
         )
         estimated_total_calls = len(l1) * len(l2)

@@ -15,7 +15,7 @@ def sem_map(
     docs: list[dict[str, Any]],
     model: lotus.models.LM,
     user_instruction: str,
-    postprocessor: Callable[[list[str], bool], SemanticMapPostprocessOutput] = map_postprocess,
+    postprocessor: Callable[[list[str], lotus.models.LM, bool], SemanticMapPostprocessOutput] = map_postprocess,
     examples_multimodal_data: list[dict[str, Any]] | None = None,
     examples_answers: list[str] | None = None,
     cot_reasoning: list[str] | None = None,
@@ -42,7 +42,7 @@ def sem_map(
     inputs = []
     for doc in docs:
         prompt = lotus.templates.task_instructions.map_formatter(
-            doc, user_instruction, examples_multimodal_data, examples_answers, cot_reasoning, strategy=strategy
+            model, doc, user_instruction, examples_multimodal_data, examples_answers, cot_reasoning, strategy=strategy
         )
         lotus.logger.debug(f"input to model: {prompt}")
         lotus.logger.debug(f"inputs content to model: {[x.get('content') for x in prompt]}")
@@ -58,7 +58,7 @@ def sem_map(
     lm_output: LMOutput = model(inputs, progress_bar_desc=progress_bar_desc)
 
     # post process results
-    postprocess_output = postprocessor(lm_output.outputs, strategy in ["cot", "zs-cot"])
+    postprocess_output = postprocessor(lm_output.outputs, model, strategy in ["cot", "zs-cot"])
     lotus.logger.debug(f"raw_outputs: {lm_output.outputs}")
     lotus.logger.debug(f"outputs: {postprocess_output.outputs}")
     lotus.logger.debug(f"explanations: {postprocess_output.explanations}")
@@ -89,7 +89,7 @@ class SemMapDataframe:
     def __call__(
         self,
         user_instruction: str,
-        postprocessor: Callable[[list[str], bool], SemanticMapPostprocessOutput] = map_postprocess,
+        postprocessor: Callable[[list[str], lotus.models.LM, bool], SemanticMapPostprocessOutput] = map_postprocess,
         return_explanations: bool = False,
         return_raw_outputs: bool = False,
         suffix: str = "_map",
