@@ -20,11 +20,41 @@ from lotus.sem_ops import (
     sem_dedup,
     sem_topk,
 )
+import sys
 from lotus.web_search import web_search, WebSearchCorpus
 from lotus.settings import settings  # type: ignore[attr-defined]
 
+LOG_FORMAT = "%(asctime)s [%(levelname)s] [%(process)d:%(threadName)s] %(name)s:%(funcName)s:%(lineno)d - %(message)s"
+DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 
-logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format=LOG_FORMAT,
+    datefmt=DATE_FORMAT,
+    stream=sys.stdout
+)
+
+# Small color-config for logging.
+class ColorFormatter(logging.Formatter):
+    COLORS = {
+        logging.DEBUG: "\033[36m",    # Cyan
+        logging.INFO: "\033[32m",     # Green
+        logging.WARNING: "\033[33m",  # Yellow
+        logging.ERROR: "\033[31m",    # Red
+        # Critical is unused... but kept here for completeness.
+        logging.CRITICAL: "\033[1;31m" # Bold Red
+    }
+    RESET = "\033[0m"
+    
+    def format(self, record):
+        color = self.COLORS.get(record.levelno, self.COLORS[logging.INFO])
+        formatter = logging.Formatter(f"{color}{LOG_FORMAT}{self.RESET}", datefmt=DATE_FORMAT)
+        return formatter.format(record)
+
+for handler in logging.root.handlers:
+    handler.setFormatter(ColorFormatter())
+
+# In the future, consider loguru, but requires a wider refactor.
 logger = logging.getLogger(__name__)
 
 __all__ = [
