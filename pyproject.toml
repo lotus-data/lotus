@@ -61,6 +61,11 @@ data_connectors = [
     "boto3",
     "io",
 ]
+web_search = [
+    "requests",
+    "azure-cognitiveservices-search-websearch",
+    "tavily-python"
+]
 
 
 [tool.ruff]
