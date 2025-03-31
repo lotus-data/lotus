@@ -6,7 +6,7 @@ from tqdm import tqdm
 import lotus
 from lotus.cache import operator_cache
 from lotus.templates import task_instructions
-from lotus.types import CascadeArgs, SemanticJoinOutput
+from lotus.types import CascadeArgs, ReasoningStrategy, SemanticJoinOutput
 from lotus.utils import show_safe_mode
 
 from .cascade_utils import calibrate_sem_sim_join, importance_sampling, learn_cascade_thresholds
@@ -26,7 +26,7 @@ def sem_join(
     examples_answers: list[bool] | None = None,
     cot_reasoning: list[str] | None = None,
     default: bool = True,
-    strategy: str | None = None,
+    strategy: ReasoningStrategy | None = None,
     safe_mode: bool = False,
     show_progress_bar: bool = True,
     progress_bar_desc: str = "Join comparisons",
@@ -152,7 +152,7 @@ def sem_join_cascade(
     map_examples: pd.DataFrame | None = None,
     cot_reasoning: list[str] | None = None,
     default: bool = True,
-    strategy: str | None = None,
+    strategy: ReasoningStrategy | None = None,
     safe_mode: bool = False,
 ) -> SemanticJoinOutput:
     """
@@ -387,7 +387,7 @@ def join_optimizer(
     map_examples: pd.DataFrame | None = None,
     cot_reasoning: list[str] | None = None,
     default: bool = True,
-    strategy: str | None = None,
+    strategy: ReasoningStrategy | None = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame, int, int]:
     """
     Find most cost-effective join plan between Search-Filter and Map-Search-Filter
@@ -497,7 +497,7 @@ def learn_join_cascade_threshold(
     examples_answers: list[bool] | None = None,
     cot_reasoning: list[str] | None = None,
     default: bool = True,
-    strategy: str | None = None,
+    strategy: ReasoningStrategy | None = None,
 ) -> tuple[float, float, int]:
     """
     Extract a small sample of the data and find the optimal threshold pair that satisfies the recall and
@@ -584,7 +584,7 @@ class SemJoinDataframe:
         how: str = "inner",
         suffix: str = "_join",
         examples: pd.DataFrame | None = None,
-        strategy: str | None = None,
+        strategy: ReasoningStrategy | None = None,
         default: bool = True,
         cascade_args: CascadeArgs | None = None,
         return_stats: bool = False,
@@ -670,7 +670,7 @@ class SemJoinDataframe:
             examples_multimodal_data = task_instructions.df2multimodal_info(examples, [real_left_on, real_right_on])
             examples_answers = examples["Answer"].tolist()
 
-            if strategy == "cot":
+            if strategy == ReasoningStrategy.COT:
                 return_explanations = True
                 cot_reasoning = examples["Reasoning"].tolist()
 

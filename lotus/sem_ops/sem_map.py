@@ -6,7 +6,7 @@ import lotus
 from lotus.cache import operator_cache
 from lotus.templates import task_instructions
 from lotus.types import LMOutput, ReasoningStrategy, SemanticMapOutput, SemanticMapPostprocessOutput
-from lotus.utils import normalize_strategy, show_safe_mode
+from lotus.utils import show_safe_mode
 
 from .postprocessors import map_postprocess
 
@@ -19,7 +19,7 @@ def sem_map(
     examples_multimodal_data: list[dict[str, Any]] | None = None,
     examples_answers: list[str] | None = None,
     cot_reasoning: list[str] | None = None,
-    strategy: ReasoningStrategy | str | None = None,
+    strategy: ReasoningStrategy | None = None,
     safe_mode: bool = False,
     progress_bar_desc: str = "Mapping",
 ) -> SemanticMapOutput:
@@ -38,7 +38,6 @@ def sem_map(
     Returns:
         SemanticMapOutput: The outputs, raw outputs, and explanations.
     """
-    strategy = normalize_strategy(strategy)
 
     # prepare model inputs
     inputs = []
@@ -98,7 +97,7 @@ class SemMapDataframe:
         return_raw_outputs: bool = False,
         suffix: str = "_map",
         examples: pd.DataFrame | None = None,
-        strategy: ReasoningStrategy | str | None = None,
+        strategy: ReasoningStrategy | None = None,
         safe_mode: bool = False,
         progress_bar_desc: str = "Mapping",
     ) -> pd.DataFrame:
@@ -135,7 +134,6 @@ class SemMapDataframe:
         examples_multimodal_data = None
         examples_answers = None
         cot_reasoning = None
-        strategy = normalize_strategy(strategy)
 
         if examples is not None:
             assert "Answer" in examples.columns, "Answer must be a column in examples dataframe"

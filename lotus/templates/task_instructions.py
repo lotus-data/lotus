@@ -90,7 +90,7 @@ def filter_formatter(
     examples_multimodal_data: list[dict[str, Any]] | None = None,
     examples_answer: list[bool] | None = None,
     cot_reasoning: list[str] | None = None,
-    strategy: str | None = None,
+    strategy: ReasoningStrategy | None = None,
     reasoning_instructions: str = "",
 ) -> list[dict[str, str]]:
     answer_instructions = "The answer should be either True or False"
@@ -99,11 +99,11 @@ def filter_formatter(
     Your job is to determine whether the claim is true for the given context.
      """
 
-    if strategy == "cot":
+    if strategy == ReasoningStrategy.COT:
         sys_instruction += cot_prompt_formatter(
             reasoning_instructions=reasoning_instructions, answer_instructions=answer_instructions
         )
-    elif strategy == "zs-cot" and model.get_model_name() == "deepseek-r1":
+    elif strategy == ReasoningStrategy.ZS_COT and model.get_model_name() == "deepseek-r1":
         sys_instruction += deepseek_cot_formatter()
     else:
         sys_instruction += non_cot_prompt_formatter(answer_instructions=answer_instructions)

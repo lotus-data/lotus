@@ -7,7 +7,14 @@ from numpy.typing import NDArray
 import lotus
 from lotus.cache import operator_cache
 from lotus.templates import task_instructions
-from lotus.types import CascadeArgs, LMOutput, LogprobsForFilterCascade, ProxyModel, SemanticFilterOutput
+from lotus.types import (
+    CascadeArgs,
+    LMOutput,
+    LogprobsForFilterCascade,
+    ProxyModel,
+    ReasoningStrategy,
+    SemanticFilterOutput,
+)
 from lotus.utils import show_safe_mode
 
 from .cascade_utils import calibrate_llm_logprobs, importance_sampling, learn_cascade_thresholds
@@ -22,7 +29,7 @@ def sem_filter(
     examples_multimodal_data: list[dict[str, Any]] | None = None,
     examples_answers: list[bool] | None = None,
     cot_reasoning: list[str] | None = None,
-    strategy: str | None = None,
+    strategy: ReasoningStrategy | None = None,
     logprobs: bool = False,
     safe_mode: bool = False,
     show_progress_bar: bool = True,
@@ -98,7 +105,7 @@ def learn_filter_cascade_thresholds(
     examples_multimodal_data: list[dict[str, Any]] | None = None,
     examples_answers: list[bool] | None = None,
     cot_reasoning: list[str] | None = None,
-    strategy: str | None = None,
+    strategy: ReasoningStrategy | None = None,
     additional_cot_instructions: str = "",
 ) -> tuple[float, float]:
     """Automatically learns the cascade thresholds for a cascade
@@ -160,7 +167,7 @@ class SemFilterDataframe:
         suffix: str = "_filter",
         examples: pd.DataFrame | None = None,
         helper_examples: pd.DataFrame | None = None,
-        strategy: str | None = None,
+        strategy: ReasoningStrategy | None = None,
         cascade_args: CascadeArgs | None = None,
         return_stats: bool = False,
         safe_mode: bool = False,
@@ -217,7 +224,7 @@ class SemFilterDataframe:
             examples_multimodal_data = task_instructions.df2multimodal_info(examples, col_li)
             examples_answers = examples["Answer"].tolist()
 
-            if strategy == "cot" and "Reasoning" in examples.columns:
+            if strategy == ReasoningStrategy.COT and "Reasoning" in examples.columns:
                 cot_reasoning = examples["Reasoning"].tolist()
 
         pos_cascade_threshold, neg_cascade_threshold = None, None
@@ -230,7 +237,7 @@ class SemFilterDataframe:
                 assert "Answer" in helper_examples.columns, "Answer must be a column in examples dataframe"
                 helper_examples_multimodal_data = task_instructions.df2multimodal_info(helper_examples, col_li)
                 helper_examples_answers = helper_examples["Answer"].tolist()
-                if helper_strategy == "cot" and "Reasoning" in helper_examples.columns:
+                if helper_strategy == ReasoningStrategy.COT and "Reasoning" in helper_examples.columns:
                     helper_cot_reasoning = helper_examples["Reasoning"].tolist()
 
         if cascade_args:
@@ -249,7 +256,7 @@ class SemFilterDataframe:
                 if not lotus.settings.helper_lm:
                     raise ValueError("Helper LM must be set in settings")
 
-                if helper_strategy == "cot":
+                if helper_strategy == ReasoningStrategy.COT:
                     raise ValueError("CoT not supported for helper models in cascades.")
 
                 # Run small LM and get logits

@@ -9,7 +9,6 @@ import requests  # type: ignore
 from PIL import Image
 
 import lotus
-from lotus.types import ReasoningStrategy
 
 
 def cluster(col_name: str, ncentroids: int) -> Callable[[pd.DataFrame, int, bool], list[int]]:
@@ -133,12 +132,3 @@ def show_safe_mode(estimated_cost, estimated_LM_calls):
     except KeyboardInterrupt:
         print("\nExecution cancelled by user")
         exit(0)
-
-
-def normalize_strategy(strategy: ReasoningStrategy | str | None) -> ReasoningStrategy | str | None:
-    if strategy is not None and isinstance(strategy, str):
-        if strategy.lower() == "cot":
-            return ReasoningStrategy.COT
-        elif strategy.lower() == "zs-cot":
-            return ReasoningStrategy.ZS_COT
-    return strategy
