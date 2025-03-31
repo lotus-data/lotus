@@ -97,3 +97,4 @@ You can monitor your usage with the ``print_total_usage`` method:
 
     # Reset stats if needed
     lm.reset_stats()
+

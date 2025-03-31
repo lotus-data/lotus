@@ -172,7 +172,7 @@ def _web_search_tavily(query: str, K: int, cols: list[str] | None = None) -> pd.
     results = response.json().get("results", [])
     df = pd.DataFrame(results)
 
-    default_cols = ["title", "url", "summary"]
+    default_cols = ["title", "url", "content"]
     columns_to_use = cols if cols is not None else default_cols
     df = df[[col for col in columns_to_use if col in df.columns]]
 
