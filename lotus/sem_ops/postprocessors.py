@@ -6,7 +6,6 @@ from lotus.types import (
     SemanticFilterPostprocessOutput,
     SemanticMapPostprocessOutput,
 )
-from lotus.utils import get_model_name
 
 
 def cot_postprocessor(llm_answers: list[str]):
@@ -119,13 +118,12 @@ def map_postprocess(
     Args:
         llm_answers (list[str]): The list of llm answers.
         cot_reasoning (bool): Whether there is CoT reasoning.
-        reasoning_parser (Callable[[list[str], bool], Tuple]): The function to parse the reasoning.
 
     Returns:
         SemanticMapPostprocessOutput
     """
 
-    if get_model_name(model) == "deepseek-r1" and cot_reasoning:
+    if model.get_model_name() == "deepseek-r1" and cot_reasoning:
         deepseek_outputs, deepseek_explanations = deepseek_cot_postprocessor(llm_answers)
         return SemanticMapPostprocessOutput(
             raw_outputs=llm_answers, outputs=deepseek_outputs, explanations=deepseek_explanations
@@ -138,7 +136,9 @@ def map_postprocess(
     return SemanticMapPostprocessOutput(raw_outputs=llm_answers, outputs=outputs, explanations=explanations)
 
 
-def extract_postprocess(llm_answers: list[str], cot_reasoning: bool = False) -> SemanticExtractPostprocessOutput:
+def extract_postprocess(
+    llm_answers: list[str], model: lotus.models.LM, cot_reasoning: bool = False
+) -> SemanticExtractPostprocessOutput:
     """
     Postprocess the output of the extract operator to extract the schema.
 
@@ -151,7 +151,7 @@ def extract_postprocess(llm_answers: list[str], cot_reasoning: bool = False) -> 
     extract_data = []
     explanations: list[str | None] = [None] * len(llm_answers)
 
-    if cot_reasoning:
+    if cot_reasoning and model.get_model_name() == "deepseek-r1":
         deepseek_outputs, deepseek_explanations = deepseek_cot_postprocessor(llm_answers, for_extract=True)
         return SemanticExtractPostprocessOutput(
             raw_outputs=llm_answers, outputs=deepseek_outputs, explanations=deepseek_explanations
@@ -201,7 +201,7 @@ def filter_postprocess(
             lotus.logger.info(f"\t Failed to parse {answer}: defaulting to {default}")
             return default
 
-    if get_model_name(model) == "deepseek-r1":
+    if model.get_model_name() == "deepseek-r1":
         deepseek_outputs, deepseek_explanations = deepseek_cot_postprocessor(llm_answers)
 
         outputs = [process_outputs(answer) for answer in deepseek_outputs]

@@ -5,8 +5,7 @@ import pandas as pd
 
 import lotus
 from lotus.dtype_extensions import ImageDtype
-from lotus.types import SerializationFormat
-from lotus.utils import get_model_name
+from lotus.types import ReasoningStrategy, SerializationFormat
 
 
 def cot_formatter(reasoning, answer):
@@ -104,7 +103,7 @@ def filter_formatter(
         sys_instruction += cot_prompt_formatter(
             reasoning_instructions=reasoning_instructions, answer_instructions=answer_instructions
         )
-    elif strategy == "zs-cot" and get_model_name(model) == "deepseek-r1":
+    elif strategy == "zs-cot" and model.get_model_name() == "deepseek-r1":
         sys_instruction += deepseek_cot_formatter()
     else:
         sys_instruction += non_cot_prompt_formatter(answer_instructions=answer_instructions)
@@ -210,7 +209,7 @@ def map_formatter(
     examples_multimodal_data: list[dict[str, Any]] | None = None,
     examples_answer: list[str] | None = None,
     cot_reasoning: list[str] | None = None,
-    strategy: str | None = None,
+    strategy: ReasoningStrategy | str | None = None,
 ) -> list[dict[str, str]]:
     sys_instruction = (
         "The user will provide an instruction and some relevant context.\n"
@@ -221,9 +220,9 @@ def map_formatter(
         return map_formatter_cot(
             multimodal_data, user_instruction, examples_multimodal_data, examples_answer, cot_reasoning
         )
-    elif strategy == "zs-cot" and get_model_name(model) == "deepseek-r1":
+    elif strategy == ReasoningStrategy.ZS_COT and model.get_model_name() == "deepseek-r1":
         sys_instruction += deepseek_cot_formatter()
-    elif strategy == "zs-cot":
+    elif strategy == ReasoningStrategy.ZS_COT:
         return map_formatter_zs_cot(multimodal_data, user_instruction)
 
     messages = [

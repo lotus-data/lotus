@@ -5,8 +5,8 @@ import pandas as pd
 import lotus
 from lotus.cache import operator_cache
 from lotus.templates import task_instructions
-from lotus.types import LMOutput, SemanticMapOutput, SemanticMapPostprocessOutput
-from lotus.utils import show_safe_mode
+from lotus.types import LMOutput, ReasoningStrategy, SemanticMapOutput, SemanticMapPostprocessOutput
+from lotus.utils import normalize_strategy, show_safe_mode
 
 from .postprocessors import map_postprocess
 
@@ -19,7 +19,7 @@ def sem_map(
     examples_multimodal_data: list[dict[str, Any]] | None = None,
     examples_answers: list[str] | None = None,
     cot_reasoning: list[str] | None = None,
-    strategy: str | None = None,
+    strategy: ReasoningStrategy | str | None = None,
     safe_mode: bool = False,
     progress_bar_desc: str = "Mapping",
 ) -> SemanticMapOutput:
@@ -38,6 +38,8 @@ def sem_map(
     Returns:
         SemanticMapOutput: The outputs, raw outputs, and explanations.
     """
+    strategy = normalize_strategy(strategy)
+
     # prepare model inputs
     inputs = []
     for doc in docs:
@@ -58,7 +60,9 @@ def sem_map(
     lm_output: LMOutput = model(inputs, progress_bar_desc=progress_bar_desc)
 
     # post process results
-    postprocess_output = postprocessor(lm_output.outputs, model, strategy in ["cot", "zs-cot"])
+    postprocess_output = postprocessor(
+        lm_output.outputs, model, strategy in [ReasoningStrategy.COT, ReasoningStrategy.ZS_COT]
+    )
     lotus.logger.debug(f"raw_outputs: {lm_output.outputs}")
     lotus.logger.debug(f"outputs: {postprocess_output.outputs}")
     lotus.logger.debug(f"explanations: {postprocess_output.explanations}")
@@ -94,7 +98,7 @@ class SemMapDataframe:
         return_raw_outputs: bool = False,
         suffix: str = "_map",
         examples: pd.DataFrame | None = None,
-        strategy: str | None = None,
+        strategy: ReasoningStrategy | str | None = None,
         safe_mode: bool = False,
         progress_bar_desc: str = "Mapping",
     ) -> pd.DataFrame:
@@ -131,12 +135,14 @@ class SemMapDataframe:
         examples_multimodal_data = None
         examples_answers = None
         cot_reasoning = None
+        strategy = normalize_strategy(strategy)
+
         if examples is not None:
             assert "Answer" in examples.columns, "Answer must be a column in examples dataframe"
             examples_multimodal_data = task_instructions.df2multimodal_info(examples, col_li)
             examples_answers = examples["Answer"].tolist()
 
-            if strategy == "cot":
+            if strategy == ReasoningStrategy.COT or strategy == ReasoningStrategy.ZS_COT:
                 return_explanations = True
                 cot_reasoning = examples["Reasoning"].tolist()
 

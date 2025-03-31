@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import Enum, auto
 from typing import Any
 
 import pandas as pd
@@ -210,3 +210,13 @@ class LotusUsageLimitException(LotusException):
     """Exception raised when the usage limit is exceeded."""
 
     pass
+
+
+################################################################################
+# Reasoning Strategy
+################################################################################
+class ReasoningStrategy(Enum):
+    DEFAULT = auto()
+    COT = auto()
+    ZS_COT = auto()
+    FEW_SHOT = auto()
