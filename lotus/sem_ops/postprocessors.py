@@ -1,4 +1,5 @@
 import json
+from typing import Callable
 
 import lotus
 from lotus.types import (
@@ -78,6 +79,33 @@ def deepseek_cot_postprocessor(llm_answers: list[str], for_extract: bool = False
     return outputs, explanations
 
 
+COT_POSTPROCESSORS = {
+    "deepseek-r1": deepseek_cot_postprocessor,
+    # Add more model-specific postprocessors here
+}
+
+
+def get_cot_postprocessor(model: lotus.models.LM, for_extract: bool = False) -> Callable:
+    """
+    Returns the appropriate CoT postprocessor for the given model.
+    Falls back to standard postprocessor if no specific one is defined.
+
+    Args:
+        model (lotus.models.LM): The language model.
+        for_extract (bool): Whether to process for extraction (convert to JSON).
+
+    Returns:
+        Callable: The appropriate postprocessor function.
+    """
+    model_name = model.get_model_name()
+
+    if model_name in COT_POSTPROCESSORS:
+        base_processor = COT_POSTPROCESSORS[model_name]
+        return lambda llm_answers: base_processor(llm_answers, for_extract=for_extract)
+
+    return cot_postprocessor
+
+
 def map_postprocess_cot(llm_answers: list[str]) -> SemanticMapPostprocessOutput:
     """
     Postprocess the output of the map operator with CoT reasoning.
@@ -123,16 +151,13 @@ def map_postprocess(
         SemanticMapPostprocessOutput
     """
 
-    if model.get_model_name() == "deepseek-r1" and cot_reasoning:
-        deepseek_outputs, deepseek_explanations = deepseek_cot_postprocessor(llm_answers)
-        return SemanticMapPostprocessOutput(
-            raw_outputs=llm_answers, outputs=deepseek_outputs, explanations=deepseek_explanations
-        )
-    elif cot_reasoning:
-        return map_postprocess_cot(llm_answers)
+    if cot_reasoning:
+        postprocessor = get_cot_postprocessor(model)
+        outputs, explanations = postprocessor(llm_answers)
+    else:
+        outputs = llm_answers
+        explanations = [None] * len(llm_answers)
 
-    outputs: list[str] = llm_answers
-    explanations: list[str | None] = [None] * len(llm_answers)
     return SemanticMapPostprocessOutput(raw_outputs=llm_answers, outputs=outputs, explanations=explanations)
 
 
@@ -148,14 +173,13 @@ def extract_postprocess(
     Returns:
         SemanticExtractPostprocessOutput
     """
-    extract_data = []
-    explanations: list[str | None] = [None] * len(llm_answers)
 
-    if cot_reasoning and model.get_model_name() == "deepseek-r1":
-        deepseek_outputs, deepseek_explanations = deepseek_cot_postprocessor(llm_answers, for_extract=True)
-        return SemanticExtractPostprocessOutput(
-            raw_outputs=llm_answers, outputs=deepseek_outputs, explanations=deepseek_explanations
-        )
+    if cot_reasoning:
+        postprocessor = get_cot_postprocessor(model, for_extract=True)
+        extract_data, explanations = postprocessor(llm_answers)
+    else:
+        extract_data = []
+        explanations = [None] * len(llm_answers)
 
     for llm_answer in llm_answers:
         try:
@@ -201,18 +225,9 @@ def filter_postprocess(
             lotus.logger.info(f"\t Failed to parse {answer}: defaulting to {default}")
             return default
 
-    if model.get_model_name() == "deepseek-r1":
-        deepseek_outputs, deepseek_explanations = deepseek_cot_postprocessor(llm_answers)
+    postprocessor = get_cot_postprocessor(model)
+    outputs, explanations = postprocessor(llm_answers)
 
-        outputs = [process_outputs(answer) for answer in deepseek_outputs]
+    boolean_outputs = [process_outputs(answer) for answer in outputs]
 
-        return SemanticFilterPostprocessOutput(
-            raw_outputs=llm_answers, outputs=outputs, explanations=deepseek_explanations
-        )
-
-    else:
-        outputs, explanations = cot_postprocessor(llm_answers)
-
-        outputs = [process_outputs(answer) for answer in outputs]
-
-        return SemanticFilterPostprocessOutput(raw_outputs=llm_answers, outputs=outputs, explanations=explanations)
+    return SemanticFilterPostprocessOutput(raw_outputs=llm_answers, outputs=boolean_outputs, explanations=explanations)

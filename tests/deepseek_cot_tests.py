@@ -5,6 +5,7 @@ import pytest
 
 import lotus
 from lotus.models import LM
+from lotus.types import ReasoningStrategy
 
 lotus.logger.setLevel("DEBUG")
 
@@ -50,7 +51,7 @@ def test_deepseek_map_cot_basic():
     data = {"Text": ["Paris is the capital of France", "Berlin is the capital of Germany"]}
     df = pd.DataFrame(data)
     user_instruction = "Extract the capital city from the sentence: {Text}"
-    result = df.sem_map(user_instruction, return_explanations=True, strategy="zs-cot")
+    result = df.sem_map(user_instruction, return_explanations=True, strategy=ReasoningStrategy.ZS_COT)
 
     # Check that the mapping column and explanation column exist.
     assert "_map" in result.columns
@@ -92,7 +93,7 @@ def test_deepseek_filter_cot_fewshot():
         examples=examples,
         return_explanations=True,
         return_all=True,
-        strategy="cot",
+        strategy=ReasoningStrategy.COT,
     )
 
     # Expect that at least the row with "Sequence: 1, 2, 3" is marked positive.
@@ -124,7 +125,7 @@ def test_deepseek_map_cot_fewshot():
         user_instruction,
         examples=examples,
         return_explanations=True,
-        strategy="cot",
+        strategy=ReasoningStrategy.COT,
     )
 
     # Check that the new column "State" is added and that explanations are nonempty.
