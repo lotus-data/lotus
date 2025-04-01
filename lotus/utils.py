@@ -132,3 +132,23 @@ def show_safe_mode(estimated_cost, estimated_LM_calls):
     except KeyboardInterrupt:
         print("\nExecution cancelled by user")
         exit(0)
+
+
+def get_out_col_name(df: pd.DataFrame, col_name: str) -> str:
+    """
+    Gets a unique column name by appending an index if the column already exists.
+
+    Args:
+        df (pd.DataFrame): The DataFrame to check for existing columns.
+        col_name (str): The base column name.
+
+    Returns:
+        str: A unique column name.
+    """
+    if col_name in df.columns:
+        i = 1
+        while f"{col_name}_{i}" in df.columns:
+            i += 1
+        return f"{col_name}_{i}"
+    else:
+        return col_name

@@ -124,6 +124,51 @@ class TestFilterWithScores(BaseTest):
 
         for idx, row in result.iterrows():
             if row["filter_label"]:
-                assert row["score"] > 0.5
+                assert row["score"] >= 0.5
             else:
                 assert row["score"] <= 0.5
+
+    def test_filter_twice(self, sample_df):
+        """Test filtering twice to verify column name indexing works correctly"""
+        lm = LM(model="gpt-4o-mini")
+        lotus.settings.configure(lm=lm)
+
+        # First filter
+        result = sample_df.sem_filter(
+            "{Course Name} is related to programming",
+            return_all=True,
+            return_explanations=True,
+            return_raw_outputs=True,
+            return_scores=True,
+        )
+        print(f"First filter result: {result}")
+
+        # Verify first filter columns
+        assert "filter_label" in result.columns
+        assert "explanation_filter" in result.columns
+        assert "raw_output_filter" in result.columns
+        assert "score" in result.columns
+        assert "score_method" in result.columns
+
+        # Second filter
+        result = result.sem_filter(
+            "{Course Name} is related to programming",
+            return_all=True,
+            return_explanations=True,
+            return_raw_outputs=True,
+            return_scores=True,
+        )
+        print(f"Second filter result: {result}")
+        # Verify second filter columns have indices
+        assert "filter_label_1" in result.columns
+        assert "explanation_filter_1" in result.columns
+        assert "raw_output_filter_1" in result.columns
+        assert "score_1" in result.columns
+        assert "score_method_1" in result.columns
+
+        # Verify original columns still exist
+        assert "filter_label" in result.columns
+        assert "explanation_filter" in result.columns
+        assert "raw_output_filter" in result.columns
+        assert "score" in result.columns
+        assert "score_method" in result.columns

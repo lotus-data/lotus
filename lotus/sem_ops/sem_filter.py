@@ -8,7 +8,7 @@ import lotus
 from lotus.cache import operator_cache
 from lotus.templates import task_instructions
 from lotus.types import CascadeArgs, LMOutput, LogprobsForFilterCascade, ProxyModel, SemanticFilterOutput
-from lotus.utils import show_safe_mode
+from lotus.utils import get_out_col_name, show_safe_mode
 
 from .cascade_utils import calibrate_llm_logprobs, importance_sampling, learn_cascade_thresholds
 from .postprocessors import filter_postprocess
@@ -339,9 +339,9 @@ class SemFilterDataframe:
                 outputs[idx] = proxy_outputs[idx]
                 scores[idx] = proxy_scores[idx]
                 if proxy_model == ProxyModel.HELPER_LM:
-                    score_methods[idx] = "HELPER_LM"
+                    score_methods[idx] = "HELPER_LM_TOKEN_PROB"
                 else:
-                    score_methods[idx] = "EMBEDDING_MODEL"
+                    score_methods[idx] = "RM_SIM_SCORE"
 
             # If using helper LM, get raw outputs and explanations
             if proxy_model == ProxyModel.HELPER_LM:
@@ -382,7 +382,7 @@ class SemFilterDataframe:
                     explanations[large_idx] = large_output.explanations[idx]
                     if return_scores:
                         scores[large_idx] = large_probs[idx]
-                        score_methods[large_idx] = "LM"
+                        score_methods[large_idx] = "LM_TOKEN_PROB"
 
             stats["filters_resolved_by_helper_model"] += len(high_conf_idxs)
             stats["filters_resolved_by_large_model"] += len(low_conf_idxs)
@@ -411,7 +411,7 @@ class SemFilterDataframe:
                 assert output.logprobs is not None, "Logprobs must be returned if return_scores is True"
                 formatted_logprobs = lotus.settings.lm.format_logprobs_for_filter_cascade(output.logprobs)
                 scores = formatted_logprobs.true_probs
-                score_methods = ["LM"] * len(multimodal_data)
+                score_methods = ["LM_TOKEN_PROB"] * len(multimodal_data)
             else:
                 scores = [0.0] * len(multimodal_data)
                 score_methods = [""] * len(multimodal_data)
@@ -433,16 +433,6 @@ class SemFilterDataframe:
             new_df = self._obj.iloc[ids]
             new_df.attrs["index_dirs"] = self._obj.attrs.get("index_dirs", None)
         else:
-
-            def get_out_col_name(df, col_name):
-                if col_name in df.columns:
-                    i = 1
-                    while f"{col_name}_{i}" in new_df.columns:
-                        i += 1
-                    return f"{col_name}_{i}"
-                else:
-                    return col_name
-
             new_df = self._obj.copy()
             new_df[get_out_col_name(new_df, "filter_label")] = outputs
             filtered_explanations = explanations
@@ -452,16 +442,16 @@ class SemFilterDataframe:
 
         # return rows where output is True
         if return_explanations and return_raw_outputs:
-            new_df["explanation" + suffix] = filtered_explanations
-            new_df["raw_output" + suffix] = filtered_raw_outputs
+            new_df[get_out_col_name(new_df, "explanation" + suffix)] = filtered_explanations
+            new_df[get_out_col_name(new_df, "raw_output" + suffix)] = filtered_raw_outputs
         elif return_explanations:
-            new_df["explanation" + suffix] = filtered_explanations
+            new_df[get_out_col_name(new_df, "explanation" + suffix)] = filtered_explanations
         elif return_raw_outputs:
-            new_df["raw_output" + suffix] = filtered_raw_outputs
+            new_df[get_out_col_name(new_df, "raw_output" + suffix)] = filtered_raw_outputs
 
         if return_scores:
-            new_df["score"] = filtered_scores
-            new_df["score_method"] = filtered_score_methods
+            new_df[get_out_col_name(new_df, "score")] = filtered_scores
+            new_df[get_out_col_name(new_df, "score_method")] = filtered_score_methods
 
         if return_stats:
             return new_df, stats
