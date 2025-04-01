@@ -1,6 +1,8 @@
 import pandas as pd
 import pytest
 
+import lotus
+from lotus.models import LM
 from tests.base_test import BaseTest
 
 
@@ -99,3 +101,74 @@ class TestSearch(BaseTest):
         assert len(result["vec_scores_sim_score"]) == 2
         # Scores should be between 0 and 1
         assert all(0 <= score <= 1 for score in result["vec_scores_sim_score"])
+
+
+class TestFilterWithScores(BaseTest):
+    def test_filter_with_scores(self, sample_df):
+        """Test semantic filter with scores returned to the user"""
+        lm = LM(model="gpt-4o-mini")
+        lotus.settings.configure(lm=lm)
+        result = sample_df.sem_filter("{Course Name} will be fun", return_scores=True)
+        print(result)
+        assert "score" in result.columns
+        assert "score_method" in result.columns
+
+    def test_filter_with_scores_and_return_all(self, sample_df):
+        """Test semantic filter with scores returned to the user"""
+        lm = LM(model="gpt-4o-mini")
+        lotus.settings.configure(lm=lm)
+        result = sample_df.sem_filter("{Course Name} will be fun", return_scores=True, return_all=True)
+        print(result)
+        assert "score" in result.columns
+        assert "score_method" in result.columns
+
+        for idx, row in result.iterrows():
+            if row["filter_label"]:
+                assert row["score"] >= 0.5
+            else:
+                assert row["score"] <= 0.5
+
+    def test_filter_twice(self, sample_df):
+        """Test filtering twice to verify column name indexing works correctly"""
+        lm = LM(model="gpt-4o-mini")
+        lotus.settings.configure(lm=lm)
+
+        # First filter
+        result = sample_df.sem_filter(
+            "{Course Name} is related to programming",
+            return_all=True,
+            return_explanations=True,
+            return_raw_outputs=True,
+            return_scores=True,
+        )
+        print(f"First filter result: {result}")
+
+        # Verify first filter columns
+        assert "filter_label" in result.columns
+        assert "explanation_filter" in result.columns
+        assert "raw_output_filter" in result.columns
+        assert "score" in result.columns
+        assert "score_method" in result.columns
+
+        # Second filter
+        result = result.sem_filter(
+            "{Course Name} is related to programming",
+            return_all=True,
+            return_explanations=True,
+            return_raw_outputs=True,
+            return_scores=True,
+        )
+        print(f"Second filter result: {result}")
+        # Verify second filter columns have indices
+        assert "filter_label_1" in result.columns
+        assert "explanation_filter_1" in result.columns
+        assert "raw_output_filter_1" in result.columns
+        assert "score_1" in result.columns
+        assert "score_method_1" in result.columns
+
+        # Verify original columns still exist
+        assert "filter_label" in result.columns
+        assert "explanation_filter" in result.columns
+        assert "raw_output_filter" in result.columns
+        assert "score" in result.columns
+        assert "score_method" in result.columns
