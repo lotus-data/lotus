@@ -40,7 +40,7 @@ def cluster(col_name: str, ncentroids: int) -> Callable[[pd.DataFrame, int, bool
 
         # get rmodel and index
         rm = lotus.settings.rm
-        vs = lotus.settings.vs 
+        vs = lotus.settings.vs
         if rm is None or vs is None:
             raise ValueError(
                 "The retrieval model must be an instance of RM, and the vector store must be an instance of VS. Please configure a valid retrieval model using lotus.settings.configure()"

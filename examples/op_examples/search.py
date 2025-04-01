@@ -6,8 +6,8 @@ from lotus.vector_store import FaissVS
 
 lm = LM(model="gpt-4o-mini")
 rm = SentenceTransformersRM(model="intfloat/e5-base-v2")
-reranker = CrossEncoderReranker(model="mixeddbread-ai/mxbai-rerank-large-v1")
-vs = FaissVS() 
+reranker = CrossEncoderReranker(model="mixedbread-ai/mxbai-rerank-large-v1")
+vs = FaissVS()
 
 lotus.settings.configure(lm=lm, rm=rm, reranker=reranker, vs=vs)
 data = {

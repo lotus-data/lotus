@@ -2,139 +2,101 @@ name: Tests and Linting
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
   pull_request:
-    branches:
-      - main
+    branches: [main]
   workflow_dispatch:
 
+env:
+  PYTHON_VERSION: '3.10'
+  OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
 jobs:
-  ruff_lint:
-    name: Ruff Lint
+  lint-and-type-check:
+    name: Lint and Type Check
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
+          python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install ruff==0.7.2
+          pip install -r requirements-dev.txt
+          pip install -e .
 
       - name: Run ruff
         run: ruff check lotus/
 
-  mypy:
-    name: Type Check
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Cache pip dependencies
-        uses: actions/cache@v3
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install mypy==1.13.0
-          pip install -r requirements.txt
-          pip install -e .
-
       - name: Run mypy
         run: mypy lotus/
 
-  openai_lm_test:
-    name: OpenAI Language Model Tests
+  tests:
+    name: Run Tests
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        test-suite: [lm-openai, lm-ollama, rm, multimodality, utility_operators, cache]
+        include:
+          - test-suite: lm-openai
+            file: .github/tests/lm_tests.py
+            timeout: 10
+            requires-openai: true
+          - test-suite: lm-ollama
+            file: .github/tests/lm_tests.py
+            timeout: 10
+            requires-ollama: true
+          - test-suite: rm
+            file: .github/tests/rm_tests.py
+            timeout: 10
+            requires-openai: true
+          - test-suite: multimodality
+            file: .github/tests/multimodality_tests.py
+            timeout: 10
+            requires-openai: true
+          - test-suite: utility_operators
+            file: .github/tests/utility_operators_tests.py
+            timeout: 10
+            extra-deps: pymupdf llama-index docx2txt python-pptx python-magic
+          - test-suite: cache
+            file: .github/tests/cache_tests.py
+            timeout: 10
+            requires-ollama: true
+
+    timeout-minutes: ${{ matrix.timeout }}
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
-      - name: Cache pip dependencies
-        uses: actions/cache@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - uses: actions/cache@v3
         with:
           path: ~/.cache/pip
           key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
           restore-keys: |
             ${{ runner.os }}-pip-
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
           pip install -e .
-          pip install pytest
+          if [ "${{ matrix.extra-deps }}" != "" ]; then
+            pip install ${{ matrix.extra-deps }}
+          fi
 
-      - name: Set OpenAI API Key
-        run: echo "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" >> $GITHUB_ENV
-
-      - name: Run LM tests
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          ENABLE_OPENAI_TESTS: true
-        run: pytest .github/tests/lm_tests.py
-
-  ollama_lm_test:
-    name: Ollama Language Model Tests
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Cache pip dependencies
-        uses: actions/cache@v3
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install -e .
-          pip install pytest
-
-      - name: Start Ollama container
+      - name: Setup Ollama
+        if: ${{ matrix.requires-ollama }}
         run: |
           docker pull ollama/ollama:latest
           docker run -d -v ollama:/root/.ollama -p 11434:11434 --name ollama ollama/ollama
-          # Wait for Ollama server to be ready
-          timeout=30
+          timeout=120
           while ! curl -s http://localhost:11434/ >/dev/null; do
             if [ $timeout -le 0 ]; then
               echo "Timed out waiting for Ollama server"
@@ -144,120 +106,15 @@ jobs:
             sleep 1
             timeout=$((timeout - 1))
           done
-          docker exec $(docker ps -q) ollama run llama3.1
+          if [ "${{ matrix.test-suite }}" = "lm-ollama" ]; then
+            docker exec $(docker ps -q) ollama run llama3.1
+          elif [ "${{ matrix.test-suite }}" = "cache" ]; then
+            docker exec $(docker ps -q) ollama run llama3.2:3b
+          fi
 
-      - name: Run LM tests
+      - name: Run tests
         env:
-          ENABLE_OLLAMA_TESTS: true
-        run: pytest .github/tests/lm_tests.py
-
-
-  rm_test:
-    name: Retrieval Model Tests
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Cache pip dependencies
-        uses: actions/cache@v3
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install -e .
-          pip install pytest
-
-      - name: Set OpenAI API Key
-        run: echo "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" >> $GITHUB_ENV
-
-      - name: Run RM tests
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          ENABLE_OPENAI_TESTS: true
-          ENABLE_LOCAL_TESTS: true
-        run: pytest .github/tests/rm_tests.py
-
-  multimodal_test:
-    name: Multimodality Tests
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Cache pip dependencies
-        uses: actions/cache@v3
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install -e .
-          pip install pytest
-
-      - name: Set OpenAI API Key
-        run: echo "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" >> $GITHUB_ENV
-
-      - name: Run Multimodality tests
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          ENABLE_OPENAI_TESTS: true
-        run: pytest .github/tests/multimodality_tests.py      
-
-  utility_operators_test:
-    name: Utility Operator Tests
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Cache pip dependencies
-        uses: actions/cache@v3
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install -e .
-          pip install pymupdf
-          pip install pytest
-
-      - name: Run Utility Operator tests
-        run: pytest .github/tests/utility_operators_tests.py      
+          ENABLE_OLLAMA_TESTS: ${{ matrix.requires-ollama }}
+          ENABLE_OPENAI_TESTS: ${{ matrix.requires-openai }}
+          ENABLE_LOCAL_TESTS: ${{ matrix.test-suite == 'rm' }}
+        run: pytest ${{ matrix.file }}
