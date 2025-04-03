@@ -4,7 +4,7 @@ import lotus
 from lotus.models import LM
 from lotus.types import ReasoningStrategy
 
-lm = LM(model="ollama/deepseek-r1:7b")
+lm = LM(model="ollama/deepseek-r1:7b", temperature=0.5)
 
 lotus.settings.configure(lm=lm)
 data = {

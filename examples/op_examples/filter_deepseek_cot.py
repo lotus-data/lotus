@@ -3,7 +3,7 @@ import pandas as pd
 import lotus
 from lotus.models import LM
 
-lm = LM(model="ollama/deepseek-r1:7b")
+lm = LM(model="ollama/deepseek-r1:7b", temperature=0.5)
 
 lotus.settings.configure(lm=lm)
 

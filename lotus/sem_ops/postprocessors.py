@@ -98,10 +98,10 @@ def get_cot_postprocessor(model: lotus.models.LM, for_extract: bool = False) -> 
         Callable: The appropriate postprocessor function.
     """
     model_name = model.get_model_name()
-
-    if model_name in COT_POSTPROCESSORS:
-        base_processor = COT_POSTPROCESSORS[model_name]
-        return lambda llm_answers: base_processor(llm_answers, for_extract=for_extract)
+    for processor_key in COT_POSTPROCESSORS:
+        if model_name.startswith(processor_key):
+            base_processor = COT_POSTPROCESSORS[processor_key]
+            return lambda llm_answers: base_processor(llm_answers, for_extract=for_extract)
 
     return cot_postprocessor
 

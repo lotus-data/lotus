@@ -18,7 +18,8 @@ def answer_only_formatter(answer):
 
 def deepseek_cot_formatter():
     return """Please think through your reasoning step by step, then provide your final answer.
-    You must put your reasoning inside the <think></think> tags, then provide your final answer after the </think> tag with the format: Answer: your answer."""
+    You must put your reasoning inside the <think></think> tags, then provide your 
+    final answer after the </think> tag with the format: Answer: your answer."""
 
 
 def cot_prompt_formatter(reasoning_instructions: str = "", answer_instructions: str = "") -> str:
@@ -103,8 +104,6 @@ def filter_formatter(
         sys_instruction += cot_prompt_formatter(
             reasoning_instructions=reasoning_instructions, answer_instructions=answer_instructions
         )
-    elif strategy == ReasoningStrategy.ZS_COT and model.get_model_name() == "deepseek-r1":
-        sys_instruction += deepseek_cot_formatter()
     else:
         sys_instruction += non_cot_prompt_formatter(answer_instructions=answer_instructions)
 
@@ -146,8 +145,11 @@ def filter_formatter(
                     },
                 ]
             )
-
-    messages.append(user_message_formatter(multimodal_data, f"Claim: {user_instruction}"))
+    if strategy == ReasoningStrategy.ZS_COT and model.get_model_name().startswith("deepseek-r1"):
+        user_instruction = f"Claim: {user_instruction}\n\n{deepseek_cot_formatter()}"
+        messages.append(user_message_formatter(multimodal_data, user_instruction))
+    else:
+        messages.append(user_message_formatter(multimodal_data, f"Claim: {user_instruction}"))
     return messages
 
 
@@ -220,8 +222,6 @@ def map_formatter(
         return map_formatter_cot(
             multimodal_data, user_instruction, examples_multimodal_data, examples_answer, cot_reasoning
         )
-    elif strategy == ReasoningStrategy.ZS_COT and model.get_model_name() == "deepseek-r1":
-        sys_instruction += deepseek_cot_formatter()
     elif strategy == ReasoningStrategy.ZS_COT:
         return map_formatter_zs_cot(multimodal_data, user_instruction)
 
@@ -239,43 +239,20 @@ def map_formatter(
                 ]
             )
 
-    messages.append(user_message_formatter(multimodal_data, f"Instruction: {user_instruction}"))
-    return messages
-
-
-def deepseek_extract_cot_formatter(
-    multimodal_data: dict[str, Any], output_cols: dict[str, str | None], extract_quotes: bool = True
-) -> list[dict[str, str]]:
-    output_col_names = list(output_cols.keys())
-    output_cols_with_desc = {col: col if desc is None else desc for col, desc in output_cols.items()}
-
-    all_fields = output_col_names
-    if extract_quotes:
-        quote_fields = [f"{col}_quote" for col in output_col_names]
-        all_fields += quote_fields
-
-    fields_str = ", ".join(all_fields)
-
-    sys_instruction = (
-        "The user will provide the columns that need to be extracted and some relevant context.\n"
-        "Your task is to extract specific information into a JSON object.\n\n"
-        "Step 1: Analyze the context and provide your reasoning enclosed in <think> and </think> tags. "
-        "This reasoning should explain how you identified each field.\n\n"
-        "Step 2: After the </think> tag, output a JSON object that includes only the following fields: "
-        f"{fields_str}.\n\n"
-        f"Field Descriptions: {output_cols_with_desc}.\n"
-        "Ensure that the final output is valid JSON and does not include any extra text outside the JSON.\n"
-    )
-
-    messages = [
-        {"role": "system", "content": sys_instruction},
-        user_message_formatter(multimodal_data, "Extract the rquired fields"),
-    ]
+    if strategy == ReasoningStrategy.ZS_COT and model.get_model_name().startswith("deepseek-r1"):
+        user_intructions = f"Instruction: {user_instruction}\n\n{deepseek_cot_formatter()}"
+        messages.append(user_message_formatter(multimodal_data, user_intructions))
+    else:
+        messages.append(user_message_formatter(multimodal_data, f"Instruction: {user_instruction}"))
     return messages
 
 
 def extract_formatter(
-    multimodal_data: dict[str, Any], output_cols: dict[str, str | None], extract_quotes: bool = True
+    model: lotus.models.LM,
+    multimodal_data: dict[str, Any],
+    output_cols: dict[str, str | None],
+    extract_quotes: bool = True,
+    strategy: ReasoningStrategy | None = None,
 ) -> list[dict[str, str]]:
     output_col_names = list(output_cols.keys())
     # Set the description to be the key if no value is provided
@@ -300,6 +277,11 @@ def extract_formatter(
         {"role": "system", "content": sys_instruction},
         user_message_formatter(multimodal_data),
     ]
+
+    if strategy == ReasoningStrategy.ZS_COT and model.get_model_name().startswith("deepseek-r1"):
+        user_intructions = f"Instruction: {deepseek_cot_formatter()}"
+        messages.append(user_message_formatter(multimodal_data, user_intructions))
+
     return messages
 
 

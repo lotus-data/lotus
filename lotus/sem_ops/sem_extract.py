@@ -6,7 +6,7 @@ import lotus
 from lotus.cache import operator_cache
 from lotus.models import LM
 from lotus.templates import task_instructions
-from lotus.types import LMOutput, SemanticExtractOutput, SemanticExtractPostprocessOutput
+from lotus.types import LMOutput, ReasoningStrategy, SemanticExtractOutput, SemanticExtractPostprocessOutput
 from lotus.utils import show_safe_mode
 
 from .postprocessors import extract_postprocess
@@ -21,6 +21,7 @@ def sem_extract(
     safe_mode: bool = False,
     progress_bar_desc: str = "Extracting",
     return_explanations: bool = False,
+    strategy: ReasoningStrategy | None = None,
 ) -> SemanticExtractOutput:
     """
     Extracts attributes and values from a list of documents using a model.
@@ -38,10 +39,7 @@ def sem_extract(
     # prepare model inputs
     inputs = []
     for doc in docs:
-        if return_explanations and model.get_model_name() == "deepseek-r1":
-            prompt = task_instructions.deepseek_extract_cot_formatter(doc, output_cols, extract_quotes)
-        else:
-            prompt = task_instructions.extract_formatter(doc, output_cols, extract_quotes)
+        prompt = task_instructions.extract_formatter(model, doc, output_cols, extract_quotes, strategy)
         lotus.logger.debug(f"input to model: {prompt}")
         lotus.logger.debug(f"inputs content to model: {[x.get('content') for x in prompt]}")
         inputs.append(prompt)
@@ -94,6 +92,7 @@ class SemExtractDataFrame:
         safe_mode: bool = False,
         progress_bar_desc: str = "Extracting",
         return_explanations: bool = False,
+        strategy: ReasoningStrategy | None = None,
     ) -> pd.DataFrame:
         """
         Extracts the attributes and values of a dataframe.
@@ -129,6 +128,7 @@ class SemExtractDataFrame:
             safe_mode=safe_mode,
             progress_bar_desc=progress_bar_desc,
             return_explanations=return_explanations,
+            strategy=strategy,
         )
 
         new_df = self._obj.copy()
