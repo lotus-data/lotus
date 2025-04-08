@@ -1,5 +1,6 @@
 import hashlib
 import logging
+import warnings
 from typing import Any
 
 import litellm
@@ -194,7 +195,7 @@ class LM:
         except Exception as e:
             # Handle any other unexpected errors when calculating cost
             lotus.logger.debug(f"Unexpected error calculating completion cost: {e}")
-            raise Warning("Error calculating completion cost - cost metrics will be inaccurate. Enable debug logging for details.")
+            warnings.warn("Error calculating completion cost - cost metrics will be inaccurate. Enable debug logging for details.")
             cost = None
 
         # Always update virtual usage
