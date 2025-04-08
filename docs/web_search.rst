@@ -4,6 +4,7 @@ web_search
 Overview
 ---------
 The `web_search` function allows you to load documents from the web, then process that data with LOTUS.
+
 Different search engines are supported, including Google, Google Scholar, Arxiv, You.com, Bing and Tavily.
 
 Arxiv Example

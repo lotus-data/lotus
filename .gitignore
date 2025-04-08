@@ -9,3 +9,6 @@ docs/_build
 .pytest_cache
 .env
 .idea/
+
+test_env/
+

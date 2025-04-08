@@ -196,6 +196,7 @@ class LM:
             # Handle any other unexpected errors when calculating cost
             lotus.logger.debug(f"Unexpected error calculating completion cost: {e}")
             warnings.warn("Error calculating completion cost - cost metrics will be inaccurate. Enable debug logging for details.")
+
             cost = None
 
         # Always update virtual usage
