@@ -146,8 +146,10 @@ class SemAggDataframe:
 
     @staticmethod
     def process_group(args):
-        group, user_instruction, all_cols, suffix, progress_bar_desc = args
-        return group.sem_agg(user_instruction, all_cols, suffix, None, progress_bar_desc=progress_bar_desc)
+        group_name, group, user_instruction, all_cols, group_by, suffix, progress_bar_desc = args
+        result = group.sem_agg(user_instruction, all_cols, suffix, None, progress_bar_desc=progress_bar_desc)
+        result[group_by] = group_name
+        return result
 
     @operator_cache
     def __call__(
@@ -190,7 +192,10 @@ class SemAggDataframe:
 
         if group_by:
             grouped = self._obj.groupby(group_by)
-            group_args = [(group, user_instruction, all_cols, suffix, progress_bar_desc) for _, group in grouped]
+            group_args = [
+                (group_name, group, user_instruction, all_cols, group_by, suffix, progress_bar_desc)
+                for group_name, group in grouped
+            ]
             from concurrent.futures import ThreadPoolExecutor
 
             with ThreadPoolExecutor(max_workers=lotus.settings.parallel_groupby_max_threads) as executor:
