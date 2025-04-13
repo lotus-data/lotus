@@ -71,7 +71,7 @@ def test_filter_operation(setup_models, model):
 
 
 @pytest.mark.parametrize("model", get_enabled("gpt-4o-mini"))
-def test_top_k(setup_models, model):
+def test_topk(setup_models, model):
     lm = setup_models[model]
     lotus.settings.configure(lm=lm)
 
@@ -87,9 +87,9 @@ def test_top_k(setup_models, model):
     user_instruction = "Which {Text} is most related to basketball?"
     top_2_expected = set(["Michael Jordan is a good basketball player", "Steph Curry is a good basketball player"])
 
-    strategies = ["quick", "heap", "naive"]
-    for strategy in strategies:
-        sorted_df = df.sem_topk(user_instruction, K=2, strategy=strategy)
+    methods = ["quick", "heap", "naive"]
+    for method in methods:
+        sorted_df = df.sem_topk(user_instruction, K=2, method=method)
 
         top_2_actual = set(sorted_df["Text"].values)
         assert top_2_expected == top_2_actual
@@ -125,9 +125,9 @@ def test_group_by_with_topk(setup_models, model):
             "Department": ["Math", "Physics", "Computer Science", "Biology"],
         }
     )
-    strategies = ["quick", "heap", "naive"]
-    for strategy in strategies:
-        sorted_df = df.sem_topk(user_instruction, K=2, strategy=strategy)
+    methods = ["quick", "heap", "naive"]
+    for method in methods:
+        sorted_df = df.sem_topk(user_instruction, K=1, method=method, group_by=["Department"])
         assert len(sorted_df) == 4
         assert set(sorted_df["Department"].values) == set(expected_df["Department"].values)
         assert set(sorted_df["Course Name"].values) == set(expected_df["Course Name"].values)
