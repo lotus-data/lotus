@@ -41,7 +41,7 @@ If you are running on mac, please install Faiss via conda:
 
 ### CPU-only version
 ```
-conda install -c pytorch faiss-cpu=1.8.0
+conda install -c pytorch faiss-cpu=1.10.0
 ```
 
 ### GPU(+CPU) version
