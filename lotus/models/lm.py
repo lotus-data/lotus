@@ -8,7 +8,7 @@ import numpy as np
 from litellm import batch_completion, completion_cost
 from litellm.types.utils import ChatCompletionTokenLogprob, Choices, ModelResponse
 from litellm.utils import token_counter
-from openai import OpenAIError
+from openai._exceptions import OpenAIError
 from tokenizers import Tokenizer
 from tqdm import tqdm
 
@@ -195,7 +195,9 @@ class LM:
         except Exception as e:
             # Handle any other unexpected errors when calculating cost
             lotus.logger.debug(f"Unexpected error calculating completion cost: {e}")
-            warnings.warn("Error calculating completion cost - cost metrics will be inaccurate. Enable debug logging for details.")
+            warnings.warn(
+                "Error calculating completion cost - cost metrics will be inaccurate. Enable debug logging for details."
+            )
 
             cost = None
 

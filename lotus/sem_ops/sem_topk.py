@@ -131,7 +131,7 @@ def compare_batch_binary_cascade(
     high_conf_idxs = set()
     for idx, res in enumerate(results):
         parsed_res = parse_ans_binary(res)
-        parsed_results.append(parsed_res)
+        parsed_results.append(parsed_res[0])
         explanations[idx] = parsed_res[1]
 
         # Find where docunent number is said and look at confidence
@@ -156,11 +156,11 @@ def compare_batch_binary_cascade(
         for idx, res in enumerate(large_lm_results.outputs):
             new_idx = low_conf_idxs[idx]
             parsed_res = parse_ans_binary(res)
-            parsed_results[new_idx] = parsed_res
+            parsed_results[new_idx] = parsed_res[0]
             explanations[new_idx] = parsed_res[1]
 
         num_large_calls = len(low_conf_idxs)
-    return [r[0] for r in parsed_results], explanations, small_tokens, large_tokens, num_large_calls
+    return parsed_results, explanations, small_tokens, large_tokens, num_large_calls
 
 
 def llm_naive_sort(
