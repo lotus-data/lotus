@@ -1,4 +1,4 @@
-Efficient Processing with Approximations
+Optimized Processing with Approximations
 =======================
 
 Overview

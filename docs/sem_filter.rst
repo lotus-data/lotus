@@ -3,7 +3,7 @@ sem_filter
 
 Overview
 ---------
-sem_filter, which take a langex predicate, and returns data records that pass the predicate. 
+sem_filter take a langex predicate, and returns data records that pass the predicate. 
 
 Motivation
 -----------

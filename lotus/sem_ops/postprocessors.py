@@ -1,4 +1,5 @@
 import json
+from typing import Callable
 
 import lotus
 from lotus.types import (
@@ -10,7 +11,7 @@ from lotus.types import (
 
 def cot_postprocessor(llm_answers: list[str]):
     outputs: list[str] = []
-    explanations: list[str] = []
+    explanations: list[str] = ]
     for llm_answer in llm_answers:
         reasoning_idx = llm_answer.find("Reasoning:\n")
         if reasoning_idx == -1:
@@ -34,7 +35,84 @@ def cot_postprocessor(llm_answers: list[str]):
     return outputs, explanations
 
 
-def map_postprocess(llm_answers: list[str], default: str = "") -> SemanticMapPostprocessOutput:
+def deepseek_cot_postprocessor(llm_answers: list[str], for_extract: bool = False):
+    """
+    Postprocess outputs from DeepSeek models with CoT reasoning.
+
+    Args:
+        llm_answers (list[str]): The list of llm answers from DeepSeek.
+
+    Returns:
+        Tuple: (outputs, explanations)
+    """
+    outputs: list[str | None] = []
+    explanations: list[str | None] = []
+
+    for llm_answer in llm_answers:
+        think_start = llm_answer.find("<think>")
+        think_end = llm_answer.find("</think>")
+
+        answer_start = llm_answer.find("Answer:")
+
+        if think_start != -1 and think_end != -1:
+            # Extract the reasoning between the <think> tags
+            reasoning = llm_answer[think_start + len("<think>") : think_end].strip()
+            answer = llm_answer[answer_start + len("Answer:") :].strip()
+
+            answer = answer.strip()
+
+            # If ther is nothing after </think> tag, check if the answer is at the beginning
+            if not answer and think_start > 0:
+                answer = llm_answer[:think_start].strip()
+
+        else:
+            reasoning = ""
+            answer = llm_answer.strip()
+
+        explanations.append(reasoning)
+
+        if for_extract:
+            try:
+                json_obj = json.loads(llm_answer)
+            except json.JSONDecodeError:
+                lotus.logger.info(f"\t Failed to parse: {llm_answer}")
+                json_obj = {}
+            json_obj = {key: str(value) for key, value in json_obj.items()}
+            outputs.append(json_obj)
+        else:
+            outputs.append(answer)
+
+    return outputs, explanations
+
+
+COT_POSTPROCESSORS = {
+    "deepseek-r1": deepseek_cot_postprocessor,
+    # Add more model-specific postprocessors here
+}
+
+
+def get_cot_postprocessor(model: lotus.models.LM, for_extract: bool = False) -> Callable:
+    """
+    Returns the appropriate CoT postprocessor for the given model.
+    Falls back to standard postprocessor if no specific one is defined.
+
+    Args:
+        model (lotus.models.LM): The language model.
+        for_extract (bool): Whether to process for extraction (convert to JSON).
+
+    Returns:
+        Callable: The appropriate postprocessor function.
+    """
+    model_name = model.get_model_name()
+    for processor_key in COT_POSTPROCESSORS:
+        if model_name.startswith(processor_key):
+            base_processor = COT_POSTPROCESSORS[processor_key]
+            return lambda llm_answers: base_processor(llm_answers, for_extract=for_extract)
+
+    return cot_postprocessor
+
+
+def map_postprocess(llm_answers: list[str], model: lotus.models.LM, cot_reasoning: bool = False, default: str = "") -> SemanticMapPostprocessOutput:
     """
     Postprocess the output of the map operator.
 
@@ -45,17 +123,20 @@ def map_postprocess(llm_answers: list[str], default: str = "") -> SemanticMapPos
     Returns:
         SemanticMapPostprocessOutput
     """
-    outputs, explanations = cot_postprocessor(llm_answers)
 
-    for i, output in enumerate(outputs):
-        if output is None:
-            lotus.logger.info(f"\t Failed to parse {llm_answers[i]}: defaulting to {default}")
-            outputs[i] = default
+    if cot_reasoning:
+        postprocessor = get_cot_postprocessor(model)
+        outputs, explanations = postprocessor(llm_answers)
+    else:
+        outputs = llm_answers
+        explanations = [None] * len(llm_answers)
 
     return SemanticMapPostprocessOutput(raw_outputs=llm_answers, outputs=outputs, explanations=explanations)
 
 
-def extract_postprocess(llm_answers: list[str]) -> SemanticExtractPostprocessOutput:
+def extract_postprocess(
+    llm_answers: list[str], model: lotus.models.LM, cot_reasoning: bool = False
+) -> SemanticExtractPostprocessOutput:
     """
     Postprocess the output of the extract operator to extract the schema.
 
@@ -65,7 +146,14 @@ def extract_postprocess(llm_answers: list[str]) -> SemanticExtractPostprocessOut
     Returns:
         SemanticExtractPostprocessOutput
     """
-    extract_data = []
+
+    if cot_reasoning:
+        postprocessor = get_cot_postprocessor(model, for_extract=True)
+        extract_data, explanations = postprocessor(llm_answers)
+    else:
+        extract_data = []
+        explanations = [None] * len(llm_answers)
+
     for llm_answer in llm_answers:
         try:
             output = json.loads(llm_answer)
@@ -76,11 +164,12 @@ def extract_postprocess(llm_answers: list[str]) -> SemanticExtractPostprocessOut
         output = {key: str(value) for key, value in output.items()}
         extract_data.append(output)
 
-    return SemanticExtractPostprocessOutput(raw_outputs=llm_answers, outputs=extract_data)
+    return SemanticExtractPostprocessOutput(raw_outputs=llm_answers, outputs=extract_data, explanations=explanations)
 
 
 def filter_postprocess(
     llm_answers: list[str],
+    model: lotus.models.LM,
     default: bool = True,
 ) -> SemanticFilterPostprocessOutput:
     """
@@ -93,8 +182,8 @@ def filter_postprocess(
 
     Returns:
         SemanticFilterPostprocessOutput
+
     """
-    outputs, explanations = cot_postprocessor(llm_answers)
 
     def process_outputs(answer):
         if answer is None:
@@ -109,6 +198,9 @@ def filter_postprocess(
             lotus.logger.info(f"\t Failed to parse {answer}: defaulting to {default}")
             return default
 
-    outputs = [process_outputs(answer) for answer in outputs]
+    postprocessor = get_cot_postprocessor(model)
+    outputs, explanations = postprocessor(llm_answers)
 
-    return SemanticFilterPostprocessOutput(raw_outputs=llm_answers, outputs=outputs, explanations=explanations)
+    boolean_outputs = [process_outputs(answer) for answer in outputs]
+
+    return SemanticFilterPostprocessOutput(raw_outputs=llm_answers, outputs=boolean_outputs, explanations=explanations)

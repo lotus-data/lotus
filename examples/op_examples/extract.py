@@ -24,7 +24,7 @@ output_cols = {
 }
 
 # you can optionally set extract_quotes=True to return quotes that support each output
-new_df = df.sem_extract(input_cols, output_cols, extract_quotes=True) 
+new_df = df.sem_extract(input_cols, output_cols, extract_quotes=True)
 print(new_df)
 
 # A description can also be omitted for each output column

@@ -2,7 +2,6 @@ import pickle
 from typing import Any
 
 import numpy as np
-import pandas as pd
 from numpy.typing import NDArray
 from PIL import Image
 
@@ -15,21 +14,20 @@ except ImportError:
     pass
 
 
-class ColBERTv2RM():
+class ColBERTv2RM:
     def __init__(self) -> None:
         self.docs: list[str] | None = None
         self.kwargs: dict[str, Any] = {"doc_maxlen": 300, "nbits": 2}
         self.index_dir: str | None = None
 
-    def index(self, docs: pd.Series, index_dir: str, **kwargs: dict[str, Any]) -> None:
-        _docs = docs.tolist()
+    def index(self, docs: list[str], index_dir: str, **kwargs: dict[str, Any]) -> None:
         kwargs = {**self.kwargs, **kwargs}
         checkpoint = "colbert-ir/colbertv2.0"
 
         with Run().context(RunConfig(nranks=1, experiment="lotus")):
             config = ColBERTConfig(doc_maxlen=kwargs["doc_maxlen"], nbits=kwargs["nbits"], kmeans_niters=4)
             indexer = Indexer(checkpoint=checkpoint, config=config)
-            indexer.index(name=f"{index_dir}/index", collection=_docs, overwrite=True)
+            indexer.index(name=f"{index_dir}/index", collection=docs, overwrite=True)
 
         with open(f"experiments/lotus/indexes/{index_dir}/index/docs", "wb") as fp:
             pickle.dump(docs, fp)
@@ -45,9 +43,6 @@ class ColBERTv2RM():
     def get_vectors_from_index(self, index_dir: str, ids: list[int]) -> NDArray[np.float64]:
         raise NotImplementedError("This method is not implemented for ColBERTv2RM")
 
-
-
-   # this should be called in vs.py if it's 
     def __call__(
         self,
         queries: str | Image.Image | list | NDArray[np.float64],

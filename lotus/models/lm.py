@@ -1,5 +1,6 @@
 import hashlib
 import logging
+import warnings
 from typing import Any
 
 import litellm
@@ -13,7 +14,14 @@ from tqdm import tqdm
 
 import lotus
 from lotus.cache import CacheFactory
-from lotus.types import LMOutput, LMStats, LogprobsForCascade, LogprobsForFilterCascade
+from lotus.types import (
+    LMOutput,
+    LMStats,
+    LogprobsForCascade,
+    LogprobsForFilterCascade,
+    LotusUsageLimitException,
+    UsageLimit,
+)
 
 logging.getLogger("LiteLLM").setLevel(logging.CRITICAL)
 logging.getLogger("httpx").setLevel(logging.CRITICAL)
@@ -29,8 +37,23 @@ class LM:
         max_batch_size: int = 64,
         tokenizer: Tokenizer | None = None,
         cache=None,
+        physical_usage_limit: UsageLimit = UsageLimit(),
+        virtual_usage_limit: UsageLimit = UsageLimit(),
         **kwargs: dict[str, Any],
     ):
+        """Language Model class for interacting with various LLM providers.
+
+        Args:
+            model (str): Name of the model to use. Defaults to "gpt-4o-mini".
+            temperature (float): Sampling temperature. Defaults to 0.0.
+            max_ctx_len (int): Maximum context length in tokens. Defaults to 128000.
+            max_tokens (int): Maximum number of tokens to generate. Defaults to 512.
+            max_batch_size (int): Maximum batch size for concurrent requests. Defaults to 64.
+            tokenizer (Tokenizer | None): Custom tokenizer instance. Defaults to None.
+            cache: Cache instance to use. Defaults to None.
+            usage_limit (UsageLimit): Usage limits for the model. Defaults to UsageLimit().
+            **kwargs: Additional keyword arguments passed to the underlying LLM API.
+        """
         self.model = model
         self.max_ctx_len = max_ctx_len
         self.max_tokens = max_tokens
@@ -39,6 +62,8 @@ class LM:
         self.kwargs = dict(temperature=temperature, max_tokens=max_tokens, **kwargs)
 
         self.stats: LMStats = LMStats()
+        self.physical_usage_limit = physical_usage_limit
+        self.virtual_usage_limit = virtual_usage_limit
 
         self.cache = cache or CacheFactory.create_default_cache()
 
@@ -66,16 +91,24 @@ class LM:
             else [(msg, "no-cache") for msg in messages]
         )
 
-        self.stats.total_usage.cache_hits += len(messages) - len(uncached_data)
+        self.stats.cache_hits += len(messages) - len(uncached_data)
 
         # Process uncached messages in batches
         uncached_responses = self._process_uncached_messages(
             uncached_data, all_kwargs, show_progress_bar, progress_bar_desc
         )
-        if lotus.settings.enable_cache:
-            # Add new responses to cache
-            for resp, (_, hash) in zip(uncached_responses, uncached_data):
+
+        # Add new responses to cache and update stats
+        for resp, (_, hash) in zip(uncached_responses, uncached_data):
+            self._update_stats(resp, is_cached=False)
+            if lotus.settings.enable_cache:
                 self._cache_response(resp, hash)
+
+        # Update virtual stats for cached responses
+        if lotus.settings.enable_cache:
+            for resp in cached_responses:
+                if resp is not None:
+                    self._update_stats(resp, is_cached=True)
 
         # Merge all responses in original order and extract outputs
         all_responses = (
@@ -115,7 +148,6 @@ class LM:
         """Caches a response and updates stats if successful."""
         if isinstance(response, OpenAIError):
             raise response
-        self._update_stats(response)
         self.cache.insert(hash, response)
 
     def _hash_messages(self, messages: list[dict[str, str]], kwargs: dict[str, Any]) -> str:
@@ -130,19 +162,51 @@ class LM:
         uncached_iter = iter(uncached_responses)
         return [resp if resp is not None else next(uncached_iter) for resp in cached_responses]
 
-    def _update_stats(self, response: ModelResponse):
+    def _check_usage_limit(self, usage: LMStats.TotalUsage, limit: UsageLimit, usage_type: str):
+        """Helper to check if usage exceeds limits"""
+        if (
+            usage.prompt_tokens > limit.prompt_tokens_limit
+            or usage.completion_tokens > limit.completion_tokens_limit
+            or usage.total_tokens > limit.total_tokens_limit
+            or usage.total_cost > limit.total_cost_limit
+        ):
+            raise LotusUsageLimitException(f"Usage limit exceeded. Current {usage_type} usage: {usage}, Limit: {limit}")
+
+    def _update_usage_stats(self, usage: LMStats.TotalUsage, response: ModelResponse, cost: float | None):
+        """Helper to update usage statistics"""
+        if hasattr(response, "usage"):
+            usage.prompt_tokens += response.usage.prompt_tokens
+            usage.completion_tokens += response.usage.completion_tokens
+            usage.total_tokens += response.usage.total_tokens
+            if cost is not None:
+                usage.total_cost += cost
+
+    def _update_stats(self, response: ModelResponse, is_cached: bool = False):
         if not hasattr(response, "usage"):
             return
 
-        self.stats.total_usage.prompt_tokens += response.usage.prompt_tokens
-        self.stats.total_usage.completion_tokens += response.usage.completion_tokens
-        self.stats.total_usage.total_tokens += response.usage.total_tokens
-
+        # Calculate cost once
         try:
-            self.stats.total_usage.total_cost += completion_cost(completion_response=response)
+            cost = completion_cost(completion_response=response)
         except litellm.exceptions.NotFoundError as e:
             # Sometimes the model's pricing information is not available
             lotus.logger.debug(f"Error updating completion cost: {e}")
+            cost = None
+        except Exception as e:
+            # Handle any other unexpected errors when calculating cost
+            lotus.logger.debug(f"Unexpected error calculating completion cost: {e}")
+            warnings.warn("Error calculating completion cost - cost metrics will be inaccurate. Enable debug logging for details.")
+
+            cost = None
+
+        # Always update virtual usage
+        self._update_usage_stats(self.stats.virtual_usage, response, cost)
+        self._check_usage_limit(self.stats.virtual_usage, self.virtual_usage_limit, "virtual")
+
+        # Only update physical usage for non-cached responses
+        if not is_cached:
+            self._update_usage_stats(self.stats.physical_usage, response, cost)
+            self._check_usage_limit(self.stats.physical_usage, self.physical_usage_limit, "physical")
 
     def _get_top_choice(self, response: ModelResponse) -> str:
         choice = response.choices[0]
@@ -216,16 +280,34 @@ class LM:
         )
 
     def print_total_usage(self):
-        print(f"Total cost: ${self.stats.total_usage.total_cost:.6f}")
-        print(f"Total prompt tokens: {self.stats.total_usage.prompt_tokens}")
-        print(f"Total completion tokens: {self.stats.total_usage.completion_tokens}")
-        print(f"Total tokens: {self.stats.total_usage.total_tokens}")
-        print(f"Total cache hits: {self.stats.total_usage.cache_hits}")
+        print("\n=== Usage Statistics ===")
+        print("Virtual  = Total usage if no caching was used")
+        print("Physical = Actual usage with caching applied\n")
+        print(f"Virtual Cost:     ${self.stats.virtual_usage.total_cost:,.6f}")
+        print(f"Physical Cost:    ${self.stats.physical_usage.total_cost:,.6f}")
+        print(f"Virtual Tokens:   {self.stats.virtual_usage.total_tokens:,}")
+        print(f"Physical Tokens:  {self.stats.physical_usage.total_tokens:,}")
+        print(f"Cache Hits:       {self.stats.cache_hits:,}\n")
 
     def reset_stats(self):
-        self.stats = LMStats(
-            total_usage=LMStats.TotalUsage(prompt_tokens=0, completion_tokens=0, total_tokens=0, total_cost=0.0)
-        )
+        self.stats = LMStats()
 
     def reset_cache(self, max_size: int | None = None):
         self.cache.reset(max_size)
+
+    def get_model_name(self) -> str:
+        raw_model = self.model
+        if not raw_model:
+            return ""
+
+        # If a slash is present, assume the model name is after the last slash.
+        if "/" in raw_model:
+            candidate = raw_model.split("/")[-1]
+        else:
+            candidate = raw_model
+
+        # If a colon is present, assume the model version is appended and remove it.
+        if ":" in candidate:
+            candidate = candidate.split(":")[0]
+
+        return candidate.lower()

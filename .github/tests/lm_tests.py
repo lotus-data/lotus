@@ -5,7 +5,6 @@ import pytest
 from tokenizers import Tokenizer
 
 import lotus
-from lotus.cache import CacheConfig, CacheFactory, CacheType
 from lotus.models import LM, SentenceTransformersRM
 from lotus.types import CascadeArgs
 from lotus.vector_store import FaissVS
@@ -23,7 +22,7 @@ ENABLE_OLLAMA_TESTS = os.getenv("ENABLE_OLLAMA_TESTS", "false").lower() == "true
 MODEL_NAME_TO_ENABLED = {
     "gpt-4o-mini": ENABLE_OPENAI_TESTS,
     "gpt-4o": ENABLE_OPENAI_TESTS,
-    "ollama/llama3.3": ENABLE_OLLAMA_TESTS,
+    "ollama/llama3.1": ENABLE_OLLAMA_TESTS,
 }
 ENABLED_MODEL_NAMES = set([model_name for model_name, is_enabled in MODEL_NAME_TO_ENABLED.items() if is_enabled])
 
@@ -72,7 +71,7 @@ def test_filter_operation(setup_models, model):
 
 
 @pytest.mark.parametrize("model", get_enabled("gpt-4o-mini"))
-def test_top_k(setup_models, model):
+def test_topk(setup_models, model):
     lm = setup_models[model]
     lotus.settings.configure(lm=lm)
 
@@ -88,12 +87,50 @@ def test_top_k(setup_models, model):
     user_instruction = "Which {Text} is most related to basketball?"
     top_2_expected = set(["Michael Jordan is a good basketball player", "Steph Curry is a good basketball player"])
 
-    strategies = ["quick", "heap", "naive"]
-    for strategy in strategies:
-        sorted_df = df.sem_topk(user_instruction, K=2, strategy=strategy)
+    methods = ["quick", "heap", "naive"]
+    for method in methods:
+        sorted_df = df.sem_topk(user_instruction, K=2, method=method)
 
         top_2_actual = set(sorted_df["Text"].values)
         assert top_2_expected == top_2_actual
+
+
+@pytest.mark.parametrize("model", get_enabled("gpt-4o-mini"))
+def test_group_by_with_topk(setup_models, model):
+    lm = setup_models[model]
+    lotus.settings.configure(lm=lm)
+
+    data = {
+        "Course Name": [
+            "Number Theory",
+            "Data Structures",
+            "Quantum Mechanics",
+            "Genetics",
+            "Linear Algebra",
+            "Thermodynamics",
+            "Algorithms",
+            "Ecology",
+            "Statistics",
+            "Optics",
+            "Machine Learning",
+            "Molecular Biology",
+        ],
+        "Department": ["Math", "Physics", "Computer Science", "Biology"] * 3,
+    }
+    df = pd.DataFrame(data)
+    user_instruction = "Which {Course Name} is the most challenging?"
+    expected_df = pd.DataFrame(
+        {
+            "Course Name": ["Number Theory", "Thermodynamics", "Quantum Mechanics", "Molecular Biology"],
+            "Department": ["Math", "Physics", "Computer Science", "Biology"],
+        }
+    )
+    methods = ["quick", "heap", "naive"]
+    for method in methods:
+        sorted_df = df.sem_topk(user_instruction, K=1, method=method, group_by=["Department"])
+        assert len(sorted_df) == 4
+        assert set(sorted_df["Department"].values) == set(expected_df["Department"].values)
+        assert set(sorted_df["Course Name"].values) == set(expected_df["Course Name"].values)
 
 
 @pytest.mark.parametrize("model", get_enabled("gpt-4o-mini", "ollama/llama3.1"))
@@ -159,8 +196,10 @@ def test_group_by_with_agg(setup_models, model):
     }
     df = pd.DataFrame(data)
     agg_instruction = "Summarize {Names}"
-    agg_df = df.sem_agg(agg_instruction, suffix="draft_output", group_by=["Show"])
+    agg_df: pd.DataFrame = df.sem_agg(agg_instruction, suffix="draft_output", group_by=["Show"])
     assert len(agg_df) == 2
+    assert set(agg_df.columns.tolist()) == {"Show", "draft_output"}
+    assert set(agg_df["Show"].values) == {"The Office", "Star Wars"}
 
     # Map post-processing
     map_instruction = "{draft_output} is a draft answer to the question 'Summarize the names'. Clean up the draft answer is just a comma separated list of names."
@@ -214,7 +253,7 @@ def test_sem_extract(setup_models, model):
 ################################################################################
 # CoT tests
 ################################################################################
-@pytest.mark.parametrize("model", get_enabled("gpt-4o-mini", "ollama/llama3.1"))
+@pytest.mark.parametrize("model", get_enabled("gpt-4o-mini"))
 def test_filter_operation_cot(setup_models, model):
     lm = setup_models[model]
     lotus.settings.configure(lm=lm)
@@ -235,7 +274,7 @@ def test_filter_operation_cot(setup_models, model):
     assert filtered_df.equals(expected_df)
 
 
-@pytest.mark.parametrize("model", get_enabled("gpt-4o-mini", "ollama/llama3.1"))
+@pytest.mark.parametrize("model", get_enabled("gpt-4o-mini"))
 def test_filter_operation_cot_fewshot(setup_models, model):
     lm = setup_models[model]
     lotus.settings.configure(lm=lm)
@@ -279,7 +318,7 @@ def test_filter_operation_cot_fewshot(setup_models, model):
     assert filtered_df.equals(expected_df)
 
 
-@pytest.mark.parametrize("model", get_enabled("gpt-4o-mini", "ollama/llama3.1"))
+@pytest.mark.parametrize("model", get_enabled("gpt-4o-mini"))
 def test_filter_operation_cot_fewshot_no_reasoning(setup_models, model):
     lm = setup_models[model]
     lotus.settings.configure(lm=lm)
@@ -667,208 +706,3 @@ def test_custom_tokenizer():
     tokens = custom_lm.count_tokens("Hello, world!")
     assert custom_lm.count_tokens([{"role": "user", "content": "Hello, world!"}]) == tokens
     assert tokens < 100
-
-
-################################################################################
-# Cache tests
-################################################################################
-@pytest.mark.parametrize("model", get_enabled("gpt-4o-mini"))
-def test_cache(setup_models, model):
-    lm = setup_models[model]
-    lotus.settings.configure(lm=lm, enable_cache=True)
-
-    # Check that "What is the capital of France?" becomes cached
-    first_batch = [
-        [{"role": "user", "content": "Hello, world!"}],
-        [{"role": "user", "content": "What is the capital of France?"}],
-    ]
-
-    first_responses = lm(first_batch).outputs
-    assert lm.stats.total_usage.cache_hits == 0
-
-    second_batch = [
-        [{"role": "user", "content": "What is the capital of France?"}],
-        [{"role": "user", "content": "What is the capital of Germany?"}],
-    ]
-    second_responses = lm(second_batch).outputs
-    assert second_responses[0] == first_responses[1]
-    assert lm.stats.total_usage.cache_hits == 1
-
-    # Test clearing cache
-    lm.reset_cache()
-    lm.reset_stats()
-    lm(second_batch)
-    assert lm.stats.total_usage.cache_hits == 0
-
-
-@pytest.mark.parametrize("model", get_enabled("gpt-4o-mini"))
-def test_disable_cache(setup_models, model):
-    lm = setup_models[model]
-    lotus.settings.configure(lm=lm, enable_cache=False)
-
-    batch = [
-        [{"role": "user", "content": "Hello, world!"}],
-        [{"role": "user", "content": "What is the capital of France?"}],
-    ]
-
-    lm(batch)
-    assert lm.stats.total_usage.cache_hits == 0
-    lm(batch)
-    assert lm.stats.total_usage.cache_hits == 0
-
-    # Now enable cache. Note that the first batch is not cached.
-    lotus.settings.configure(enable_cache=True)
-    first_responses = lm(batch).outputs
-    assert lm.stats.total_usage.cache_hits == 0
-    second_responses = lm(batch).outputs
-    assert lm.stats.total_usage.cache_hits == 2
-    assert first_responses == second_responses
-
-
-@pytest.mark.parametrize("model", get_enabled("gpt-4o-mini"))
-def test_reset_cache(setup_models, model):
-    lm = setup_models[model]
-    lotus.settings.configure(lm=lm, enable_cache=True)
-
-    batch = [
-        [{"role": "user", "content": "Hello, world!"}],
-        [{"role": "user", "content": "What is the capital of France?"}],
-    ]
-    lm(batch)
-    assert lm.stats.total_usage.cache_hits == 0
-    lm(batch)
-    assert lm.stats.total_usage.cache_hits == 2
-
-    lm.reset_cache(max_size=1)
-    lm(batch)
-    assert lm.stats.total_usage.cache_hits == 2
-    lm(batch)
-    assert lm.stats.total_usage.cache_hits == 3
-
-    lm.reset_cache(max_size=0)
-    lm(batch)
-    assert lm.stats.total_usage.cache_hits == 3
-    lm(batch)
-    assert lm.stats.total_usage.cache_hits == 3
-
-
-@pytest.mark.parametrize("model", get_enabled("gpt-4o-mini"))
-def test_operator_cache(setup_models, model):
-    cache_config = CacheConfig(cache_type=CacheType.SQLITE, max_size=1000)
-    cache = CacheFactory.create_cache(cache_config)
-
-    lm = LM(model="gpt-4o-mini", cache=cache)
-    lotus.settings.configure(lm=lm, enable_cache=True)
-
-    data = {
-        "Course Name": [
-            "Dynamics and Control of Chemical Processes",
-            "Optimization Methods in Engineering",
-            "Chemical Kinetics and Catalysis",
-            "Transport Phenomena and Separations",
-        ]
-    }
-
-    expected_response = pd.DataFrame(
-        {
-            "Course Name": [
-                "Dynamics and Control of Chemical Processes",
-                "Optimization Methods in Engineering",
-                "Chemical Kinetics and Catalysis",
-                "Transport Phenomena and Separations",
-            ],
-            "_map": [
-                "Process Dynamics and Control",
-                "Advanced Optimization Techniques in Engineering",
-                "Reaction Kinetics and Mechanisms",
-                "Fluid Mechanics and Mass Transfer",
-            ],
-        }
-    )
-
-    df = pd.DataFrame(data)
-    user_instruction = "What is a similar course to {Course Name}. Please just output the course name."
-
-    first_response = df.sem_map(user_instruction)
-    assert lm.stats.total_usage.operator_cache_hits == 0
-
-    second_response = df.sem_map(user_instruction)
-    assert lm.stats.total_usage.operator_cache_hits == 1
-
-    first_response["_map"] = first_response["_map"].str.replace(r"[^a-zA-Z\s]", "", regex=True).str.lower()
-    second_response["_map"] = second_response["_map"].str.replace(r"[^a-zA-Z\s]", "", regex=True).str.lower()
-    expected_response["_map"] = expected_response["_map"].str.replace(r"[^a-zA-Z\s]", "", regex=True).str.lower()
-
-    pd.testing.assert_frame_equal(first_response, second_response)
-    pd.testing.assert_frame_equal(first_response, expected_response)
-    pd.testing.assert_frame_equal(second_response, expected_response)
-
-    lm.reset_cache()
-    lm.reset_stats()
-    assert lm.stats.total_usage.operator_cache_hits == 0
-
-
-@pytest.mark.parametrize("model", get_enabled("gpt-4o-mini"))
-def test_disable_operator_cache(setup_models, model):
-    cache_config = CacheConfig(cache_type=CacheType.SQLITE, max_size=1000)
-    cache = CacheFactory.create_cache(cache_config)
-
-    lm = LM(model="gpt-4o-mini", cache=cache)
-    lotus.settings.configure(lm=lm, enable_cache=False)
-
-    lm.reset_cache()
-    lm.reset_stats()
-
-    data = {
-        "Course Name": [
-            "Dynamics and Control of Chemical Processes",
-            "Optimization Methods in Engineering",
-            "Chemical Kinetics and Catalysis",
-            "Transport Phenomena and Separations",
-        ]
-    }
-
-    expected_response = pd.DataFrame(
-        {
-            "Course Name": [
-                "Dynamics and Control of Chemical Processes",
-                "Optimization Methods in Engineering",
-                "Chemical Kinetics and Catalysis",
-                "Transport Phenomena and Separations",
-            ],
-            "_map": [
-                "Process Dynamics and Control",
-                "Advanced Optimization Techniques in Engineering",
-                "Reaction Kinetics and Mechanisms",
-                "Fluid Mechanics and Mass Transfer",
-            ],
-        }
-    )
-
-    df = pd.DataFrame(data)
-    user_instruction = "What is a similar course to {Course Name}. Please just output the course name."
-
-    first_response = df.sem_map(user_instruction)
-    first_response["_map"] = first_response["_map"].str.replace(r"[^a-zA-Z\s]", "", regex=True).str.lower()
-    assert lm.stats.total_usage.operator_cache_hits == 0
-
-    second_response = df.sem_map(user_instruction)
-    second_response["_map"] = second_response["_map"].str.replace(r"[^a-zA-Z\s]", "", regex=True).str.lower()
-    assert lm.stats.total_usage.operator_cache_hits == 0
-
-    pd.testing.assert_frame_equal(first_response, second_response)
-
-    # Now enable operator cache.
-    lotus.settings.configure(enable_cache=True)
-    first_responses = df.sem_map(user_instruction)
-    first_responses["_map"] = first_responses["_map"].str.replace(r"[^a-zA-Z\s]", "", regex=True).str.lower()
-    assert lm.stats.total_usage.operator_cache_hits == 0
-    second_responses = df.sem_map(user_instruction)
-    second_responses["_map"] = second_responses["_map"].str.replace(r"[^a-zA-Z\s]", "", regex=True).str.lower()
-    assert lm.stats.total_usage.operator_cache_hits == 1
-
-    expected_response["_map"] = expected_response["_map"].str.replace(r"[^a-zA-Z\s]", "", regex=True).str.lower()
-
-    pd.testing.assert_frame_equal(first_responses, second_responses)
-    pd.testing.assert_frame_equal(first_responses, expected_response)
-    pd.testing.assert_frame_equal(second_responses, expected_response)

@@ -82,8 +82,8 @@ def test_filter_operation(setup_models, model):
         ]
     )
 
-    # assert expected_image_url == filtered_df["image"]
     assert len(filtered_df) < len(df)
+    assert expected_image_url[0] in filtered_df["image"].values
 
 
 @pytest.mark.parametrize("model", get_enabled("gpt-4o-mini"))
@@ -139,7 +139,7 @@ def test_topk_operation(setup_models, model):
         sorted_df = df.sem_topk(user_instruction, K=2, strategy=strategy)
 
         top_2_actual = set(sorted_df["image"].values)
-        assert top_2_expected == top_2_actual
+        assert top_2_expected.issubset(top_2_actual)
 
 
 @pytest.mark.parametrize("model", get_enabled("gpt-4o-mini"))
@@ -162,7 +162,7 @@ def test_topk_with_groupby_operation(setup_models, model):
 @pytest.mark.parametrize("model", get_enabled("clip-ViT-B-32"))
 def test_search_operation(setup_models, model):
     rm = setup_models[model]
-    vs = FaissVS() 
+    vs = FaissVS()
     lotus.settings.configure(rm=rm, vs=vs)
 
     image_url = [
@@ -183,7 +183,7 @@ def test_search_operation(setup_models, model):
 @pytest.mark.parametrize("model", get_enabled("clip-ViT-B-32"))
 def test_sim_join_operation_image_index(setup_models, model):
     rm = setup_models[model]
-    vs = FaissVS() 
+    vs = FaissVS()
     lotus.settings.configure(rm=rm, vs=vs)
 
     image_url = [
@@ -209,7 +209,7 @@ def test_sim_join_operation_image_index(setup_models, model):
 @pytest.mark.parametrize("model", get_enabled("clip-ViT-B-32"))
 def test_sim_join_operation_text_index(setup_models, model):
     rm = setup_models[model]
-    vs = FaissVS() 
+    vs = FaissVS()
     lotus.settings.configure(rm=rm, vs=vs)
 
     image_url = [

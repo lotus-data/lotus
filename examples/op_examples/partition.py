@@ -6,7 +6,7 @@ from lotus.vector_store import FaissVS
 
 lm = LM(max_tokens=2048)
 rm = SentenceTransformersRM(model="intfloat/e5-base-v2")
-vs = FaissVS() 
+vs = FaissVS()
 
 lotus.settings.configure(lm=lm, rm=rm, vs=vs)
 data = {

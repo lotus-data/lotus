@@ -1,3 +1,4 @@
+import copy
 import hashlib
 import json
 import os
@@ -68,15 +69,24 @@ def operator_cache(func: Callable) -> Callable:
                     {"self": serialize_self, "args": serialized_args, "kwargs": serialized_kwargs}, sort_keys=True
                 ).encode()
             ).hexdigest()
+            virtual_usage_cache_key = cache_key + "_usage"
 
             cached_result = model.cache.get(cache_key)
             if cached_result is not None:
                 lotus.logger.debug(f"Cache hit for {cache_key}")
-                model.stats.total_usage.operator_cache_hits += 1
+                model.stats.operator_cache_hits += 1
+
+                cached_virtual_usage = model.cache.get(virtual_usage_cache_key)
+                if cached_virtual_usage is not None:
+                    model.stats.virtual_usage += cached_virtual_usage
+
                 return cached_result
             lotus.logger.debug(f"Cache miss for {cache_key}")
 
+            virtual_usage_before = copy.deepcopy(lotus.settings.lm.stats.virtual_usage)
             result = func(self, *args, **kwargs)
+            virtual_usage = lotus.settings.lm.stats.virtual_usage - virtual_usage_before
+            model.cache.insert(virtual_usage_cache_key, virtual_usage)
             model.cache.insert(cache_key, result)
             return result
 
@@ -120,7 +130,7 @@ class CacheFactory:
         if config.cache_type == CacheType.IN_MEMORY:
             return InMemoryCache(max_size=config.max_size)
         elif config.cache_type == CacheType.SQLITE:
-            cache_dir = config.kwargs.get("cache_dir", "~/.lotus/cache")
+            cache_dir = config.kwargs.get("cache_dir", os.path.expanduser("~/.lotus/cache"))
             if not isinstance(cache_dir, str):
                 raise ValueError("cache_dir must be a string")
             return SQLiteCache(max_size=config.max_size, cache_dir=cache_dir)

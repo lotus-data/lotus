@@ -4,14 +4,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lotus-ai"
-version = "1.1.0"
+version = "1.1.2"
 description = "lotus"
 readme = "README.md"
 authors = [
     {name = "Liana Patel", email = "lianapat@stanford.edu"},
     {name = "Siddharth Jha", email = "sidjha@berkeley.edu"}
 ]
-license = { text = "MIT License" }
+license = { "file"= "LICENSE" }
 requires-python = ">=3.10, <3.13"
 classifiers = [
     "Intended Audience :: Science/Research",
@@ -46,9 +46,27 @@ serpapi = [
 arxiv = [
     "arxiv",
 ]
-pdf_parser = [
+file_extractor = [
+    "llama-index",
     "pymupdf",
+    "docx2txt",
+    "python-pptx",
+    "python-magic"
 ]
+weaviate = [
+    "weaviate-client",
+]
+data_connectors = [
+    "sqlalchemy",
+    "boto3",
+    "io",
+]
+web_search = [
+    "requests",
+    "azure-cognitiveservices-search-websearch",
+    "tavily-python"
+]
+
 
 [tool.ruff]
 line-length = 120
