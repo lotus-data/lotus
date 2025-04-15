@@ -11,7 +11,7 @@ from lotus.types import (
 
 def cot_postprocessor(llm_answers: list[str]):
     outputs: list[str] = []
-    explanations: list[str] = ]
+    explanations: list[str] = []
     for llm_answer in llm_answers:
         reasoning_idx = llm_answer.find("Reasoning:\n")
         if reasoning_idx == -1:
@@ -31,7 +31,7 @@ def cot_postprocessor(llm_answers: list[str]):
 
         explanations.append(reasoning)
         outputs.append(answer)
-
+    
     return outputs, explanations
 
 
@@ -127,6 +127,7 @@ def map_postprocess(llm_answers: list[str], model: lotus.models.LM, cot_reasonin
     if cot_reasoning:
         postprocessor = get_cot_postprocessor(model)
         outputs, explanations = postprocessor(llm_answers)
+        outputs = [output if output is not None else default for output in outputs]
     else:
         outputs = llm_answers
         explanations = [None] * len(llm_answers)

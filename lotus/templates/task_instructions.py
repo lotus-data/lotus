@@ -171,7 +171,7 @@ def map_formatter(
     Your job is to answer the user's instruction given the context.
     """
 
-    if strategy == "cot":
+    if strategy in [ReasoningStrategy.COT, ReasoningStrategy.ZS_COT]:
         sys_instruction += cot_prompt_formatter(
             reasoning_instructions=reasoning_instructions,
         )
@@ -200,7 +200,7 @@ def map_formatter(
             # If CoT reasoning is provided, use it. Otherwise, supply a default reasoning
             if cot_reasoning:
                 content = cot_formatter(cot_reasoning[idx], str(ex_ans))
-            elif strategy == "cot":
+            elif strategy in [ReasoningStrategy.COT, ReasoningStrategy.ZS_COT]:
                 content = cot_formatter("Reasoning omitted", str(ex_ans))
             else:
                 content = answer_only_formatter(str(ex_ans))
