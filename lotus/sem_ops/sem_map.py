@@ -36,6 +36,11 @@ def sem_map(
         examples_multimodal_data (list[dict[str, Any]] | None): The text for examples. Defaults to None.
         examples_answers (list[str] | None): The answers for examples. Defaults to None.
         cot_reasoning (list[str] | None): The reasoning for CoT. Defaults to None.
+        additional_cot_instructions (str): Additional instructions for the CoT. Defaults to "".
+        strategy (str | None): The reasoning strategy. Defaults to None.
+        safe_mode (bool): Whether to use safe mode. Defaults to False.
+        progress_bar_desc (str): The description for the progress bar. Defaults to "Mapping".
+        default (str): The default value to use if we fail to parse the answer.
 
     Returns:
         SemanticMapOutput: The outputs, raw outputs, and explanations.
@@ -126,6 +131,7 @@ class SemMapDataframe:
             safe_mode (bool): Whether to use safe mode. Defaults to False.
             progress_bar_desc (str): The description for the progress bar. Defaults to "Mapping".
             additional_cot_instructions (str): Additional instructions for the CoT. Defaults to "".
+            default (str): The default value to use if we fail to parse the answer.
 
         Returns:
             pd.DataFrame: The dataframe with the new mapped columns.
