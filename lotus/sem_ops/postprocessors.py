@@ -49,7 +49,7 @@ def map_postprocess(llm_answers: list[str], default: str = "") -> SemanticMapPos
 
     for i, output in enumerate(outputs):
         if output is None:
-            lotus.logger.info(f"\t Failed to parse output {i}: defaulting to {default}")
+            lotus.logger.info(f"\t Failed to parse {llm_answers[i]}: defaulting to {default}")
             outputs[i] = default
 
     return SemanticMapPostprocessOutput(raw_outputs=llm_answers, outputs=outputs, explanations=explanations)
