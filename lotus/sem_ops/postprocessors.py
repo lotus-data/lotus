@@ -124,13 +124,9 @@ def map_postprocess(llm_answers: list[str], model: lotus.models.LM, cot_reasonin
         SemanticMapPostprocessOutput
     """
 
-    if cot_reasoning:
-        postprocessor = get_cot_postprocessor(model)
-        outputs, explanations = postprocessor(llm_answers)
-        outputs = [output if output is not None else default for output in outputs]
-    else:
-        outputs = llm_answers
-        explanations = [None] * len(llm_answers)
+    postprocessor = get_cot_postprocessor(model)
+    outputs, explanations = postprocessor(llm_answers)
+    outputs = [output if output is not None else default for output in outputs]
 
     return SemanticMapPostprocessOutput(raw_outputs=llm_answers, outputs=outputs, explanations=explanations)
 
