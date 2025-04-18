@@ -41,7 +41,7 @@ def get_match_prompt_binary(
         content_text, content_image_inputs = task_instructions.context_formatter(doc)
         prompt += [{"type": "text", "text": f"\nDocument {idx+1}:\n{content_text}"}, *content_image_inputs]
 
-    if strategy == ReasoningStrategy.ZS_COT and model.get_model_name().startswith("deepseek-r1"):
+    if strategy == ReasoningStrategy.ZS_COT and model.is_deepseek():
         deepseek_instructions = """Please think through your reasoning step by step, then provide your final answer.
         You must put your reasoning insdie the <think></think> tags, then provide your 
         final answer after the </think> tag with the format: Answer: your answer."""

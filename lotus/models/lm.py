@@ -313,3 +313,7 @@ class LM:
             candidate = candidate.split(":")[0]
 
         return candidate.lower()
+
+    def is_deepseek(self) -> bool:
+        model_name = self.get_model_name()
+        return model_name.startswith("deepseek-r1")
