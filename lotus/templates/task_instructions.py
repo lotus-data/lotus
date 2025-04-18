@@ -145,7 +145,7 @@ def filter_formatter(
                     },
                 ]
             )
-    if strategy == ReasoningStrategy.ZS_COT and model.get_model_name().startswith("deepseek-r1"):
+    if strategy == ReasoningStrategy.ZS_COT and model.is_deepseek():
         user_instruction = f"Claim: {user_instruction}\n\n{deepseek_cot_formatter()}"
         messages.append(user_message_formatter(multimodal_data, user_instruction))
     else:
@@ -239,7 +239,7 @@ def map_formatter(
                 ]
             )
 
-    if strategy == ReasoningStrategy.ZS_COT and model.get_model_name().startswith("deepseek-r1"):
+    if strategy == ReasoningStrategy.ZS_COT and model.is_deepseek():
         user_intructions = f"Instruction: {user_instruction}\n\n{deepseek_cot_formatter()}"
         messages.append(user_message_formatter(multimodal_data, user_intructions))
     else:
@@ -278,7 +278,7 @@ def extract_formatter(
         user_message_formatter(multimodal_data),
     ]
 
-    if strategy == ReasoningStrategy.ZS_COT and model.get_model_name().startswith("deepseek-r1"):
+    if strategy == ReasoningStrategy.ZS_COT and model.is_deepseek():
         user_intructions = f"Instruction: {deepseek_cot_formatter()}"
         messages.append(user_message_formatter(multimodal_data, user_intructions))
 

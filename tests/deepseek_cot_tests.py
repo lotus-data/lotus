@@ -64,6 +64,50 @@ def test_deepseek_map_cot_basic():
 
 
 @pytest.mark.skipif(not ENABLE_OLLAMA_TESTS, reason="Skipping test because Ollama tests are not enabled")
+def test_deepseek_top_k_with_negative_reviews():
+    """Test sem_top_k with a dataset containing negative reviews."""
+    lm = LM(model=MODEL_NAME, temperature=0.6)
+    lotus.settings.configure(lm=lm)
+
+    data = {
+        "Review": [
+            "This vacuum cleaner is the best I've ever owned. Highly recommend it!",
+            "It's okay, not sure I would buy it again.",
+            "Terrible experience, broke after a few uses.",
+            "Amazing build quality and customer support. Would absolutely recommend.",
+            "I would not recommend this to anyone.",
+            "This product is amazing! I love it.",
+        ]
+    }
+
+    df = pd.DataFrame(data)
+    user_instruction = "{Review} suggests that the user would recommend the product to others"
+    for method in ["quick", "heap", "naive"]:
+        sorted_df, stats = df.sem_topk(
+            user_instruction,
+            K=2,
+            method=method,
+            return_stats=True,
+            strategy=ReasoningStrategy.ZS_COT,
+            return_explanations=True,
+        )
+
+        # Check that the top 2 reviews are positive
+        assert sorted_df["Review"].tolist() == [
+            "This vacuum cleaner is the best I've ever owned. Highly recommend it!",
+            "Amazing build quality and customer support. Would absolutely recommend.",
+        ]
+
+        # Check that the stats are correct
+        assert stats["total_tokens"] > 0
+        assert stats["total_llm_calls"] > 0
+
+        # Check that each explanation is not empty
+        for exp in sorted_df["explanation"]:
+            assert exp is not None and exp != ""
+
+
+@pytest.mark.skipif(not ENABLE_OLLAMA_TESTS, reason="Skipping test because Ollama tests are not enabled")
 def test_deepseek_filter_cot_fewshot():
     """Test sem_filter with few-shot examples to guide filtering decisions."""
     lm = LM(model=MODEL_NAME)

@@ -9,14 +9,18 @@ from tqdm import tqdm
 import lotus
 from lotus.cache import operator_cache
 from lotus.templates import task_instructions
-from lotus.types import LMOutput, SemanticTopKOutput
+from lotus.types import LMOutput, ReasoningStrategy, SemanticTopKOutput
 from lotus.utils import show_safe_mode
 
 
 def get_match_prompt_binary(
-    doc1: dict[str, Any], doc2: dict[str, Any], user_instruction: str, strategy: str | None = None
+    doc1: dict[str, Any],
+    doc2: dict[str, Any],
+    user_instruction: str,
+    model: lotus.models.LM,
+    strategy: ReasoningStrategy | None = None,
 ) -> list[dict[str, Any]]:
-    if strategy == "zs-cot":
+    if strategy == ReasoningStrategy.ZS_COT:
         sys_prompt = (
             "Your job is to to select and return the most relevant document to the user's question.\n"
             "Carefully read the user's question and the two documents provided below.\n"
@@ -37,41 +41,62 @@ def get_match_prompt_binary(
         content_text, content_image_inputs = task_instructions.context_formatter(doc)
         prompt += [{"type": "text", "text": f"\nDocument {idx+1}:\n{content_text}"}, *content_image_inputs]
 
+    if strategy == ReasoningStrategy.ZS_COT and model.is_deepseek():
+        deepseek_instructions = """Please think through your reasoning step by step, then provide your final answer.
+        You must put your reasoning insdie the <think></think> tags, then provide your 
+        final answer after the </think> tag with the format: Answer: your answer."""
+        prompt += [{"type": "text", "text": f"\n{deepseek_instructions}"}]
+
     messages: list[dict[str, Any]] = [{"role": "system", "content": sys_prompt}, {"role": "user", "content": prompt}]
     lotus.logger.debug(f"Prompt: {messages}")
     return messages
 
 
-def parse_ans_binary(answer: str) -> bool:
+def parse_ans_binary(answer: str) -> tuple[bool, str]:
     lotus.logger.debug(f"Response from model: {answer}")
+    cot_explanation = ""
     try:
+        think_start = answer.find("<think>")
+        think_end = answer.find("</think>")
+
+        if think_start != -1 and think_end != -1:
+            cot_explanation = answer[think_start + len("<think>") : think_end].strip()
+            answer = answer[think_end + len("</think>") :].strip()
+        else:
+            answer_idx = answer.lower().find("answer:")
+            if answer_idx != -1:
+                cot_explanation = answer[:answer_idx].strip()
+                answer = answer[answer_idx:].strip()
+
         matches = list(re.finditer(r"Document[\s*](\d+)", answer, re.IGNORECASE))
         if len(matches) == 0:
             matches = list(re.finditer(r"(\d+)", answer, re.IGNORECASE))
         ans = int(matches[-1].group(1)) - 1
         if ans not in [0, 1]:
             lotus.logger.info(f"Could not parse {answer}")
-            return True
-        return ans == 0
+            return True, cot_explanation
+        return ans == 0, cot_explanation
     except Exception:
         lotus.logger.info(f"Could not parse {answer}")
-        return True
+        return True, cot_explanation
 
 
 def compare_batch_binary(
     pairs: list[tuple[dict[str, Any], dict[str, Any]]],
     model: lotus.models.LM,
     user_instruction: str,
-    strategy: str | None = None,
-) -> tuple[list[bool], int]:
+    strategy: ReasoningStrategy | None = None,
+) -> tuple[list[bool], list[str], int]:
     match_prompts = []
     tokens = 0
     for doc1, doc2 in pairs:
-        match_prompts.append(get_match_prompt_binary(doc1, doc2, user_instruction, strategy=strategy))
+        match_prompts.append(get_match_prompt_binary(doc1, doc2, user_instruction, strategy=strategy, model=model))
         tokens += model.count_tokens(match_prompts[-1])
     lm_results: LMOutput = model(match_prompts, show_progress_bar=False)
-    results: list[bool] = list(map(parse_ans_binary, lm_results.outputs))
-    return results, tokens
+    result_explanations = list(map(parse_ans_binary, lm_results.outputs))
+    results = [r[0] for r in result_explanations]
+    explanations = [r[1] for r in result_explanations]
+    return results, explanations, tokens
 
 
 def compare_batch_binary_cascade(
@@ -79,12 +104,12 @@ def compare_batch_binary_cascade(
     model: lotus.models.LM,
     user_instruction: str,
     cascade_threshold: float,
-    strategy: str | None = None,
-) -> tuple[list[bool], int, int, int]:
+    strategy: ReasoningStrategy | None = None,
+) -> tuple[list[bool], list[str], int, int, int]:
     match_prompts = []
     small_tokens = 0
     for doc1, doc2 in pairs:
-        match_prompts.append(get_match_prompt_binary(doc1, doc2, user_instruction, strategy=strategy))
+        match_prompts.append(get_match_prompt_binary(doc1, doc2, user_instruction, strategy=strategy, model=model))
         small_tokens += model.count_tokens(match_prompts[-1])
 
     helper_lm = lotus.settings.helper_lm
@@ -102,10 +127,12 @@ def compare_batch_binary_cascade(
     helper_confidences = formatted_logprobs.confidences
 
     parsed_results = []
+    explanations = [""] * len(results)
     high_conf_idxs = set()
     for idx, res in enumerate(results):
         parsed_res = parse_ans_binary(res)
-        parsed_results.append(parsed_res)
+        parsed_results.append(parsed_res[0])
+        explanations[idx] = parsed_res[1]
 
         # Find where docunent number is said and look at confidence
         for idx_j in range(len(helper_tokens[idx]) - 1, -1, -1):
@@ -129,17 +156,18 @@ def compare_batch_binary_cascade(
         for idx, res in enumerate(large_lm_results.outputs):
             new_idx = low_conf_idxs[idx]
             parsed_res = parse_ans_binary(res)
-            parsed_results[new_idx] = parsed_res
+            parsed_results[new_idx] = parsed_res[0]
+            explanations[new_idx] = parsed_res[1]
 
         num_large_calls = len(low_conf_idxs)
-    return parsed_results, small_tokens, large_tokens, num_large_calls
+    return parsed_results, explanations, small_tokens, large_tokens, num_large_calls
 
 
 def llm_naive_sort(
     docs: list[dict[str, Any]],
     model: lotus.models.LM,
     user_instruction: str,
-    strategy: str | None = None,
+    strategy: ReasoningStrategy | None = None,
     safe_mode: bool = False,
 ) -> SemanticTopKOutput:
     """
@@ -164,24 +192,28 @@ def llm_naive_sort(
         desc="All-pairs comparisons",
         bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} LM calls [{elapsed}<{remaining}]",
     )
-    comparisons, tokens = compare_batch_binary(pairs, model, user_instruction, strategy=strategy)
+    comparisons, explanations, tokens = compare_batch_binary(pairs, model, user_instruction, strategy=strategy)
     pbar.update(len(pairs))
     pbar.close()
     if safe_mode:
         show_safe_mode(tokens, llm_calls)
     votes = [0] * N
     idx = 0
+
+    explanations_dict: dict[int, list[str]] = {i: [] for i in range(N)}
     for i in range(N):
         for j in range(i + 1, N):
             if comparisons[idx]:
                 votes[i] += 1
+                explanations_dict[i].append(explanations[idx])
             else:
                 votes[j] += 1
+                explanations_dict[j].append(explanations[idx])
             idx += 1
 
     indexes = sorted(range(len(votes)), key=lambda i: votes[i], reverse=True)
 
-    stats = {"total_tokens": tokens, "total_llm_calls": llm_calls}
+    stats = {"total_tokens": tokens, "total_llm_calls": llm_calls, "explanations": explanations_dict}
     return SemanticTopKOutput(indexes=indexes, stats=stats)
 
 
@@ -191,7 +223,7 @@ def llm_quicksort(
     user_instruction: str,
     K: int,
     embedding: bool = False,
-    strategy: str | None = None,
+    strategy: ReasoningStrategy | None = None,
     cascade_threshold: float | None = None,
     safe_mode: bool = False,
 ) -> SemanticTopKOutput:
@@ -209,11 +241,12 @@ def llm_quicksort(
     Returns:
         SemanticTopKOutput: The indexes of the top k documents and stats
     """
-    stats = {}
+    stats: dict[str, Any] = {}
     stats["total_tokens"] = 0
     stats["total_llm_calls"] = 0
+    stats["explanations"] = {}
     if safe_mode:
-        sample_prompt = get_match_prompt_binary(docs[0], docs[1], user_instruction, strategy=strategy)
+        sample_prompt = get_match_prompt_binary(docs[0], docs[1], user_instruction, strategy=strategy, model=model)
         estimated_quickselect_calls = 2 * K
         estimated_quicksort_calls = 2 * len(docs) * np.log(len(docs))
         estimated_total_calls = estimated_quickselect_calls + estimated_quicksort_calls
@@ -247,21 +280,34 @@ def llm_quicksort(
 
         pairs = [(docs[indexes[j]], pivot) for j in range(low, high)]
         if cascade_threshold is None:
-            comparisons, tokens = compare_batch_binary(pairs, model, user_instruction, strategy=strategy)
+            comparisons, explanations, tokens = compare_batch_binary(pairs, model, user_instruction, strategy=strategy)
             stats["total_tokens"] += tokens
             stats["total_llm_calls"] += len(pairs)
+
+            for j, (doc1_is_better, explanation) in enumerate(zip(comparisons, explanations), start=low):
+                doc_idx = indexes[j]
+                if doc_idx not in stats["explanations"]:
+                    stats["explanations"][doc_idx] = []
+                stats["explanations"][doc_idx].append(explanation)
         else:
-            comparisons, small_tokens, large_tokens, num_large_calls = compare_batch_binary_cascade(
+            comparisons, explanations, small_tokens, large_tokens, num_large_calls = compare_batch_binary_cascade(
                 pairs,
                 model,
                 user_instruction,
                 cascade_threshold,
                 strategy=strategy,
             )
+
             stats["total_small_tokens"] += small_tokens
             stats["total_large_tokens"] += large_tokens
             stats["total_small_calls"] += len(pairs)
             stats["total_large_calls"] += num_large_calls
+
+            for j, (doc1_is_better, explanation) in enumerate(zip(comparisons, explanations), start=low):
+                doc_idx = indexes[j]
+                if doc_idx not in stats["explanations"]:
+                    stats["explanations"][doc_idx] = []
+                stats["explanations"][doc_idx].append(explanation)
 
         for j, doc1_is_better in enumerate(comparisons, start=low):
             if doc1_is_better:
@@ -302,8 +348,9 @@ class HeapDoc:
 
     num_calls: int = 0
     total_tokens: int = 0
-    strategy: str | None = None
+    strategy: ReasoningStrategy | None = None
     model: lotus.models.LM | None = None
+    explanations: dict[int, list[str]] = {}
 
     def __init__(self, doc: dict[str, Any], user_instruction: str, idx: int) -> None:
         self.doc = doc
@@ -312,11 +359,21 @@ class HeapDoc:
 
     def __lt__(self, other: "HeapDoc") -> bool:
         assert HeapDoc.model is not None
-        prompt = get_match_prompt_binary(self.doc, other.doc, self.user_instruction, strategy=self.strategy)
+        prompt = get_match_prompt_binary(
+            self.doc, other.doc, self.user_instruction, strategy=self.strategy, model=HeapDoc.model
+        )
         HeapDoc.num_calls += 1
         HeapDoc.total_tokens += HeapDoc.model.count_tokens(prompt)
         result: LMOutput = HeapDoc.model([prompt], progress_bar_desc="Heap comparisons")
-        return parse_ans_binary(result.outputs[0])
+        is_better, explanation = parse_ans_binary(result.outputs[0])
+
+        if self.idx not in HeapDoc.explanations:
+            HeapDoc.explanations[self.idx] = []
+        if other.idx not in HeapDoc.explanations:
+            HeapDoc.explanations[other.idx] = []
+        HeapDoc.explanations[self.idx].append(explanation)
+        HeapDoc.explanations[other.idx].append(explanation)
+        return is_better
 
 
 def llm_heapsort(
@@ -324,7 +381,7 @@ def llm_heapsort(
     model: lotus.models.LM,
     user_instruction: str,
     K: int,
-    strategy: str | None = None,
+    strategy: ReasoningStrategy | None = None,
     safe_mode: bool = False,
 ) -> SemanticTopKOutput:
     """
@@ -341,7 +398,7 @@ def llm_heapsort(
     """
 
     if safe_mode:
-        sample_prompt = get_match_prompt_binary(docs[0], docs[1], user_instruction, strategy=strategy)
+        sample_prompt = get_match_prompt_binary(docs[0], docs[1], user_instruction, strategy=strategy, model=model)
         estimated_heap_construction_calls = len(docs) * np.log(len(docs))
         estimated_top_k_extraction_calls = K * np.log(len(docs))
         estimated_total_calls = estimated_heap_construction_calls + estimated_top_k_extraction_calls
@@ -352,13 +409,18 @@ def llm_heapsort(
     HeapDoc.total_tokens = 0
     HeapDoc.strategy = strategy
     HeapDoc.model = model
+    HeapDoc.explanations = {}
     N = len(docs)
     heap = [HeapDoc(docs[idx], user_instruction, idx) for idx in range(N)]
 
     heap = heapq.nsmallest(K, heap)
     indexes = [heapq.heappop(heap).idx for _ in range(len(heap))]
 
-    stats = {"total_tokens": HeapDoc.total_tokens, "total_llm_calls": HeapDoc.num_calls}
+    stats = {
+        "total_tokens": HeapDoc.total_tokens,
+        "total_llm_calls": HeapDoc.num_calls,
+        "explanations": HeapDoc.explanations,
+    }
     return SemanticTopKOutput(indexes=indexes, stats=stats)
 
 
@@ -393,11 +455,12 @@ class SemTopKDataframe:
         user_instruction: str,
         K: int,
         method: str = "quick",
-        strategy: str | None = None,
+        strategy: ReasoningStrategy | None = None,
         group_by: list[str] | None = None,
         cascade_threshold: float | None = None,
         return_stats: bool = False,
         safe_mode: bool = False,
+        return_explanations: bool = False,
     ) -> pd.DataFrame | tuple[pd.DataFrame, dict[str, Any]]:
         """
         Sorts the DataFrame based on the user instruction and returns the top K rows.
@@ -494,6 +557,23 @@ class SemTopKDataframe:
         new_df = self._obj.reset_index(drop=True)
         new_df = new_df.reindex(output.indexes).reset_index(drop=True)
         new_df = new_df.head(K)
+
+        if return_explanations and strategy == ReasoningStrategy.ZS_COT:
+            explanations = []
+            for idx in output.indexes[:K]:
+                explanation = "No Comparison Made"
+                if output.stats is not None:
+                    # Retrieve the explanations dictionary safely
+                    explanations_dict = output.stats.get("explanations", {})
+                    if idx in explanations_dict:
+                        explanation = "\n".join(explanations_dict[idx])
+                explanations.append(explanation)
+            new_df["explanation"] = explanations
+
         if return_stats:
+            if output.stats is None:
+                output.stats = {"explanations": {}}
+            else:
+                output.stats["explanations"] = {}
             return new_df, output.stats
         return new_df
