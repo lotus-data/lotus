@@ -3,7 +3,7 @@ import pandas as pd
 import lotus
 from lotus.models import LM
 
-lm = LM(model="gpt-4o-mini")
+lm = LM(model="ollama/deepseek-r1:7b")
 lotus.settings.configure(lm=lm)
 
 df = pd.DataFrame(
@@ -24,13 +24,5 @@ output_cols = {
 }
 
 # you can optionally set extract_quotes=True to return quotes that support each output
-new_df = df.sem_extract(input_cols, output_cols, extract_quotes=True)
-print(new_df)
-
-# A description can also be omitted for each output column
-output_cols = {
-    "name": None,
-    "age": None,
-}
-new_df = df.sem_extract(input_cols, output_cols)
+new_df = df.sem_extract(input_cols, output_cols, extract_quotes=True, return_explanations=True)
 print(new_df)

@@ -5,7 +5,7 @@ from lotus.models import SentenceTransformersRM
 from lotus.vector_store import FaissVS
 
 rm = SentenceTransformersRM(model="intfloat/e5-base-v2")
-vs = FaissVS() 
+vs = FaissVS()
 lotus.settings.configure(rm=rm, vs=vs)
 data = {
     "Text": [

@@ -19,7 +19,7 @@ Intstallation
 --------
 To get started, you will need to install the lotus submodule as follows::
 
-    pip install lotus[file_extractor]
+    pip install lotus-ai[file_extractor]
     
 
 PDF Example

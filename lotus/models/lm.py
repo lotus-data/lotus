@@ -1,5 +1,6 @@
 import hashlib
 import logging
+import warnings
 from typing import Any
 
 import litellm
@@ -191,6 +192,12 @@ class LM:
             # Sometimes the model's pricing information is not available
             lotus.logger.debug(f"Error updating completion cost: {e}")
             cost = None
+        except Exception as e:
+            # Handle any other unexpected errors when calculating cost
+            lotus.logger.debug(f"Unexpected error calculating completion cost: {e}")
+            warnings.warn("Error calculating completion cost - cost metrics will be inaccurate. Enable debug logging for details.")
+
+            cost = None
 
         # Always update virtual usage
         self._update_usage_stats(self.stats.virtual_usage, response, cost)
@@ -287,3 +294,20 @@ class LM:
 
     def reset_cache(self, max_size: int | None = None):
         self.cache.reset(max_size)
+
+    def get_model_name(self) -> str:
+        raw_model = self.model
+        if not raw_model:
+            return ""
+
+        # If a slash is present, assume the model name is after the last slash.
+        if "/" in raw_model:
+            candidate = raw_model.split("/")[-1]
+        else:
+            candidate = raw_model
+
+        # If a colon is present, assume the model version is appended and remove it.
+        if ":" in candidate:
+            candidate = candidate.split(":")[0]
+
+        return candidate.lower()

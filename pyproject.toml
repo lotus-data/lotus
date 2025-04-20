@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lotus-ai"
-version = "1.1.0"
+version = "1.1.2"
 description = "lotus"
 readme = "README.md"
 authors = [
@@ -63,6 +63,11 @@ data_connectors = [
     "sqlalchemy",
     "boto3",
     "io",
+]
+web_search = [
+    "requests",
+    "azure-cognitiveservices-search-websearch",
+    "tavily-python"
 ]
 
 

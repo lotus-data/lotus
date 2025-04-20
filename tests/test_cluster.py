@@ -6,16 +6,18 @@ from tests.base_test import BaseTest
 
 @pytest.fixture
 def sample_df():
-    return pd.DataFrame({
-        "Course Name": [
-            "Probability and Random Processes",
-            "Statistics and Data Analysis",
-            "Cooking Basics",
-            "Advanced Culinary Arts",
-            "Digital Circuit Design",
-            "Computer Architecture"
-        ]
-    })
+    return pd.DataFrame(
+        {
+            "Course Name": [
+                "Probability and Random Processes",
+                "Statistics and Data Analysis",
+                "Cooking Basics",
+                "Advanced Culinary Arts",
+                "Digital Circuit Design",
+                "Computer Architecture",
+            ]
+        }
+    )
 
 
 class TestClusterBy(BaseTest):
@@ -26,7 +28,6 @@ class TestClusterBy(BaseTest):
         assert len(result["cluster_id"].unique()) == 2
         assert len(result) == len(sample_df)
 
-
         # Get the two clusters
         cluster_0_courses = set(result[result["cluster_id"] == 0]["Course Name"])
         cluster_1_courses = set(result[result["cluster_id"] == 1]["Course Name"])
@@ -36,17 +37,14 @@ class TestClusterBy(BaseTest):
             "Probability and Random Processes",
             "Statistics and Data Analysis",
             "Digital Circuit Design",
-            "Computer Architecture"
+            "Computer Architecture",
         }
-        culinary_courses = {
-            "Cooking Basics",
-            "Advanced Culinary Arts"
-        }
+        culinary_courses = {"Cooking Basics", "Advanced Culinary Arts"}
 
         # Check that one cluster contains tech courses and the other contains culinary courses
-        assert (cluster_0_courses == tech_courses and cluster_1_courses == culinary_courses) or \
-               (cluster_1_courses == tech_courses and cluster_0_courses == culinary_courses), \
-               "Clusters don't match expected course groupings"
+        assert (cluster_0_courses == tech_courses and cluster_1_courses == culinary_courses) or (
+            cluster_1_courses == tech_courses and cluster_0_courses == culinary_courses
+        ), "Clusters don't match expected course groupings"
 
     def test_clustering_with_more_clusters(self, sample_df):
         """Test clustering with more clusters than necessary"""
@@ -75,17 +73,17 @@ class TestClusterBy(BaseTest):
     def test_clustering_similar_items(self, sample_df):
         """Test that similar items are clustered together"""
         result = sample_df.sem_cluster_by("Course Name", 3)
-        
+
         # Get cluster IDs for similar courses
         stats_cluster = result[result["Course Name"].str.contains("Statistics")]["cluster_id"].iloc[0]
         prob_cluster = result[result["Course Name"].str.contains("Probability")]["cluster_id"].iloc[0]
-        
+
         # Similar courses should be in the same cluster
         assert stats_cluster == prob_cluster
 
         cooking_cluster = result[result["Course Name"].str.contains("Cooking")]["cluster_id"].iloc[0]
         culinary_cluster = result[result["Course Name"].str.contains("Culinary")]["cluster_id"].iloc[0]
-        
+
         assert cooking_cluster == culinary_cluster
 
     def test_clustering_with_verbose(self, sample_df):
@@ -98,7 +96,7 @@ class TestClusterBy(BaseTest):
         """Test clustering with different iteration counts"""
         result1 = sample_df.sem_cluster_by("Course Name", 2, niter=5)
         result2 = sample_df.sem_cluster_by("Course Name", 2, niter=20)
-        
+
         # Both should produce valid clusterings
         assert len(result1["cluster_id"].unique()) == 2
         assert len(result2["cluster_id"].unique()) == 2

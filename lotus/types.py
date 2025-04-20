@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import Enum, auto
 from typing import Any
 
 import pandas as pd
@@ -84,12 +84,14 @@ class SemanticMapOutput:
 class SemanticExtractPostprocessOutput:
     raw_outputs: list[str]
     outputs: list[dict[str, str]]
+    explanations: list[str | None]
 
 
 @dataclass
 class SemanticExtractOutput:
     raw_outputs: list[str]
     outputs: list[dict[str, str]]
+    explanations: list[str | None]
 
 
 @dataclass
@@ -137,12 +139,12 @@ class CascadeArgs(BaseModel):
     proxy_model: ProxyModel = ProxyModel.HELPER_LM
 
     # Filter cascade args
-    cascade_IS_weight: float = 0.5
+    cascade_IS_weight: float = 0.9
     cascade_num_calibration_quantiles: int = 50
 
     # Join cascade args
     min_join_cascade_size: int = 100
-    cascade_IS_max_sample_range: int = 100
+    cascade_IS_max_sample_range: int = 200
     cascade_IS_random_seed: int | None = None
 
     # to enable pandas
@@ -208,3 +210,13 @@ class LotusUsageLimitException(LotusException):
     """Exception raised when the usage limit is exceeded."""
 
     pass
+
+
+################################################################################
+# Reasoning Strategy
+################################################################################
+class ReasoningStrategy(Enum):
+    DEFAULT = auto()
+    COT = auto()
+    ZS_COT = auto()
+    FEW_SHOT = auto()

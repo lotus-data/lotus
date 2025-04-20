@@ -3,7 +3,7 @@ sem_partition_by
 
 Overview
 ---------
-The sem_partition_by utility in LOTUS exposes a mechanism for finer-grained control over how data is processed for operators, like sem_agg.
+The sem_partition_by utility in LOTUS exposes finer-grained control over how data is processed for sem_agg.
 This operator let's you assign a partition number to each row in a DataFrame. During semantic aggregation, LOTUS, will aggregate over each partition separately,
 before combining intermediate aggregations across partitions. Additionally, the order in which each partition aggregates is combined will follow the order of the partition numbers in increasing order.
 By default, LOTUS implements a hierarchical reduce strategy, assuming that all record belong to the same partition.

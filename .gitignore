@@ -8,3 +8,7 @@ docs/_build
 .mypy_cache
 .pytest_cache
 .env
+.idea/
+
+test_env/
+

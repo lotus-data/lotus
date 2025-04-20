@@ -71,7 +71,7 @@ def test_filter_operation(setup_models, model):
 
 
 @pytest.mark.parametrize("model", get_enabled("gpt-4o-mini"))
-def test_top_k(setup_models, model):
+def test_topk(setup_models, model):
     lm = setup_models[model]
     lotus.settings.configure(lm=lm)
 
@@ -87,12 +87,50 @@ def test_top_k(setup_models, model):
     user_instruction = "Which {Text} is most related to basketball?"
     top_2_expected = set(["Michael Jordan is a good basketball player", "Steph Curry is a good basketball player"])
 
-    strategies = ["quick", "heap", "naive"]
-    for strategy in strategies:
-        sorted_df = df.sem_topk(user_instruction, K=2, strategy=strategy)
+    methods = ["quick", "heap", "naive"]
+    for method in methods:
+        sorted_df = df.sem_topk(user_instruction, K=2, method=method)
 
         top_2_actual = set(sorted_df["Text"].values)
         assert top_2_expected == top_2_actual
+
+
+@pytest.mark.parametrize("model", get_enabled("gpt-4o-mini"))
+def test_group_by_with_topk(setup_models, model):
+    lm = setup_models[model]
+    lotus.settings.configure(lm=lm)
+
+    data = {
+        "Course Name": [
+            "Number Theory",
+            "Data Structures",
+            "Quantum Mechanics",
+            "Genetics",
+            "Linear Algebra",
+            "Thermodynamics",
+            "Algorithms",
+            "Ecology",
+            "Statistics",
+            "Optics",
+            "Machine Learning",
+            "Molecular Biology",
+        ],
+        "Department": ["Math", "Physics", "Computer Science", "Biology"] * 3,
+    }
+    df = pd.DataFrame(data)
+    user_instruction = "Which {Course Name} is the most challenging?"
+    expected_df = pd.DataFrame(
+        {
+            "Course Name": ["Number Theory", "Thermodynamics", "Quantum Mechanics", "Molecular Biology"],
+            "Department": ["Math", "Physics", "Computer Science", "Biology"],
+        }
+    )
+    methods = ["quick", "heap", "naive"]
+    for method in methods:
+        sorted_df = df.sem_topk(user_instruction, K=1, method=method, group_by=["Department"])
+        assert len(sorted_df) == 4
+        assert set(sorted_df["Department"].values) == set(expected_df["Department"].values)
+        assert set(sorted_df["Course Name"].values) == set(expected_df["Course Name"].values)
 
 
 @pytest.mark.parametrize("model", get_enabled("gpt-4o-mini", "ollama/llama3.1"))
@@ -158,8 +196,10 @@ def test_group_by_with_agg(setup_models, model):
     }
     df = pd.DataFrame(data)
     agg_instruction = "Summarize {Names}"
-    agg_df = df.sem_agg(agg_instruction, suffix="draft_output", group_by=["Show"])
+    agg_df: pd.DataFrame = df.sem_agg(agg_instruction, suffix="draft_output", group_by=["Show"])
     assert len(agg_df) == 2
+    assert set(agg_df.columns.tolist()) == {"Show", "draft_output"}
+    assert set(agg_df["Show"].values) == {"The Office", "Star Wars"}
 
     # Map post-processing
     map_instruction = "{draft_output} is a draft answer to the question 'Summarize the names'. Clean up the draft answer is just a comma separated list of names."

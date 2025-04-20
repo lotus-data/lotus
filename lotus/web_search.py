@@ -3,12 +3,19 @@ import os
 from enum import Enum
 
 import pandas as pd
+import requests  # type: ignore
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
 class WebSearchCorpus(Enum):
     GOOGLE = "google"
     GOOGLE_SCHOLAR = "google_scholar"
     ARXIV = "arxiv"
+    YOU = "you"
+    BING = "bing"
+    TAVILY = "tavily"
 
 
 def _web_search_google(
@@ -106,6 +113,72 @@ def _web_search_arxiv(query: str, K: int, cols: list[str] | None = None, sort_by
     return df
 
 
+def _web_search_you(query: str, K: int, cols: list[str] | None = None) -> pd.DataFrame:
+    api_key = os.getenv("YOU_API_KEY")
+    if not api_key:
+        raise ValueError("YOU_API_KEY is not set. It is required to use You.com search.")
+
+    url = "https://api.ydc-index.io/search"
+    params: dict[str, str] = {"q": str(query), "count": str(K)}
+    headers = {"X-API-Key": api_key}
+
+    with requests.get(url, headers=headers, params=params) as response:
+        response.raise_for_status()
+
+    results = response.json().get("results", [])
+    df = pd.DataFrame(results)
+
+    default_cols = ["title", "url", "snippet"]
+    columns_to_use = cols if cols is not None else default_cols
+    df = df[[col for col in columns_to_use if col in df.columns]]
+
+    return df
+
+
+def _web_search_bing(query: str, K: int, cols: list[str] | None = None) -> pd.DataFrame:
+    api_key = os.getenv("BING_API_KEY")
+    if not api_key:
+        raise ValueError("BING_API_KEY is not set. It is required to use Bing search.")
+
+    url = "https://api.bing.microsoft.com/v7.0/search"
+    headers = {"Ocp-Apim-Subscription-Key": api_key}
+    params: dict[str, str] = {"q": str(query), "count": str(K)}
+
+    with requests.get(url, headers=headers, params=params) as response:
+        response.raise_for_status()
+
+    results = response.json().get("webPages", {}).get("value", [])
+    df = pd.DataFrame(results)
+
+    default_cols = ["name", "url", "snippet"]
+    columns_to_use = cols if cols is not None else default_cols
+    df = df[[col for col in columns_to_use if col in df.columns]]
+
+    return df
+
+
+def _web_search_tavily(query: str, K: int, cols: list[str] | None = None) -> pd.DataFrame:
+    api_key = os.getenv("TAVILY_API_KEY")
+    if not api_key:
+        raise ValueError("TAVILY_API_KEY is not set. It is required to use Tavily search.")
+
+    url = "https://api.tavily.com/search"
+    params = {"query": query, "num_results": K, "api_key": api_key}
+    headers = {"Authorization": f"Bearer {api_key}"}
+
+    with requests.post(url, headers=headers, json=params) as response:
+        response.raise_for_status()
+
+    results = response.json().get("results", [])
+    df = pd.DataFrame(results)
+
+    default_cols = ["title", "url", "content"]
+    columns_to_use = cols if cols is not None else default_cols
+    df = df[[col for col in columns_to_use if col in df.columns]]
+
+    return df
+
+
 def web_search(
     corpus: WebSearchCorpus, query: str, K: int, cols: list[str] | None = None, sort_by_date=False
 ) -> pd.DataFrame:
@@ -115,3 +188,9 @@ def web_search(
         return _web_search_arxiv(query, K, cols=cols, sort_by_date=sort_by_date)
     elif corpus == WebSearchCorpus.GOOGLE_SCHOLAR:
         return _web_search_google(query, K, engine="google_scholar", cols=cols)
+    elif corpus == WebSearchCorpus.YOU:
+        return _web_search_you(query, K, cols=cols)
+    elif corpus == WebSearchCorpus.BING:
+        return _web_search_bing(query, K, cols=cols)
+    elif corpus == WebSearchCorpus.TAVILY:
+        return _web_search_tavily(query, K, cols=cols)
