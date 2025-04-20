@@ -78,7 +78,11 @@ class QdrantVS(VS):
 
         # Get vector size for future reference
         collection_info = self.client.get_collection(collection_name=index_dir)
-        self.embedding_dim = next(iter(collection_info.config.params.vectors.values())).size
+        vectors = collection_info.config.params.vectors
+        if isinstance(vectors, dict):
+            self.embedding_dim = next(iter(vectors.values())).size
+        else:
+            self.embedding_dim = vectors.size
 
     def __call__(
         self, query_vectors: NDArray[np.float64], K: int, ids: list[int] | None = None, **kwargs: dict[str, Any]
