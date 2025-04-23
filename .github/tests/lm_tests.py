@@ -529,7 +529,7 @@ def test_sem_map_nsample(setup_models, model):
     different_outputs = False
     for i in range(1, 3):
         if any(multi_df[f"_map{i}"] != multi_df[f"_map{i + 1}"]):
-            different_outputs = True
+            #different_outputs = True
             break
     # assert different_outputs, "Expected different outputs for different samples"
     # actually, this assertion isn't quite correct or always right, since even if temp > 1, it's possible that it's not correct.
