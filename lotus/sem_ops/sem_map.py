@@ -22,6 +22,8 @@ def sem_map(
     strategy: ReasoningStrategy | None = None,
     safe_mode: bool = False,
     progress_bar_desc: str = "Mapping",
+    nsample: int = 1,
+    temp: float | None = None,
 ) -> SemanticMapOutput:
     """
     Maps a list of documents to a list of outputs using a model.
@@ -34,6 +36,11 @@ def sem_map(
         examples_multimodal_data (list[dict[str, Any]] | None): The text for examples. Defaults to None.
         examples_answers (list[str] | None): The answers for examples. Defaults to None.
         cot_reasoning (list[str] | None): The reasoning for CoT. Defaults to None.
+        strategy (ReasoningStrategy | None): The reasoning strategy. Defaults to None.
+        safe_mode (bool): Whether to enable safe mode. Defaults to False.
+        progress_bar_desc (str): Description for the progress bar. Defaults to "Mapping".
+        nsample (int): Number of samples to generate per input. Defaults to 1.
+        temp (float | None): Temperature for sampling. Defaults to None (uses model's default).
 
     Returns:
         SemanticMapOutput: The outputs, raw outputs, and explanations.
@@ -56,7 +63,15 @@ def sem_map(
         show_safe_mode(estimated_cost, estimated_LM_calls)
 
     # call model
-    lm_output: LMOutput = model(inputs, progress_bar_desc=progress_bar_desc)
+    model_kwargs = {"progress_bar_desc": progress_bar_desc}
+    
+    # Add sampling parameters
+        model_kwargs["n"] = nsample
+    
+    if temp is not None:
+        model_kwargs["temperature"] = temp
+        
+    lm_output: LMOutput = model(inputs, **model_kwargs)
 
     # post process results
     postprocess_output = postprocessor(
@@ -100,6 +115,8 @@ class SemMapDataframe:
         strategy: ReasoningStrategy | None = None,
         safe_mode: bool = False,
         progress_bar_desc: str = "Mapping",
+        nsample: int = 1,
+        temp: float | None = None,
     ) -> pd.DataFrame:
         """
         Applies semantic map over a dataframe.
@@ -111,7 +128,11 @@ class SemMapDataframe:
             return_raw_outputs (bool): Whether to return raw outputs. Defaults to False.
             suffix (str): The suffix for the new columns. Defaults to "_map".
             examples (pd.DataFrame | None): The examples dataframe. Defaults to None.
-            strategy (str | None): The reasoning strategy. Defaults to None.
+            strategy (ReasoningStrategy | None): The reasoning strategy. Defaults to None.
+            safe_mode (bool): Whether to enable safe mode. Defaults to False.
+            progress_bar_desc (str): Description for the progress bar. Defaults to "Mapping".
+            nsample (int): Number of samples to generate per input. Defaults to 1.
+            temp (float | None): Temperature for sampling. Defaults to None (uses model's default).
 
         Returns:
             pd.DataFrame: The dataframe with the new mapped columns.
@@ -155,13 +176,37 @@ class SemMapDataframe:
             strategy=strategy,
             safe_mode=safe_mode,
             progress_bar_desc=progress_bar_desc,
+            nsample=nsample,
+            temp=temp,
         )
 
         new_df = self._obj.copy()
-        new_df[suffix] = output.outputs
-        if return_explanations:
-            new_df["explanation" + suffix] = output.explanations
-        if return_raw_outputs:
-            new_df["raw_output" + suffix] = output.raw_outputs
+        
+        if nsample == 1:
+            new_df[suffix] = output.outputs
+            if return_explanations:
+                new_df["explanation" + suffix] = output.explanations
+            if return_raw_outputs:
+                new_df["raw_output" + suffix] = output.raw_outputs
+        else:
+            for i in range(nsample):
+                sample_suffix = f"{suffix}{i+1}"
+                
+                def get_sample(samples, idx):
+                    return samples[idx] if idx < len(samples) else None
+                
+                new_df[sample_suffix] = [
+                    get_sample(row_samples, i) for row_samples in output.outputs
+                ]
+                
+                if return_explanations:
+                    new_df[f"explanation{sample_suffix}"] = [
+                        get_sample(row_explanations, i) if row_explanations else None
+                        for row_explanations in output.explanations
+                    ]
+                if return_raw_outputs:
+                    new_df[f"raw_output{sample_suffix}"] = [
+                        get_sample(row_raw, i) for row_raw in output.raw_outputs
+                    ]
 
         return new_df

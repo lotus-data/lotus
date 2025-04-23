@@ -7,6 +7,7 @@ from lotus.types import (
     SemanticFilterPostprocessOutput,
     SemanticMapPostprocessOutput,
 )
+from typing import Union, List
 
 
 def cot_postprocessor(llm_answers: list[str]):
@@ -136,29 +137,50 @@ def map_postprocess_cot(llm_answers: list[str]) -> SemanticMapPostprocessOutput:
 
 
 def map_postprocess(
-    llm_answers: list[str],
+    llm_answers: Union[list[str], list[list[str]]],
     model: lotus.models.LM,
     cot_reasoning: bool = False,
 ) -> SemanticMapPostprocessOutput:
     """
-    Postprocess the output of the map operator.
+    Postprocess the output of the map operator. Handles both single and multiple samples.
 
     Args:
-        llm_answers (list[str]): The list of llm answers.
+        llm_answers (Union[list[str], list[list[str]]]): The list of llm answers or list of lists for multiple samples.
+        model (lotus.models.LM): The language model used.
         cot_reasoning (bool): Whether there is CoT reasoning.
 
     Returns:
         SemanticMapPostprocessOutput
     """
+    is_multiple_samples = False
+    if llm_answers and isinstance(llm_answers[0], list):
+        is_multiple_samples = True
 
-    if cot_reasoning:
-        postprocessor = get_cot_postprocessor(model)
-        outputs, explanations = postprocessor(llm_answers)
+    if is_multiple_samples:
+        all_outputs = []
+        all_explanations = []
+        
+        for doc_samples in llm_answers:
+            if cot_reasoning:
+                postprocessor = get_cot_postprocessor(model)
+                doc_outputs, doc_explanations = postprocessor(doc_samples)
+            else:
+                doc_outputs = doc_samples
+                doc_explanations = [None] * len(doc_samples)
+                
+            all_outputs.append(doc_outputs)
+            all_explanations.append(doc_explanations)
+            
+        return SemanticMapPostprocessOutput(raw_outputs=llm_answers, outputs=all_outputs, explanations=all_explanations)
     else:
-        outputs = llm_answers
-        explanations = [None] * len(llm_answers)
+        if cot_reasoning:
+            postprocessor = get_cot_postprocessor(model)
+            outputs, explanations = postprocessor(llm_answers)
+        else:
+            outputs = llm_answers
+            explanations = [None] * len(llm_answers)
 
-    return SemanticMapPostprocessOutput(raw_outputs=llm_answers, outputs=outputs, explanations=explanations)
+        return SemanticMapPostprocessOutput(raw_outputs=llm_answers, outputs=outputs, explanations=explanations)
 
 
 def extract_postprocess(
