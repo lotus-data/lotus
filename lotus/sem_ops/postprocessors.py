@@ -7,6 +7,7 @@ from lotus.types import (
     SemanticFilterPostprocessOutput,
     SemanticMapPostprocessOutput,
 )
+from lotus import models
 
 
 def cot_postprocessor(llm_answers: list[str]):
@@ -85,13 +86,13 @@ COT_POSTPROCESSORS = {
 }
 
 
-def get_cot_postprocessor(model: lotus.models.LM, for_extract: bool = False) -> Callable:
+def get_cot_postprocessor(model: models.LM, for_extract: bool = False) -> Callable:
     """
     Returns the appropriate CoT postprocessor for the given model.
     Falls back to standard postprocessor if no specific one is defined.
 
     Args:
-        model (lotus.models.LM): The language model.
+        model (models.LM): The language model.
         for_extract (bool): Whether to process for extraction (convert to JSON).
 
     Returns:
@@ -137,7 +138,7 @@ def map_postprocess_cot(llm_answers: list[str]) -> SemanticMapPostprocessOutput:
 
 def map_postprocess(
     llm_answers: Union[list[str], list[list[str]]],
-    model: lotus.models.LM,
+    model: models.LM,
     cot_reasoning: bool = False,
 ) -> SemanticMapPostprocessOutput:
     """
@@ -145,7 +146,7 @@ def map_postprocess(
 
     Args:
         llm_answers (Union[list[str], list[list[str]]]): The list of llm answers or list of lists for multiple samples.
-        model (lotus.models.LM): The language model used.
+        model (models.LM): The language model used.
         cot_reasoning (bool): Whether there is CoT reasoning.
 
     Returns:
@@ -158,7 +159,7 @@ def map_postprocess(
     if is_multiple_samples:
         all_outputs = []
         all_explanations = []
-        
+
         for doc_samples in llm_answers:
             if cot_reasoning:
                 postprocessor = get_cot_postprocessor(model)
@@ -166,10 +167,10 @@ def map_postprocess(
             else:
                 doc_outputs = doc_samples
                 doc_explanations = [None] * len(doc_samples)
-                
+
             all_outputs.append(doc_outputs)
             all_explanations.append(doc_explanations)
-            
+
         return SemanticMapPostprocessOutput(raw_outputs=llm_answers, outputs=all_outputs, explanations=all_explanations)
     else:
         if cot_reasoning:
@@ -183,7 +184,7 @@ def map_postprocess(
 
 
 def extract_postprocess(
-    llm_answers: list[str], model: lotus.models.LM, cot_reasoning: bool = False
+    llm_answers: list[str], model: models.LM, cot_reasoning: bool = False
 ) -> SemanticExtractPostprocessOutput:
     """
     Postprocess the output of the extract operator to extract the schema.
@@ -217,7 +218,7 @@ def extract_postprocess(
 
 def filter_postprocess(
     llm_answers: list[str],
-    model: lotus.models.LM,
+    model: models.LM,
     default: bool = True,
 ) -> SemanticFilterPostprocessOutput:
     """
