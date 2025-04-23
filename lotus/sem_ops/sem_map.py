@@ -1,8 +1,9 @@
-from typing import Any, Callable
+from typing import Any, Callable, Union
 
 import pandas as pd
 
 import lotus
+from lotus import models, nl_expression
 from lotus.cache import operator_cache
 from lotus.templates import task_instructions
 from lotus.types import LMOutput, ReasoningStrategy, SemanticMapOutput, SemanticMapPostprocessOutput
@@ -13,9 +14,9 @@ from .postprocessors import map_postprocess
 
 def sem_map(
     docs: list[dict[str, Any]],
-    model: lotus.models.LM,
+    model: models.LM,
     user_instruction: str,
-    postprocessor: Callable[[list[str], lotus.models.LM, bool], SemanticMapPostprocessOutput] = map_postprocess,
+    postprocessor: Callable[[Union[list[str], list[list[str]]], models.LM, bool], SemanticMapPostprocessOutput] = map_postprocess,
     examples_multimodal_data: list[dict[str, Any]] | None = None,
     examples_answers: list[str] | None = None,
     cot_reasoning: list[str] | None = None,
@@ -49,7 +50,7 @@ def sem_map(
     # prepare model inputs
     inputs = []
     for doc in docs:
-        prompt = lotus.templates.task_instructions.map_formatter(
+        prompt = task_instructions.map_formatter(
             model, doc, user_instruction, examples_multimodal_data, examples_answers, cot_reasoning, strategy=strategy
         )
         lotus.logger.debug(f"input to model: {prompt}")
@@ -63,7 +64,7 @@ def sem_map(
         show_safe_mode(estimated_cost, estimated_LM_calls)
 
     # call model
-    model_kwargs = {"progress_bar_desc": progress_bar_desc}
+    model_kwargs: dict[str, Any] = {"progress_bar_desc": progress_bar_desc}
     
     # Add sampling parameters
     model_kwargs["n"] = nsample
@@ -107,7 +108,7 @@ class SemMapDataframe:
     def __call__(
         self,
         user_instruction: str,
-        postprocessor: Callable[[list[str], lotus.models.LM, bool], SemanticMapPostprocessOutput] = map_postprocess,
+        postprocessor: Callable[[Union[list[str], list[list[str]]], models.LM, bool], SemanticMapPostprocessOutput] = map_postprocess,
         return_explanations: bool = False,
         return_raw_outputs: bool = False,
         suffix: str = "_map",
@@ -142,7 +143,7 @@ class SemMapDataframe:
                 "The language model must be an instance of LM. Please configure a valid language model using lotus.settings.configure()"
             )
 
-        col_li = lotus.nl_expression.parse_cols(user_instruction)
+        col_li = nl_expression.parse_cols(user_instruction)
 
         # check that column exists
         for column in col_li:
@@ -150,7 +151,7 @@ class SemMapDataframe:
                 raise ValueError(f"Column {column} not found in DataFrame")
 
         multimodal_data = task_instructions.df2multimodal_info(self._obj, col_li)
-        formatted_usr_instr = lotus.nl_expression.nle2str(user_instruction, col_li)
+        formatted_usr_instr = nl_expression.nle2str(user_instruction, col_li)
 
         examples_multimodal_data = None
         examples_answers = None
