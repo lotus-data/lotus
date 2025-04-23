@@ -66,7 +66,7 @@ def sem_map(
     model_kwargs = {"progress_bar_desc": progress_bar_desc}
     
     # Add sampling parameters
-        model_kwargs["n"] = nsample
+    model_kwargs["n"] = nsample
     
     if temp is not None:
         model_kwargs["temperature"] = temp

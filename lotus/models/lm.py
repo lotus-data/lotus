@@ -116,8 +116,8 @@ class LM:
             if lotus.settings.enable_cache
             else uncached_responses
         )
-        n = all_kwargs.get('n', 1)
-        
+        n = all_kwargs.get("n", 1)
+
         if n <= 1:
             outputs = [self._get_top_choice(resp) for resp in all_responses]
             logprobs = (
@@ -126,7 +126,9 @@ class LM:
         else:
             outputs = [self._get_multiple_choices(resp, n) for resp in all_responses]
             logprobs = (
-                [self._get_multiple_choices_logprobs(resp, n) for resp in all_responses] if all_kwargs.get("logprobs") else None
+                [self._get_multiple_choices_logprobs(resp, n) for resp in all_responses]
+                if all_kwargs.get("logprobs")
+                else None
             )
 
         return LMOutput(outputs=outputs, logprobs=logprobs)
@@ -203,7 +205,9 @@ class LM:
         except Exception as e:
             # Handle any other unexpected errors when calculating cost
             lotus.logger.debug(f"Unexpected error calculating completion cost: {e}")
-            warnings.warn("Error calculating completion cost - cost metrics will be inaccurate. Enable debug logging for details.")
+            warnings.warn(
+                "Error calculating completion cost - cost metrics will be inaccurate. Enable debug logging for details."
+            )
 
             cost = None
 
@@ -222,12 +226,12 @@ class LM:
         if choice.message.content is None:
             raise ValueError(f"No content in response: {response}")
         return choice.message.content
-        
+
     def _get_multiple_choices(self, response: ModelResponse, n: int) -> list[str]:
         """Get multiple choices from a response, up to n choices."""
         choices = []
         available_choices = min(n, len(response.choices))
-        
+
         for i in range(available_choices):
             choice = response.choices[i]
             assert isinstance(choice, Choices)
@@ -235,10 +239,10 @@ class LM:
                 lotus.logger.warning(f"No content in choice {i} of response: {response}")
                 continue
             choices.append(choice.message.content)
-            
+
         if available_choices < n:
             lotus.logger.warning(f"Requested {n} samples but only got {available_choices}")
-            
+
         return choices
 
     def _get_top_choice_logprobs(self, response: ModelResponse) -> list[ChatCompletionTokenLogprob]:
@@ -246,24 +250,24 @@ class LM:
         assert isinstance(choice, Choices)
         logprobs = choice.logprobs["content"]
         return [ChatCompletionTokenLogprob(**logprob) for logprob in logprobs]
-        
+
     def _get_multiple_choices_logprobs(self, response: ModelResponse, n: int) -> list[list[ChatCompletionTokenLogprob]]:
         """Get logprobs for multiple choices from a response, up to n choices."""
         all_logprobs = []
         available_choices = min(n, len(response.choices))
-        
+
         for i in range(available_choices):
             choice = response.choices[i]
             assert isinstance(choice, Choices)
-            
-            if not hasattr(choice, 'logprobs') or not choice.logprobs or "content" not in choice.logprobs:
+
+            if not hasattr(choice, "logprobs") or not choice.logprobs or "content" not in choice.logprobs:
                 lotus.logger.warning(f"No logprobs in choice {i} of response: {response}")
                 all_logprobs.append([])
                 continue
-                
+
             choice_logprobs = choice.logprobs["content"]
             all_logprobs.append([ChatCompletionTokenLogprob(**logprob) for logprob in choice_logprobs])
-            
+
         return all_logprobs
 
     def format_logprobs_for_cascade(self, logprobs: list[list[ChatCompletionTokenLogprob]]) -> LogprobsForCascade:
