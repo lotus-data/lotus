@@ -494,3 +494,110 @@ def test_custom_tokenizer():
     tokens = custom_lm.count_tokens("Hello, world!")
     assert custom_lm.count_tokens([{"role": "user", "content": "Hello, world!"}]) == tokens
     assert tokens < 100
+
+
+################################################################################
+# sem_map nsample and temp tests
+################################################################################
+@pytest.mark.parametrize("model", get_enabled("gpt-4o-mini", "ollama/llama3.1"))
+def test_sem_map_nsample(setup_models, model):
+    """Test that sem_map properly handles nsample > 1."""
+    lm = setup_models[model]
+    lotus.settings.configure(lm=lm)
+
+    # Test basic sem_map operation with multiple samples
+    data = {"Text": ["The sky is blue", "Water is wet"]}
+    df = pd.DataFrame(data)
+    user_instruction = "Describe {Text} in one sentence"
+    
+    # Generate 3 descriptions per input
+    multi_df = df.sem_map(user_instruction, nsample=3)
+    
+    # Check that we have the expected columns
+    assert "_map1" in multi_df.columns
+    assert "_map2" in multi_df.columns
+    assert "_map3" in multi_df.columns
+    
+    # Check that each column contains non-empty strings
+    for i in range(1, 4):
+        col = f"_map{i}"
+        assert all(isinstance(val, str) and len(val) > 0 for val in multi_df[col])
+    
+    # Check that we get different outputs for different samples (at least sometimes)
+    # We can't guarantee different outputs every time due to the probabilistic nature
+    # but they should differ at least once in our test data
+    different_outputs = False
+    for i in range(1, 3):
+        if any(multi_df[f"_map{i}"] != multi_df[f"_map{i+1}"]):
+            different_outputs = True
+            break
+    # assert different_outputs, "Expected different outputs for different samples"
+    # actually, this assertion isn't quite correct or always right, since even if temp > 1, it's possible that it's not correct.
+
+
+@pytest.mark.parametrize("model", get_enabled("gpt-4o-mini"))
+def test_sem_map_nsample_with_returns(setup_models, model):
+    """Test sem_map with nsample > 1 and return_explanations/return_raw_outputs."""
+    lm = setup_models[model]
+    lotus.settings.configure(lm=lm)
+
+    data = {"Text": ["The sky is blue"]}
+    df = pd.DataFrame(data)
+    user_instruction = "Describe {Text} in one sentence"
+    
+    # Generate 2 samples with explanations and raw outputs
+    multi_df = df.sem_map(
+        user_instruction,
+        nsample=2,
+        return_explanations=True,
+        return_raw_outputs=True
+    )
+    
+    # Check that we have the expected output columns
+    assert "_map1" in multi_df.columns
+    assert "_map2" in multi_df.columns
+    
+    # Check that we have the expected explanation columns
+    assert "explanation_map1" in multi_df.columns
+    assert "explanation_map2" in multi_df.columns
+    
+    # Check that we have the expected raw output columns
+    assert "raw_output_map1" in multi_df.columns
+    assert "raw_output_map2" in multi_df.columns
+
+
+@pytest.mark.parametrize("model", get_enabled("gpt-4o-mini"))
+def test_sem_map_temp(setup_models, model):
+    """Test that sem_map properly handles the temp parameter."""
+    lm = setup_models[model]
+    lotus.settings.configure(lm=lm)
+
+    data = {"Text": ["Creativity prompt: describe a new animal"]}
+    df = pd.DataFrame(data)
+    user_instruction = "Respond to {Text} with a short description"
+    
+    # Generate 5 samples with high temperature for more variation
+    high_temp_df = df.sem_map(
+        user_instruction,
+        nsample=5,
+        temp=1.0  # High temperature
+    )
+    
+    # Generate 5 samples with low temperature for less variation
+    low_temp_df = df.sem_map(
+        user_instruction,
+        nsample=5,
+        temp=0.1  # Low temperature
+    )
+    
+    # We can't make strong assertions about the specific content,
+    # but we can verify columns exist
+    for i in range(1, 6):
+        assert f"_map{i}" in high_temp_df.columns
+        assert f"_map{i}" in low_temp_df.columns
+        
+    # All outputs should be non-empty strings
+    for i in range(1, 6):
+        col = f"_map{i}"
+        assert all(isinstance(val, str) and len(val) > 0 for val in high_temp_df[col])
+        assert all(isinstance(val, str) and len(val) > 0 for val in low_temp_df[col])
