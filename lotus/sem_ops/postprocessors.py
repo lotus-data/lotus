@@ -1,5 +1,5 @@
 import json
-from typing import Callable
+from typing import Callable, Union
 
 import lotus
 from lotus.types import (
@@ -7,7 +7,6 @@ from lotus.types import (
     SemanticFilterPostprocessOutput,
     SemanticMapPostprocessOutput,
 )
-from typing import Union, List
 
 
 def cot_postprocessor(llm_answers: list[str]):
