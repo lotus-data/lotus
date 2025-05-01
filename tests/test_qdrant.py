@@ -3,7 +3,8 @@ import pytest
 from qdrant_client import QdrantClient
 
 import lotus
-from lotus.models import LiteLLMRM
+from lotus.models import LM, LiteLLMRM
+from lotus.types import CascadeArgs, ProxyModel
 from lotus.vector_store import QdrantVS
 from tests.base_test import BaseTest
 
@@ -112,3 +113,34 @@ class TestQdrantVS(BaseTest):
             assert len(cluster_ids) == 1, f"Category {category} split across clusters: {cluster_ids}"
         # The two categories should be assigned to different clusters
         assert cluster_map.nunique() == 2, f"Both categories mapped to the same cluster: {cluster_map}"
+
+    def test_sem_filter_cascade(self):
+        lm = LM(model="gpt-4o-mini")
+        lotus.settings.configure(lm=lm)
+        df = pd.DataFrame(
+            {
+                "Course Name": [
+                    "Introduction to Cooking",
+                    "Advanced Cooking",
+                    "Basic Mathematics",
+                    "Advanced Mathematics",
+                    "Machine Learning 101",
+                    "Deep Learning for Beginners",
+                    "History of Art",
+                    "Modern Art Techniques",
+                ]
+            }
+        )
+        df = df.sem_index("Course Name", "qdrant_filter_cascade_index")
+        cascade_args = CascadeArgs(
+            recall_target=0.9,
+            precision_target=0.9,
+            sampling_percentage=0.5,
+            failure_probability=0.2,
+            proxy_model=ProxyModel.EMBEDDING_MODEL,
+        )
+        filtered_df, stats = df.sem_filter(
+            user_instruction="{Course Name} is about cooking", cascade_args=cascade_args, return_stats=True
+        )
+        print(filtered_df)
+        print(stats)
