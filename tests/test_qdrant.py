@@ -79,3 +79,36 @@ class TestQdrantVS(BaseTest):
         }
         for _, row in joined.iterrows():
             assert any(exp in row["Course Name"] for exp in expected[row["Skill"]])
+
+    def test_sem_cluster_by(self):
+        df = pd.DataFrame(
+            {
+                "Item": [
+                    "Apple",
+                    "Banana",
+                    "Orange",
+                    "Cat",
+                    "Dog",
+                    "Tiger",
+                ],
+                "Category": [
+                    "Fruit",
+                    "Fruit",
+                    "Fruit",
+                    "Animal",
+                    "Animal",
+                    "Animal",
+                ],
+            }
+        )
+        df = df.sem_index("Item", "qdrant_cluster_index")
+        clustered = df.sem_cluster_by("Item", 2)
+
+        # Map cluster ids to categories
+        cluster_map = clustered.groupby("Category")["cluster_id"].agg(lambda x: x.mode()[0])
+        # All items in the same category should have the same cluster id
+        for category, group in clustered.groupby("Category"):
+            cluster_ids = group["cluster_id"].unique()
+            assert len(cluster_ids) == 1, f"Category {category} split across clusters: {cluster_ids}"
+        # The two categories should be assigned to different clusters
+        assert cluster_map.nunique() == 2, f"Both categories mapped to the same cluster: {cluster_map}"
