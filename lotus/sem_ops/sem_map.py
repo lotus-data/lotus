@@ -15,13 +15,15 @@ def sem_map(
     docs: list[dict[str, Any]],
     model: lotus.models.LM,
     user_instruction: str,
-    postprocessor: Callable[[list[str], lotus.models.LM, bool], SemanticMapPostprocessOutput] = map_postprocess,
+    postprocessor: Callable[[list[str], lotus.models.LM, bool, str], SemanticMapPostprocessOutput] = map_postprocess,
+    default: str = "",
     examples_multimodal_data: list[dict[str, Any]] | None = None,
     examples_answers: list[str] | None = None,
     cot_reasoning: list[str] | None = None,
     strategy: ReasoningStrategy | None = None,
     safe_mode: bool = False,
     progress_bar_desc: str = "Mapping",
+    additional_cot_instructions: str = "",
 ) -> SemanticMapOutput:
     """
     Maps a list of documents to a list of outputs using a model.
@@ -34,6 +36,11 @@ def sem_map(
         examples_multimodal_data (list[dict[str, Any]] | None): The text for examples. Defaults to None.
         examples_answers (list[str] | None): The answers for examples. Defaults to None.
         cot_reasoning (list[str] | None): The reasoning for CoT. Defaults to None.
+        additional_cot_instructions (str): Additional instructions for the CoT. Defaults to "".
+        strategy (str | None): The reasoning strategy. Defaults to None.
+        safe_mode (bool): Whether to use safe mode. Defaults to False.
+        progress_bar_desc (str): The description for the progress bar. Defaults to "Mapping".
+        default (str): The default value to use if we fail to parse the answer.
 
     Returns:
         SemanticMapOutput: The outputs, raw outputs, and explanations.
@@ -43,7 +50,13 @@ def sem_map(
     inputs = []
     for doc in docs:
         prompt = lotus.templates.task_instructions.map_formatter(
-            model, doc, user_instruction, examples_multimodal_data, examples_answers, cot_reasoning, strategy=strategy
+            model, doc,
+            user_instruction,
+            examples_multimodal_data,
+            examples_answers,
+            cot_reasoning,
+            strategy=strategy,
+            reasoning_instructions=additional_cot_instructions,
         )
         lotus.logger.debug(f"input to model: {prompt}")
         lotus.logger.debug(f"inputs content to model: {[x.get('content') for x in prompt]}")
@@ -60,7 +73,7 @@ def sem_map(
 
     # post process results
     postprocess_output = postprocessor(
-        lm_output.outputs, model, strategy in [ReasoningStrategy.COT, ReasoningStrategy.ZS_COT]
+        lm_output.outputs, model, strategy in [ReasoningStrategy.COT, ReasoningStrategy.ZS_COT], default
     )
     lotus.logger.debug(f"raw_outputs: {lm_output.outputs}")
     lotus.logger.debug(f"outputs: {postprocess_output.outputs}")
@@ -92,7 +105,7 @@ class SemMapDataframe:
     def __call__(
         self,
         user_instruction: str,
-        postprocessor: Callable[[list[str], lotus.models.LM, bool], SemanticMapPostprocessOutput] = map_postprocess,
+        postprocessor: Callable[[list[str], lotus.models.LM, bool, str], SemanticMapPostprocessOutput] = map_postprocess,
         return_explanations: bool = False,
         return_raw_outputs: bool = False,
         suffix: str = "_map",
@@ -100,6 +113,8 @@ class SemMapDataframe:
         strategy: ReasoningStrategy | None = None,
         safe_mode: bool = False,
         progress_bar_desc: str = "Mapping",
+        additional_cot_instructions: str = "",
+        default: str = "",
     ) -> pd.DataFrame:
         """
         Applies semantic map over a dataframe.
@@ -112,6 +127,10 @@ class SemMapDataframe:
             suffix (str): The suffix for the new columns. Defaults to "_map".
             examples (pd.DataFrame | None): The examples dataframe. Defaults to None.
             strategy (str | None): The reasoning strategy. Defaults to None.
+            safe_mode (bool): Whether to use safe mode. Defaults to False.
+            progress_bar_desc (str): The description for the progress bar. Defaults to "Mapping".
+            additional_cot_instructions (str): Additional instructions for the CoT. Defaults to "".
+            default (str): The default value to use if we fail to parse the answer.
 
         Returns:
             pd.DataFrame: The dataframe with the new mapped columns.
@@ -140,8 +159,7 @@ class SemMapDataframe:
             examples_multimodal_data = task_instructions.df2multimodal_info(examples, col_li)
             examples_answers = examples["Answer"].tolist()
 
-            if strategy == ReasoningStrategy.COT or strategy == ReasoningStrategy.ZS_COT:
-                return_explanations = True
+            if strategy == ReasoningStrategy.COT or strategy == ReasoningStrategy.ZS_COT and "Reasoning" in examples.columns:
                 cot_reasoning = examples["Reasoning"].tolist()
 
         output = sem_map(
@@ -155,6 +173,8 @@ class SemMapDataframe:
             strategy=strategy,
             safe_mode=safe_mode,
             progress_bar_desc=progress_bar_desc,
+            additional_cot_instructions=additional_cot_instructions,
+            default=default,
         )
 
         new_df = self._obj.copy()
