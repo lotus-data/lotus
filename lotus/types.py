@@ -12,8 +12,8 @@ from pydantic import BaseModel
 ################################################################################
 @dataclass
 class LMOutput:
-    outputs: list[str]
-    logprobs: list[list[ChatCompletionTokenLogprob]] | None = None
+    outputs: list[str] | list[list[str]]
+    logprobs: list[list[ChatCompletionTokenLogprob]] | list[list[list[ChatCompletionTokenLogprob]]] | None = None
 
 
 @dataclass
@@ -75,9 +75,9 @@ class SemanticMapPostprocessOutput:
 
 @dataclass
 class SemanticMapOutput:
-    raw_outputs: list[str]
-    outputs: list[str]
-    explanations: list[str | None]
+    raw_outputs: list[str] | list[list[str]]
+    outputs: list[str] | list[list[str]]
+    explanations: list[str | None] | list[list[str | None]]
 
 
 @dataclass
