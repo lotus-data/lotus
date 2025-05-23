@@ -13,9 +13,9 @@ repos:
         args: ["--config-file", "mypy.ini"]
         additional_dependencies:
           - types-setuptools
-          - litellm>=1.51.0
-          - numpy>=1.25.0
-          - pandas>=2.0.0
-          - sentence-transformers>=3.0.1
-          - tiktoken>=0.7.0
+          - litellm>=1.63.2
+          - numpy>=2.2.3
+          - pandas>=2.2.3
+          - sentence-transformers>=3.4.1
+          - tiktoken>=0.9.0
           - tqdm>=4.66.4
