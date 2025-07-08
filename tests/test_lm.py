@@ -119,3 +119,31 @@ class TestLM(BaseTest):
         pd.testing.assert_frame_equal(mapped_df_first, mapped_df_second)
         pd.testing.assert_frame_equal(mapped_df_first, mapped_df_third)
         pd.testing.assert_frame_equal(mapped_df_second, mapped_df_third)
+
+    def test_lm_rate_limiting_initialization(self):
+        """Test that rate limiting parameters are properly initialized."""
+        # Test with rate limiting enabled
+        lm = LM(model="gpt-4o-mini", rate_limit=30, rate_limit_delay=2.0)
+        assert lm.rate_limit == 30
+        assert lm.rate_limit_delay == 2.0
+        assert lm.max_batch_size == 1  # Should be capped to 1 (30/60 = 0.5, but we use max(1, ...))
+
+        # Test without rate limiting (backward compatibility)
+        lm = LM(model="gpt-4o-mini", max_batch_size=64)
+        assert lm.rate_limit is None
+        assert lm.rate_limit_delay == 1.0  # Default value
+        assert lm.max_batch_size == 64
+
+    def test_lm_rate_limiting_batch_size_capping(self):
+        """Test that rate_limit properly caps max_batch_size."""
+        # Rate limit of 60 requests per minute = 1 request per second
+        lm = LM(model="gpt-4o-mini", max_batch_size=100, rate_limit=60)
+        assert lm.max_batch_size == 1  # Should be capped to 1
+
+        # Rate limit of 120 requests per minute = 2 requests per second
+        lm = LM(model="gpt-4o-mini", max_batch_size=10, rate_limit=120)
+        assert lm.max_batch_size == 2  # Should be capped to 2
+
+        # Rate limit higher than max_batch_size should not cap
+        lm = LM(model="gpt-4o-mini", max_batch_size=10, rate_limit=600)
+        assert lm.max_batch_size == 10  # Should remain unchanged
