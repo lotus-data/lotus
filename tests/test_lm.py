@@ -123,27 +123,51 @@ class TestLM(BaseTest):
     def test_lm_rate_limiting_initialization(self):
         """Test that rate limiting parameters are properly initialized."""
         # Test with rate limiting enabled
-        lm = LM(model="gpt-4o-mini", rate_limit=30, rate_limit_delay=2.0)
+        lm = LM(model="gpt-4o-mini", rate_limit=30)
         assert lm.rate_limit == 30
-        assert lm.rate_limit_delay == 2.0
-        assert lm.max_batch_size == 1  # Should be capped to 1 (30/60 = 0.5, but we use max(1, ...))
+        # No assertion for rate_limit_delay, as it's now internal
 
         # Test without rate limiting (backward compatibility)
         lm = LM(model="gpt-4o-mini", max_batch_size=64)
         assert lm.rate_limit is None
-        assert lm.rate_limit_delay == 1.0  # Default value
         assert lm.max_batch_size == 64
 
     def test_lm_rate_limiting_batch_size_capping(self):
         """Test that rate_limit properly caps max_batch_size."""
         # Rate limit of 60 requests per minute = 1 request per second
         lm = LM(model="gpt-4o-mini", max_batch_size=100, rate_limit=60)
-        assert lm.max_batch_size == 1  # Should be capped to 1
+        assert lm.max_batch_size == 60  # Should be capped to 60
 
         # Rate limit of 120 requests per minute = 2 requests per second
         lm = LM(model="gpt-4o-mini", max_batch_size=10, rate_limit=120)
-        assert lm.max_batch_size == 2  # Should be capped to 2
+        assert lm.max_batch_size == 10  # Should be capped to 10
 
         # Rate limit higher than max_batch_size should not cap
         lm = LM(model="gpt-4o-mini", max_batch_size=10, rate_limit=600)
         assert lm.max_batch_size == 10  # Should remain unchanged
+
+    def test_lm_rate_limiting_real_operation(self):
+        import time
+
+        import pandas as pd
+
+        import lotus
+        from lotus.models import LM
+
+        # Prepare a small DataFrame
+        df = pd.DataFrame({"text": ["a", "b", "c"]})
+        user_instruction = "{text} is a letter"
+        rate_limit = 3  # 3 requests per minute
+        lm = LM(model="gpt-4o-mini", rate_limit=rate_limit)
+        lotus.settings.configure(lm=lm)
+
+        start = time.time()
+        # This will trigger 3 LLM calls, one per row
+        df.sem_filter(user_instruction)
+        elapsed = time.time() - start
+
+        expected_min_time = (len(df) - 1) * (60 / rate_limit)
+        # Allow a small margin for timing inaccuracies
+        assert (
+            elapsed >= expected_min_time * 0.95
+        ), f"Elapsed time {elapsed:.2f}s is less than expected minimum {expected_min_time:.2f}s"

@@ -38,7 +38,6 @@ class LM:
         max_tokens: int = 512,
         max_batch_size: int = 64,
         rate_limit: int | None = None,
-        rate_limit_delay: float = 1.0,
         tokenizer: Tokenizer | None = None,
         cache=None,
         physical_usage_limit: UsageLimit = UsageLimit(),
@@ -54,7 +53,6 @@ class LM:
             max_tokens (int): Maximum number of tokens to generate. Defaults to 512.
             max_batch_size (int): Maximum batch size for concurrent requests. Defaults to 64.
             rate_limit (int | None): Maximum requests per minute. If set, caps max_batch_size and adds delays.
-            rate_limit_delay (float): Delay between batches in seconds when rate limiting is enabled.
             tokenizer (Tokenizer | None): Custom tokenizer instance. Defaults to None.
             cache: Cache instance to use. Defaults to None.
             physical_usage_limit (UsageLimit): Physical usage limits for the model. Defaults to UsageLimit().
@@ -65,17 +63,14 @@ class LM:
         self.max_ctx_len = max_ctx_len
         self.max_tokens = max_tokens
         self.rate_limit = rate_limit
-        self.rate_limit_delay = rate_limit_delay
-
-        # Apply rate limiting to max_batch_size if rate_limit is set
         if rate_limit is not None:
-            # Calculate max batch size based on rate limit
-            # Assuming we want to process requests within the rate limit window
-            max_batch_from_rate = max(1, rate_limit // 60)  # requests per second
-            self.max_batch_size = min(max_batch_size, max_batch_from_rate)
+            self._rate_limit_delay = 60 / rate_limit
+            if max_batch_size is not None:
+                self.max_batch_size = min(rate_limit, max_batch_size)
+            else:
+                self.max_batch_size = rate_limit
         else:
             self.max_batch_size = max_batch_size
-
         self.tokenizer = tokenizer
         self.kwargs = dict(temperature=temperature, max_tokens=max_tokens, **kwargs)
 
@@ -155,10 +150,8 @@ class LM:
         batch = [msg for msg, _ in uncached_data]
 
         if self.rate_limit is not None:
-            # Process with rate limiting
             uncached_responses = self._process_with_rate_limiting(batch, all_kwargs, pbar)
         else:
-            # Process without rate limiting (current behavior)
             uncached_responses = batch_completion(
                 self.model, batch, drop_params=True, max_workers=self.max_batch_size, **all_kwargs
             )
@@ -170,28 +163,19 @@ class LM:
     def _process_with_rate_limiting(self, batch, all_kwargs, pbar):
         """Process batch with rate limiting by adding delays between sub-batches."""
         responses = []
-
-        # Calculate how many batches we need
         num_batches = math.ceil(len(batch) / self.max_batch_size)
-
         for i in range(num_batches):
             start_idx = i * self.max_batch_size
             end_idx = min((i + 1) * self.max_batch_size, len(batch))
             sub_batch = batch[start_idx:end_idx]
-
-            # Process this sub-batch
             sub_responses = batch_completion(
                 self.model, sub_batch, drop_params=True, max_workers=self.max_batch_size, **all_kwargs
             )
             responses.extend(sub_responses)
-
-            # Update progress bar
             pbar.update(len(sub_batch))
-
-            # Add delay between batches (except for the last batch)
-            if i < num_batches - 1 and self.rate_limit_delay > 0:
-                time.sleep(self.rate_limit_delay)
-
+            # Use the internal delay
+            if i < num_batches - 1:
+                time.sleep(self._rate_limit_delay)
         return responses
 
     def _cache_response(self, response, hash):
