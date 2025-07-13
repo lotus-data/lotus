@@ -38,7 +38,7 @@ Creating a LM object to use Meta-Llama-3-8B-Instruct on vLLM
 
 Rate Limits
 -----------
-The LM class supports rate limiting through the ``max_batch_size`` parameter to control the number of concurrent requests made to the LLM provider. Additionally, you can use the new ``rate_limit`` parameter for explicit rate limiting with automatic delays between batches.
+The LM class supports rate limiting through the ``rate_limit`` parameter to control the number of requests made to the LLM provider per minute. The delay between batches is computed automatically to ensure the specified number of requests per minute is not exceeded. Users do not need to set a delay manually; the system will dynamically adjust the timing between batches based on actual batch completion time.
 
 Example setting rate limits:
 
@@ -49,16 +49,14 @@ Example setting rate limits:
     # Basic rate limiting - 30 requests per minute
     lm = LM(
         model="gpt-4o",
-        rate_limit=30,  # 30 requests per minute
-        rate_limit_delay=2.0  # 2 second delay between batches
+        rate_limit=30  # 30 requests per minute
     )
     
     # For strict rate limits (e.g., free tier APIs)
     lm = LM(
         model="gpt-4o",
-        max_batch_size=10,  # Original parameter
-        rate_limit=10,      # New: caps at 10 requests per minute
-        rate_limit_delay=6.0  # 6 second delay between batches
+        max_batch_size=10,  # Optional: for local serving
+        rate_limit=10      # Caps at 10 requests per minute
     )
     
     # Traditional approach using only max_batch_size
@@ -75,15 +73,14 @@ The rate limiting parameters are particularly useful when:
 
 **Rate Limiting Parameters:**
 
-- ``rate_limit`` (int | None): Maximum requests per minute. When set, this automatically caps the ``max_batch_size`` and adds delays between batches to ensure the rate limit is respected.
-- ``rate_limit_delay`` (float): Delay in seconds between batches when rate limiting is enabled. Defaults to 1.0 second.
+- ``rate_limit`` (int | None): Maximum requests per minute. When set, the delay between batches is handled automatically.
+- ``max_batch_size`` (int): Maximum number of requests sent in a single batch (mainly for local serving).
 
 **How it works:**
 When ``rate_limit`` is set, the system:
-1. Calculates the maximum batch size based on the rate limit (requests per second)
-2. Caps the ``max_batch_size`` parameter to respect the rate limit
-3. Adds the specified delay between batches to prevent exceeding the rate limit
-4. Maintains backward compatibility - existing code without rate limiting continues to work unchanged
+1. Calculates the maximum batch size as the minimum of ``rate_limit`` and ``max_batch_size`` (if both are set).
+2. Dynamically computes and enforces the delay between batches based on actual batch completion time, so the specified rate is not exceeded.
+3. Maintains backward compatibility—existing code without rate limiting continues to work unchanged.
 
 Usage Limits
 -----------
