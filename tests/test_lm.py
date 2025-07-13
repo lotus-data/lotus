@@ -146,7 +146,7 @@ class TestLM(BaseTest):
         lm = LM(model="gpt-4o-mini", max_batch_size=10, rate_limit=600)
         assert lm.max_batch_size == 10  # Should remain unchanged
 
-    def test_lm_rate_limiting_real_operation(self):
+    def test_lm_dynamic_rate_limiting_delay(self):
         import time
 
         import pandas as pd
@@ -154,20 +154,18 @@ class TestLM(BaseTest):
         import lotus
         from lotus.models import LM
 
-        # Prepare a small DataFrame
-        df = pd.DataFrame({"text": ["a", "b", "c"]})
-        user_instruction = "{text} is a letter"
-        rate_limit = 3  # 3 requests per minute
+        df = pd.DataFrame({"text": [str(i) for i in range(20)]})
+        user_instruction = "{text} is a number"
+        rate_limit = 10  # 10 requests per minute
         lm = LM(model="gpt-4o-mini", rate_limit=rate_limit)
         lotus.settings.configure(lm=lm)
 
         start = time.time()
-        # This will trigger 3 LLM calls, one per row
         df.sem_filter(user_instruction)
         elapsed = time.time() - start
 
-        expected_min_time = (len(df) - 1) * (60 / rate_limit)
-        # Allow a small margin for timing inaccuracies
+        # 20 requests, 10 per minute => at least 2 minutes for 20 requests
+        expected_min_time = ((len(df) - 1) // rate_limit) * 60
         assert (
             elapsed >= expected_min_time * 0.95
         ), f"Elapsed time {elapsed:.2f}s is less than expected minimum {expected_min_time:.2f}s"

@@ -161,10 +161,12 @@ class LM:
         return uncached_responses
 
     def _process_with_rate_limiting(self, batch, all_kwargs, pbar):
-        """Process batch with rate limiting by adding delays between sub-batches."""
         responses = []
         num_batches = math.ceil(len(batch) / self.max_batch_size)
+        min_interval = 60 / self.rate_limit  # seconds per batch
+
         for i in range(num_batches):
+            start_time = time.time()
             start_idx = i * self.max_batch_size
             end_idx = min((i + 1) * self.max_batch_size, len(batch))
             sub_batch = batch[start_idx:end_idx]
@@ -173,9 +175,13 @@ class LM:
             )
             responses.extend(sub_responses)
             pbar.update(len(sub_batch))
-            # Use the internal delay
+            end_time = time.time()
+            elapsed = end_time - start_time
+            # Only sleep if the batch was faster than the allowed interval
             if i < num_batches - 1:
-                time.sleep(self._rate_limit_delay)
+                to_sleep = min_interval - elapsed
+                if to_sleep > 0:
+                    time.sleep(to_sleep)
         return responses
 
     def _cache_response(self, response, hash):
