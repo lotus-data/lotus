@@ -8,6 +8,7 @@ from typing import Any
 import litellm
 import numpy as np
 from litellm import batch_completion, completion_cost
+from litellm.exceptions import AuthenticationError
 from litellm.types.utils import ChatCompletionTokenLogprob, Choices, ModelResponse
 from litellm.utils import token_counter
 from openai._exceptions import OpenAIError
@@ -163,7 +164,7 @@ class LM:
     def _process_with_rate_limiting(self, batch, all_kwargs, pbar):
         responses = []
         num_batches = math.ceil(len(batch) / self.max_batch_size)
-        min_interval = 60 / self.rate_limit  # seconds per batch
+        min_interval_per_request = 60 / self.rate_limit  # seconds per request
 
         for i in range(num_batches):
             start_time = time.time()
@@ -177,9 +178,14 @@ class LM:
             pbar.update(len(sub_batch))
             end_time = time.time()
             elapsed = end_time - start_time
-            # Only sleep if the batch was faster than the allowed interval
-            if i < num_batches - 1:
-                to_sleep = min_interval - elapsed
+
+            # Calculate required delay based on number of requests in this batch
+            # Each request should be spaced by min_interval_per_request
+            required_time_for_batch = len(sub_batch) * min_interval_per_request
+
+            # Only sleep if the batch was faster than the required time
+            if i < num_batches - 1:  # Don't sleep after the last batch
+                to_sleep = required_time_for_batch - elapsed
                 if to_sleep > 0:
                     time.sleep(to_sleep)
         return responses
@@ -251,6 +257,10 @@ class LM:
             self._check_usage_limit(self.stats.physical_usage, self.physical_usage_limit, "physical")
 
     def _get_top_choice(self, response: ModelResponse) -> str:
+        # Handle authentication errors and other exceptions
+        if isinstance(response, (AuthenticationError, OpenAIError)):
+            raise response
+
         choice = response.choices[0]
         assert isinstance(choice, Choices)
         if choice.message.content is None:
@@ -258,6 +268,10 @@ class LM:
         return choice.message.content
 
     def _get_top_choice_logprobs(self, response: ModelResponse) -> list[ChatCompletionTokenLogprob]:
+        # Handle authentication errors and other exceptions
+        if isinstance(response, (AuthenticationError, OpenAIError)):
+            raise response
+
         choice = response.choices[0]
         assert isinstance(choice, Choices)
         logprobs = choice.logprobs["content"]
