@@ -275,7 +275,7 @@ class LM:
         choice = response.choices[0]
         assert isinstance(choice, Choices)
         logprobs = choice.logprobs["content"]
-        return [ChatCompletionTokenLogprob(**logprob) for logprob in logprobs]
+        return logprobs
 
     def format_logprobs_for_cascade(self, logprobs: list[list[ChatCompletionTokenLogprob]]) -> LogprobsForCascade:
         all_tokens = []
