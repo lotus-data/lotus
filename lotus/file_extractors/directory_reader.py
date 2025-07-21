@@ -11,6 +11,7 @@ import pandas as pd
 import requests  # type: ignore
 from fsspec.implementations.local import LocalFileSystem
 from llama_index.core import Document, SimpleDirectoryReader
+from llama_index.core.node_parser import TokenTextSplitter
 
 
 def get_path_class(fs: fsspec.AbstractFileSystem, file_path: str | Path | PurePosixPath) -> Path | PurePosixPath:
@@ -90,9 +91,20 @@ class DirectoryReader:
         exposed via the fsspec interface.
     """
 
-    def __init__(self, recursive: bool = False, custom_reader_configs: dict[str, dict] | None = None, **kwargs):
+    def __init__(
+        self,
+        recursive: bool = False,
+        custom_reader_configs: dict[str, dict] | None = None,
+        chunk_size: int | None = None,
+        chunk_overlap: int | None = None,
+        **kwargs,
+    ):
         self.reader = None
         self.temp_file_to_url_map: dict[str, str] = {}
+        self.chunk_size = chunk_size
+        self.chunk_overlap = chunk_overlap
+        if self.chunk_size is not None or self.chunk_overlap is None:
+            self.chunk_overlap = 20
         kwargs["filename_as_id"] = True  # need to set this to True for proper metadata handling
         self.reader_kwargs = {
             **kwargs,
@@ -301,7 +313,19 @@ class DirectoryReader:
 
         docs = self.reader.load_data(show_progress=show_progress, num_workers=num_workers)
         self._process_metadata(docs, per_page)
-        if not per_page:
+
+        if self.chunk_size is not None:
+            splitter = TokenTextSplitter(chunk_size=self.chunk_size, chunk_overlap=self.chunk_overlap)
+            chunked_docs = []
+            for doc in docs:
+                text_chunks = splitter.split_text(doc.text)
+                for i, chunk_text in enumerate(text_chunks):
+                    chunk_metadata = doc.metadata.copy()
+                    chunk_metadata["chunk_id"] = f"{doc.doc_id}_{i}"
+                    chunked_docs.append(Document(text=chunk_text, metadata=chunk_metadata))
+            return chunked_docs
+
+        elif not per_page:
             grouped_docs: defaultdict[str, list[Document]] = defaultdict(list)
             for doc in docs:
                 grouped_docs[doc.metadata.get("file_name")].append(doc)
