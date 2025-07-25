@@ -46,3 +46,19 @@ def test_parse_ppt():
 
     # Check if all rows have the filepath set to the URL
     assert all(df["file_path"] == ppt_url)
+
+
+def test_parse_pdf_with_chunking():
+    pdf_url = "https://arxiv.org/pdf/1706.03762"
+    chunk_size = 100
+    chunk_overlap = 20
+    df = DirectoryReader(chunk_size=chunk_size, chunk_overlap=chunk_overlap).add(pdf_url).to_df(per_page=True)
+
+    assert isinstance(df, pd.DataFrame)
+
+    # Since the paper has 15 pages, we expect more than 15 rows
+    assert len(df) > 15
+    assert "chunk_id" in df.columns
+    assert not df["chunk_id"].empty
+
+    assert all(df["content"].apply(lambda x: len(x) > 0))
