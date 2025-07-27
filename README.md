@@ -112,9 +112,29 @@ There are 3 main model classes in LOTUS:
     - Any `CrossEncoder` from `SentenceTransformers` can be used with the `CrossEncoderReranker` class, by passing the model name to the `model` parameter (see [an example here](examples/op_examples/search.py)).
 
 # Feature Requests and Contributing
-If you have a feature request, we're happy to hear from you! Please open an issue.
 
-If you're interested in contributing, we'd be happy to coordinate on ongoing efforts! Please send an email to Liana (lianapat@stanford.edu) or reach out on our [slack](https://join.slack.com/t/lotus-fnm8919/shared_invite/zt-319k232lx-nEcLF~5w274dcQLmw2Wqyg). 
+We welcome contributions from the community! Whether you're reporting bugs, suggesting features, or contributing code, we have comprehensive templates and guidelines to help you get started.
+
+## Getting Started
+
+Before contributing, please:
+
+1. **Read our [Contributing Guide](CONTRIBUTING.md)** - Comprehensive guidelines for contributors
+2. **Check existing issues** - Avoid duplicates by searching existing issues and pull requests
+3. **Join our community** - Connect with us on [Slack](https://join.slack.com/t/lotus-fnm8919/shared_invite/zt-319k232lx-nEcLF~5w274dcQLmw2Wqyg)
+
+
+## Development Setup
+
+For development setup and detailed contribution guidelines, see our [Contributing Guide](CONTRIBUTING.md).
+
+## Community
+
+- **Slack**: [Join our community](https://join.slack.com/t/lotus-fnm8919/shared_invite/zt-319k232lx-nEcLF~5w274dcQLmw2Wqyg)
+- **Email**: lianapat@stanford.edu
+- **Discussions**: [GitHub Discussions](https://github.com/lotus-data/lotus/discussions)
+
+We're excited to see what you build with LOTUS! 🚀
 
 # References
 For recent updates related to LOTUS, follow [@lianapatel_](https://x.com/lianapatel_) on X.
