@@ -30,6 +30,8 @@ def get_path_class(fs: fsspec.AbstractFileSystem, file_path: str | Path | PurePo
         Path or PurePosixPath: The appropriate path class for the given filesystem
 
     Example:
+        >>> from fsspec.implementations.local import LocalFileSystem
+        >>> fs = LocalFileSystem()
         >>> path = get_path_class(fs, "/path/to/file.txt")
         >>> type(path)
         <class 'pathlib.Path'>
@@ -161,7 +163,8 @@ class DirectoryReader:
         chunk_size (int, optional): Size of text chunks when splitting documents.
             If None, documents are not chunked. Defaults to None.
         chunk_overlap (int, optional): Overlap between consecutive text chunks.
-            Defaults to 20 when chunk_size is specified.
+            Only used when chunk_size is specified. Defaults to 20 when chunk_size
+            is provided but chunk_overlap is not specified.
         **kwargs: Additional arguments passed to SimpleDirectoryReader including:
             - exclude (List): glob of python file paths to exclude (Optional)
             - exclude_hidden (bool): Whether to exclude hidden files (dotfiles)
@@ -195,7 +198,7 @@ class DirectoryReader:
         self.temp_file_to_url_map: dict[str, str] = {}
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
-        if self.chunk_size is not None or self.chunk_overlap is None:
+        if self.chunk_size is not None and self.chunk_overlap is None:
             self.chunk_overlap = 20
         kwargs["filename_as_id"] = True  # need to set this to True for proper metadata handling
         self.reader_kwargs = {
@@ -408,7 +411,7 @@ class DirectoryReader:
 
         return self
 
-    def _process_metadata(self, docs: list[Document], add_page_label: bool) -> Document:
+    def _process_metadata(self, docs: list[Document], add_page_label: bool) -> list[Document]:
         """
         Process metadata for documents, handling temporary files and page labels.
 
@@ -421,7 +424,7 @@ class DirectoryReader:
             add_page_label: Whether to add page labels to metadata
 
         Returns:
-            Document: The processed documents (same list, modified in place)
+            list[Document]: The processed documents (same list, modified in place)
         """
         for doc in docs:
             if doc.metadata.get("file_path") in self.temp_file_to_url_map:
