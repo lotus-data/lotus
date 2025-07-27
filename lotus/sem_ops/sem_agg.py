@@ -17,16 +17,42 @@ def sem_agg(
     progress_bar_desc: str = "Aggregating",
 ) -> SemanticAggOutput:
     """
-    Aggregates multiple documents into a single answer using a model.
+    Aggregates multiple documents into a single answer using a language model.
+
+    This function implements a hierarchical aggregation approach where documents are
+    processed in batches and progressively combined until a single coherent answer
+    is produced. The aggregation uses different templates for leaf-level documents
+    and intermediate summaries.
 
     Args:
-        docs (list[str]): The list of documents to aggregate.
-        model (lotus.models.LM): The model to use.
-        user_instruction (str): The user instruction for aggregation.
-        partition_ids (list[int]): The partition ids for the documents. Documents with the same partition id will be aggregated together.
+        docs (list[str]): The list of documents to aggregate. Each document should
+            be a string containing the text content to be aggregated.
+        model (lotus.models.LM): The language model instance to use for aggregation.
+            Must be properly configured with appropriate API keys and settings.
+        user_instruction (str): The natural language instruction that guides the
+            aggregation process. This instruction tells the model how to combine
+            the information from multiple documents.
+        partition_ids (list[int]): The partition IDs for the documents. Documents
+            with the same partition ID will be aggregated together. This allows
+            for grouping-related documents for more coherent aggregation.
+        safe_mode (bool, optional): Whether to enable safe mode. Currently not
+            implemented. Defaults to False.
+        progress_bar_desc (str, optional): Description for the progress bar.
+            Defaults to "Aggregating".
 
     Returns:
-        str: The aggregated answer.
+        SemanticAggOutput: An object containing the aggregated outputs as a list
+            of strings. Typically contains a single aggregated answer.
+
+    Raises:
+        ValueError: If the model is not properly configured or if there are
+            issues with the input parameters.
+
+    Example:
+        >>> docs = ["Document 1 content", "Document 2 content"]
+        >>> model = LM(model="gpt-4o")
+        >>> result = sem_agg(docs, model, "Summarize the key points", [0, 0])
+        >>> print(result.outputs[0])
     """
     leaf_instr_template = (
         "Your job is to provide an answer to the user's instruction given the context below from multiple documents.\n"
@@ -55,12 +81,44 @@ def sem_agg(
     )
 
     def leaf_doc_formatter(doc: str, ctr: int) -> str:
+        """
+        Format a leaf-level document for inclusion in the prompt.
+
+        Args:
+            doc (str): The document content to format.
+            ctr (int): The document counter for numbering.
+
+        Returns:
+            str: The formatted document string with counter prefix.
+        """
         return f"\n\tDocument {ctr}: {doc}"
 
     def node_doc_formatter(doc: str, ctr: int) -> str:
+        """
+        Format an intermediate summary document for inclusion in the prompt.
+
+        Args:
+            doc (str): The summary content to format.
+            ctr (int): The summary counter for numbering.
+
+        Returns:
+            str: The formatted summary string with counter prefix.
+        """
         return f"\n\tSource {ctr}: {doc}"
 
     def doc_formatter(tree_level: int, doc: str, ctr: int) -> str:
+        """
+        Format documents based on their position in the aggregation tree.
+
+        Args:
+            tree_level (int): The current level in the aggregation tree.
+                0 indicates leaf documents, >0 indicates intermediate summaries.
+            doc (str): The document or summary content to format.
+            ctr (int): The counter for numbering.
+
+        Returns:
+            str: The formatted document string.
+        """
         return leaf_doc_formatter(doc, ctr) if tree_level == 0 else node_doc_formatter(doc, ctr)
 
     if safe_mode:
@@ -134,18 +192,58 @@ def sem_agg(
 
 @pd.api.extensions.register_dataframe_accessor("sem_agg")
 class SemAggDataframe:
-    """DataFrame accessor for semantic aggregation."""
+    """
+    DataFrame accessor for semantic aggregation operations.
+
+    This class provides a pandas DataFrame accessor that enables semantic
+    aggregation over DataFrame content using natural language instructions.
+    It supports both single aggregation and grouped aggregation operations.
+
+    The accessor can be used directly on any pandas DataFrame:
+        df.sem_agg("Summarize the key insights", all_cols=True)
+        df.sem_agg("Summarize the key insights", all_cols=True, group_by=["category"])
+        df.sem_agg("Summarize the key insights of {abstract}") # where abstract is a column in the dataframe
+    """
 
     def __init__(self, pandas_obj: Any):
+        """
+        Initialize the semantic aggregation accessor.
+
+        Args:
+            pandas_obj (Any): The pandas DataFrame object to attach the accessor to.
+        """
         self._validate(pandas_obj)
         self._obj = pandas_obj
 
     @staticmethod
     def _validate(obj: Any) -> None:
+        """
+        Validate that the object is a pandas DataFrame.
+
+        Args:
+            obj (Any): The object to validate.
+
+        Raises:
+            TypeError: If the object is not a pandas DataFrame.
+        """
         pass
 
     @staticmethod
     def process_group(args):
+        """
+        Process a group of data for semantic aggregation.
+
+        This static method is used for parallel processing of grouped data.
+        It applies semantic aggregation to each group and adds the group
+        identifier to the result.
+
+        Args:
+            args (tuple): A tuple containing (group_name, group, user_instruction,
+                         all_cols, group_by, suffix, progress_bar_desc).
+
+        Returns:
+            pd.DataFrame: The aggregated result for the group with group identifier.
+        """
         group_name, group, user_instruction, all_cols, group_by, suffix, progress_bar_desc = args
         result = group.sem_agg(user_instruction, all_cols, suffix, None, progress_bar_desc=progress_bar_desc)
         result[group_by] = group_name
@@ -162,15 +260,49 @@ class SemAggDataframe:
         progress_bar_desc: str = "Aggregating",
     ) -> pd.DataFrame:
         """
-        Applies semantic aggregation over a dataframe.
+        Apply semantic aggregation over a DataFrame.
+
+        This method performs semantic aggregation on the DataFrame content using
+        a natural language instruction. It can process all columns or specific
+        columns identified in the instruction, and supports grouped aggregation.
 
         Args:
-            user_instruction (str): The user instruction for aggregation.
-            all_cols (bool): Whether to use all columns in the dataframe. Defaults to False.
-            suffix (str): The suffix for the new column. Defaults to "_output".
-            group_by (list[str] | None): The columns to group by before aggregation. Each group will be aggregated separately.
+            user_instruction (str): The natural language instruction that guides
+                the aggregation process. Should describe what kind of aggregation
+                or summary is desired.
+            all_cols (bool, optional): Whether to use all columns in the DataFrame
+                for aggregation. If False, only columns mentioned in the instruction
+                will be used. Defaults to False.
+            suffix (str, optional): The suffix for the output column name.
+                Defaults to "_output".
+            group_by (list[str] | None, optional): Column names to group by before
+                aggregation. Each group will be aggregated separately. Defaults to None.
+            safe_mode (bool, optional): Whether to enable safe mode for aggregation.
+                Defaults to False.
+            progress_bar_desc (str, optional): Description for the progress bar.
+                Defaults to "Aggregating".
+
         Returns:
-            pd.DataFrame: The dataframe with the aggregated answer.
+            pd.DataFrame: A DataFrame containing the aggregated results. The output
+                will have one row per group (if group_by is specified) or one row
+                for the entire dataset.
+
+        Raises:
+            ValueError: If the language model is not configured, if specified
+                columns don't exist in the DataFrame, or if there are other
+                configuration issues.
+
+        Example:
+            >>> df = pd.DataFrame({
+            ...     'text': ['Document 1', 'Document 2'],
+            ...     'category': ['A', 'B']
+            ... })
+            >>> result1 = df.sem_agg("Summarize the key points", all_cols=True)
+            >>> result2 = df.sem_agg("Summarize the key points", all_cols=True, group_by=["category"])
+            >>> result3 = df.sem_agg("Summarize the key points of {abstract}") # where abstract is a column in the dataframe
+            >>> print(result1)
+            >>> print(result2)
+            >>> print(result3)
         """
 
         if lotus.settings.lm is None:
