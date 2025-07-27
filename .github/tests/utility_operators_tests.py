@@ -1,4 +1,8 @@
+import os
+
 import pandas as pd
+import pytest
+from llama_index.core.node_parser import TokenTextSplitter
 
 import lotus
 from lotus.file_extractors import DirectoryReader
@@ -46,3 +50,63 @@ def test_parse_ppt():
 
     # Check if all rows have the filepath set to the URL
     assert all(df["file_path"] == ppt_url)
+
+
+def test_parse_pdf_with_default_chunking():
+    pdf_url = "https://arxiv.org/pdf/1706.03762"
+    df = DirectoryReader().add(pdf_url).to_df(chunk=True)
+
+    assert isinstance(df, pd.DataFrame)
+
+    assert len(df) >= 15
+    assert "chunk_id" in df.columns
+    assert not df["chunk_id"].empty
+
+    assert all(df["content"].apply(lambda x: len(x) > 0))
+
+
+def test_parse_pdf_with_custom_chunking():
+    pdf_url = "https://arxiv.org/pdf/1706.03762"
+    chunk_size = 100
+    chunk_overlap = 20
+    df = DirectoryReader().add(pdf_url).to_df(chunk=True, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+
+    assert isinstance(df, pd.DataFrame)
+    assert len(df) > 15
+    assert "chunk_id" in df.columns
+    assert not df["chunk_id"].empty
+
+
+def test_chunking_with_dummy_text():
+    dummy_text = "This is a test sentence for chunking. It has multiple words and should be split into several chunks. We will test the chunking logic precisely."
+    dummy_file_path = "/tmp/dummy_chunking_text.txt"
+
+    with open(dummy_file_path, "w") as f:
+        f.write(dummy_text)
+
+    reader = DirectoryReader()
+    reader.add_file(dummy_file_path)
+
+    df = reader.to_df(chunk=True, chunk_size=20, chunk_overlap=5)
+
+    splitter = TokenTextSplitter(chunk_size=20, chunk_overlap=5)
+    expected_chunks = splitter.split_text(dummy_text)
+
+    assert isinstance(df, pd.DataFrame)
+    assert len(df) == len(expected_chunks)
+    assert "chunk_id" in df.columns
+    assert all(df["content"].apply(lambda x: len(x) > 0))
+
+    assert df["content"].iloc[0] == expected_chunks[0]
+    assert df["content"].iloc[-1] == expected_chunks[-1]
+
+    os.remove(dummy_file_path)
+
+
+def test_chunking_invalid_overlap():
+    pdf_url = "https://arxiv.org/pdf/1706.03762"
+    chunk_size = 100
+    chunk_overlap = 150
+
+    with pytest.raises(ValueError):
+        DirectoryReader().add(pdf_url).to_df(chunk=True, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
