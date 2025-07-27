@@ -95,16 +95,10 @@ class DirectoryReader:
         self,
         recursive: bool = False,
         custom_reader_configs: dict[str, dict] | None = None,
-        chunk_size: int | None = None,
-        chunk_overlap: int | None = None,
         **kwargs,
     ):
         self.reader = None
         self.temp_file_to_url_map: dict[str, str] = {}
-        self.chunk_size = chunk_size
-        self.chunk_overlap = chunk_overlap
-        if self.chunk_size is not None or self.chunk_overlap is None:
-            self.chunk_overlap = 20
         kwargs["filename_as_id"] = True  # need to set this to True for proper metadata handling
         self.reader_kwargs = {
             **kwargs,
@@ -296,6 +290,9 @@ class DirectoryReader:
         page_separator: str = "\n",
         show_progress: bool = False,
         num_workers: int | None = None,
+        chunk: bool = False,
+        chunk_size: int = 1000,
+        chunk_overlap: int = 50,
     ) -> list[Document]:
         """
         Load all documents at once.
@@ -303,6 +300,9 @@ class DirectoryReader:
         Args:
             per_page: Whether to return each page as a separate document
             show_progress: Whether to show a progress bar
+            chunk: Whether to chunk the documents
+            chunk_size: The size of the chunks
+            chunk_overlap: The overlap between the chunks
             num_workers: Number of workers to use for parallel processing
 
         Returns:
@@ -314,8 +314,8 @@ class DirectoryReader:
         docs = self.reader.load_data(show_progress=show_progress, num_workers=num_workers)
         self._process_metadata(docs, per_page)
 
-        if self.chunk_size is not None:
-            splitter = TokenTextSplitter(chunk_size=self.chunk_size, chunk_overlap=self.chunk_overlap)
+        if chunk:
+            splitter = TokenTextSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
             chunked_docs = []
             for doc in docs:
                 text_chunks = splitter.split_text(doc.text)
@@ -342,6 +342,9 @@ class DirectoryReader:
         page_separator: str = "\n",
         show_progress: bool = False,
         num_workers: int | None = None,
+        chunk: bool = False,
+        chunk_size: int = 1000,
+        chunk_overlap: int = 50,
     ) -> pd.DataFrame:
         """
         Load files and return the content in a DataFrame.
@@ -351,9 +354,18 @@ class DirectoryReader:
             page_separator (str): The separator to use when joining the content of each page in case per_page is False. Default is "\n".
             num_workers (int): The number of workers to use for loading files. Default is None.
             show_progress (bool): If True, show a progress bar while loading files. Default is False.
+            chunk (bool): If True, chunk the documents. Default is False.
+            chunk_size (int): The size of the chunks. Default is 1000.
+            chunk_overlap (int): The overlap between the chunks. Default is 50.
         """
         llamaindex_documents = self.load_data(
-            per_page=per_page, show_progress=show_progress, page_separator=page_separator, num_workers=num_workers
+            per_page=per_page,
+            show_progress=show_progress,
+            page_separator=page_separator,
+            num_workers=num_workers,
+            chunk=chunk,
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
         )
         all_data = [{"content": doc.text, **doc.metadata} for doc in llamaindex_documents]
         return pd.DataFrame(all_data)
