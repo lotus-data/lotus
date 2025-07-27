@@ -130,10 +130,20 @@ class LM:
             if lotus.settings.enable_cache
             else uncached_responses
         )
-        outputs = [self._get_top_choice(resp) for resp in all_responses]
-        logprobs = (
-            [self._get_top_choice_logprobs(resp) for resp in all_responses] if all_kwargs.get("logprobs") else None
-        )
+        n = all_kwargs.get("n", 1)
+
+        if n <= 1:
+            outputs = [self._get_top_choice(resp) for resp in all_responses]
+            logprobs = (
+                [self._get_top_choice_logprobs(resp) for resp in all_responses] if all_kwargs.get("logprobs") else None
+            )
+        else:
+            outputs = [self._get_multiple_choices(resp, n) for resp in all_responses]
+            logprobs = (
+                [self._get_multiple_choices_logprobs(resp, n) for resp in all_responses]
+                if all_kwargs.get("logprobs")
+                else None
+            )
 
         return LMOutput(outputs=outputs, logprobs=logprobs)
 
@@ -267,6 +277,24 @@ class LM:
             raise ValueError(f"No content in response: {response}")
         return choice.message.content
 
+    def _get_multiple_choices(self, response: ModelResponse, n: int) -> list[str]:
+        """Get multiple choices from a response, up to n choices."""
+        choices = []
+        available_choices = min(n, len(response.choices))
+
+        for i in range(available_choices):
+            choice = response.choices[i]
+            assert isinstance(choice, Choices)
+            if choice.message.content is None:
+                lotus.logger.warning(f"No content in choice {i} of response: {response}")
+                continue
+            choices.append(choice.message.content)
+
+        if available_choices < n:
+            lotus.logger.warning(f"Requested {n} samples but only got {available_choices}")
+
+        return choices
+
     def _get_top_choice_logprobs(self, response: ModelResponse) -> list[ChatCompletionTokenLogprob]:
         # Handle authentication errors and other exceptions
         if isinstance(response, (AuthenticationError, OpenAIError)):
@@ -276,6 +304,25 @@ class LM:
         assert isinstance(choice, Choices)
         logprobs = choice.logprobs["content"]
         return logprobs
+
+    def _get_multiple_choices_logprobs(self, response: ModelResponse, n: int) -> list[list[ChatCompletionTokenLogprob]]:
+        """Get logprobs for multiple choices from a response, up to n choices."""
+        all_logprobs = []
+        available_choices = min(n, len(response.choices))
+
+        for i in range(available_choices):
+            choice = response.choices[i]
+            assert isinstance(choice, Choices)
+
+            if not hasattr(choice, "logprobs") or not choice.logprobs or "content" not in choice.logprobs:
+                lotus.logger.warning(f"No logprobs in choice {i} of response: {response}")
+                all_logprobs.append([])
+                continue
+
+            choice_logprobs = choice.logprobs["content"]
+            all_logprobs.append([ChatCompletionTokenLogprob(**logprob) for logprob in choice_logprobs])
+
+        return all_logprobs
 
     def format_logprobs_for_cascade(self, logprobs: list[list[ChatCompletionTokenLogprob]]) -> LogprobsForCascade:
         all_tokens = []
