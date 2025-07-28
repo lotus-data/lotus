@@ -37,21 +37,56 @@ def sem_filter(
     additional_cot_instructions: str = "",
 ) -> SemanticFilterOutput:
     """
-    Filters a list of documents based on a given user instruction using a language model.
+    Filters a list of documents based on a natural language instruction using a language model.
+
+    This function applies a natural language filter condition to each document in the
+    input list, returning boolean values indicating whether each document passes the filter.
+    It supports few-shot learning through examples and various reasoning strategies.
 
     Args:
-        docs (list[dict[str, Any]]): The list of documents to filter. Each document is a tuple of text and images.
-        model (lotus.models.LM): The language model used for filtering.
-        user_instruction (str): The user instruction for filtering.
-        default (bool): The default value for filtering in case of parsing errors. Defaults to True.
-        examples_multimodal_data (list[dict[str, Any]] | None): The text for examples. Defaults to None.
-        examples_answers (list[bool] | None): The answers for examples. Defaults to None.
-        cot_reasoning (list[str] | None): The reasoning for CoT. Defaults to None.
-        logprobs (bool): Whether to return log probabilities. Defaults to False.
-        additional_cot_instructions (str): Additional instructions for the CoT. Defaults to "".
+        docs (list[dict[str, Any]]): The list of documents to filter. Each document
+            should be a dictionary containing multimodal information (text, images, etc.).
+        model (lotus.models.LM): The language model instance to use for filtering.
+            Must be properly configured with appropriate API keys and settings.
+        user_instruction (str): The natural language instruction that defines the
+            filter condition. Should describe what criteria documents must meet.
+        default (bool, optional): The default value to use when the model output
+            cannot be parsed as a boolean. Defaults to True.
+        examples_multimodal_data (list[dict[str, Any]] | None, optional): Example
+            documents for few-shot learning. Each example should have the same
+            structure as the input docs. Defaults to None.
+        examples_answers (list[bool] | None, optional): Expected boolean outputs for
+            the example documents. Should have the same length as examples_multimodal_data.
+            Defaults to None.
+        cot_reasoning (list[str] | None, optional): Chain-of-thought reasoning
+            for the example documents. Used when strategy includes COT reasoning.
+            Defaults to None.
+        strategy (ReasoningStrategy | None, optional): The reasoning strategy to use.
+            Can be None, COT, or ZS_COT. Defaults to None.
+        logprobs (bool, optional): Whether to return log probabilities for the
+            model outputs. Useful for confidence estimation. Defaults to False.
+        safe_mode (bool, optional): Whether to enable safe mode with cost estimation.
+            Defaults to False.
+        show_progress_bar (bool, optional): Whether to show a progress bar during
+            processing. Defaults to True.
+        progress_bar_desc (str, optional): Description for the progress bar.
+            Defaults to "Filtering".
+        additional_cot_instructions (str, optional): Additional instructions for
+            chain-of-thought reasoning. Defaults to "".
 
     Returns:
-        SemanticFilterOutput: The True/False outputs, raw outputs, and explanations, and log probabilities.
+        SemanticFilterOutput: An object containing the boolean filter outputs, raw
+            outputs, explanations (if applicable), and log probabilities (if requested).
+
+    Raises:
+        ValueError: If the model is not properly configured or if there are
+            issues with the input parameters.
+
+    Example:
+        >>> docs = [{"text": "Positive review"}, {"text": "Negative review"}]
+        >>> model = LM(model="gpt-4o")
+        >>> result = sem_filter(docs, model, "Is this a positive sentiment?")
+        >>> print(result.outputs)  # [True, False]
     """
     inputs = []
     for doc in docs:
@@ -108,9 +143,54 @@ def learn_filter_cascade_thresholds(
     strategy: ReasoningStrategy | None = None,
     additional_cot_instructions: str = "",
 ) -> tuple[float, float]:
-    """Automatically learns the cascade thresholds for a cascade
-    filter given a sample of data and doing a search across threshold
-    to see what threshold gives the best accuracy."""
+    """
+    Automatically learns optimal cascade thresholds for filter operations.
+
+    This function uses a sample of data to determine the best threshold values
+    for cascade filtering, which combines a fast proxy model with a more accurate
+    but slower language model. It searches across different threshold combinations
+    to find the one that gives the best accuracy.
+
+    Args:
+        sample_multimodal_data (list[dict[str, Any]]): Sample documents to use
+            for threshold learning. Should be representative of the full dataset.
+        lm (lotus.models.LM): The language model to use as the oracle for
+            determining ground truth labels.
+        formatted_usr_instr (str): The formatted user instruction for filtering.
+        default (bool): The default value to use when parsing fails.
+        cascade_args (CascadeArgs): Configuration arguments for the cascade
+            including recall target, precision target, sampling percentage, etc.
+        proxy_scores (list[float]): Scores from the proxy model for each sample.
+            Should have the same length as sample_multimodal_data.
+        sample_correction_factors (NDArray[np.float64]): Correction factors for
+            importance sampling. Should have the same length as sample_multimodal_data.
+        examples_multimodal_data (list[dict[str, Any]] | None, optional): Example
+            documents for few-shot learning. Defaults to None.
+        examples_answers (list[bool] | None, optional): Expected boolean outputs
+            for the example documents. Defaults to None.
+        cot_reasoning (list[str] | None, optional): Chain-of-thought reasoning
+            for the example documents. Defaults to None.
+        strategy (ReasoningStrategy | None, optional): The reasoning strategy to use.
+            Defaults to None.
+        additional_cot_instructions (str, optional): Additional instructions for
+            chain-of-thought reasoning. Defaults to "".
+
+    Returns:
+        tuple[float, float]: A tuple containing the learned low and high thresholds
+            for the cascade filter.
+
+    Raises:
+        Exception: If there's an error during the threshold learning process.
+
+    Example:
+        >>> sample_data = [{"text": "doc1"}, {"text": "doc2"}]
+        >>> proxy_scores = [0.8, 0.3]
+        >>> thresholds = learn_filter_cascade_thresholds(
+        ...     sample_data, model, "Is positive?", True, cascade_args,
+        ...     proxy_scores, correction_factors
+        ... )
+        >>> print(thresholds)  # (0.3, 0.8)
+    """
 
     try:
         large_outputs = sem_filter(
@@ -144,14 +224,39 @@ def learn_filter_cascade_thresholds(
 
 @pd.api.extensions.register_dataframe_accessor("sem_filter")
 class SemFilterDataframe:
-    """DataFrame accessor for semantic filter."""
+    """
+    DataFrame accessor for semantic filtering operations.
+
+    This class provides a pandas DataFrame accessor that enables semantic
+    filtering over DataFrame content using natural language instructions.
+    It supports few-shot learning through examples and cascade filtering
+    for improved performance.
+
+    The accessor can be used directly on any pandas DataFrame:
+        df.sem_filter("Is this a positive sentiment?")
+    """
 
     def __init__(self, pandas_obj: Any):
+        """
+        Initialize the semantic filtering accessor.
+
+        Args:
+            pandas_obj (Any): The pandas DataFrame object to attach the accessor to.
+        """
         self._validate(pandas_obj)
         self._obj = pandas_obj
 
     @staticmethod
     def _validate(obj: Any) -> None:
+        """
+        Validate that the object is a pandas DataFrame.
+
+        Args:
+            obj (Any): The object to validate.
+
+        Raises:
+            AttributeError: If the object is not a pandas DataFrame.
+        """
         # verify that the Series has the correct type
         if not isinstance(obj, pd.DataFrame):
             raise AttributeError("Must be a DataFrame")
@@ -175,26 +280,84 @@ class SemFilterDataframe:
         additional_cot_instructions: str = "",
     ) -> pd.DataFrame | tuple[pd.DataFrame, dict[str, Any]]:
         """
-        Applies semantic filter over a dataframe.
+        Apply semantic filtering over a DataFrame.
+
+        This method performs semantic filtering on the DataFrame content using
+        a natural language instruction. It can process specific columns identified
+        in the instruction and supports few-shot learning through examples.
 
         Args:
-            user_instruction (str): The user instruction for filtering.
-            return_raw_outputs (bool): Whether to return raw outputs. Defaults to False.
-            default (bool): The default value for filtering in case of parsing errors. Defaults to True.
-            suffix (str): The suffix for the new columns. Defaults to "_filter".
-            examples (pd.DataFrame | None): The examples dataframe. Defaults to None.
-            helper_examples (pd.DataFrame | None): The helper examples dataframe. Defaults to None.
-            strategy (str | None): The reasoning strategy. Defaults to None.
-            cascade_args (CascadeArgs | None): The arguments for join cascade. Defaults to None.
-                recall_target (float | None): The target recall. Defaults to None.
-                precision_target (float | None): The target precision when cascading. Defaults to None.
-                sampling_percentage (float): The percentage of the data to sample when cascading. Defaults to 0.1.
-                failure_probability (float): The failure probability when cascading. Defaults to 0.2.
-            return_stats (bool): Whether to return statistics. Defaults to False.
-            additional_cot_instructions (str): Additional instructions for the CoT. Defaults to "".
+            user_instruction (str): The natural language instruction that defines
+                the filter condition. Should describe what criteria rows must meet.
+            return_raw_outputs (bool, optional): Whether to include raw model
+                outputs in the output DataFrame. Useful for debugging.
+                Defaults to False.
+            return_explanations (bool, optional): Whether to include explanations
+                in the output DataFrame. Useful for debugging and understanding
+                model reasoning, when using chain-of-thought. Defaults to False.
+            return_all (bool, optional): Whether to return all rows (including
+                filtered out ones) or only the rows that pass the filter.
+                Defaults to False.
+            default (bool, optional): The default value to use when the model
+                output cannot be parsed as a boolean. Defaults to True.
+            suffix (str, optional): The suffix for the output column names.
+                Defaults to "_filter".
+            examples (pd.DataFrame | None, optional): Example DataFrame for
+                few-shot learning. Should have the same column structure as the
+                input DataFrame plus an "Answer" column. Defaults to None.
+            helper_examples (pd.DataFrame | None, optional): Additional helper
+                examples for cascade filtering. Defaults to None.
+            strategy (ReasoningStrategy | None, optional): The reasoning strategy
+                to use. Can be None, COT, or ZS_COT. Defaults to None.
+            cascade_args (CascadeArgs | None, optional): Configuration for cascade
+                filtering. Includes parameters like recall_target, precision_target,
+                sampling_percentage, and failure_probability. Defaults to None.
+            return_stats (bool, optional): Whether to return filtering statistics
+                along with the filtered DataFrame. Defaults to False.
+            safe_mode (bool, optional): Whether to enable safe mode with cost
+                estimation. Defaults to False.
+            progress_bar_desc (str, optional): Description for the progress bar.
+                Defaults to "Filtering".
+            additional_cot_instructions (str, optional): Additional instructions
+                for chain-of-thought reasoning. Defaults to "".
 
         Returns:
-            pd.DataFrame | tuple[pd.DataFrame, dict[str, Any]]: The filtered dataframe or a tuple containing the filtered dataframe and statistics.
+            pd.DataFrame | tuple[pd.DataFrame, dict[str, Any]]: A DataFrame
+                containing the original data plus the filter results, or a tuple
+                containing the DataFrame and statistics if return_stats is True.
+
+        Raises:
+            ValueError: If the language model is not configured, if specified
+                columns don't exist in the DataFrame, or if the examples DataFrame
+                doesn't have the required "Answer" column.
+
+        Example:
+            >>> import pandas as pd
+            >>> import lotus
+            >>> from lotus.models import LM
+            >>> lotus.settings.configure(lm=LM(model="gpt-4o-mini"))
+
+            >>> df = pd.DataFrame({
+                    'text': ['Great product!', 'Terrible service'],
+                    'rating': [5, 1]
+                })
+
+            # Example 1: simple filtering
+            >>> df.sem_filter("The review {text} and {rating} reflect's a positive sentiment ")
+            Filtering: 100%|██████████████████████████████████████████████████████████████████ 2/2 LM calls [00:00<00:00,  2.06it/s]
+                        text  rating
+            0  Great product!      5
+
+            # Example 2: with zero-shot chain-of-thought (ZS-COT) reasoning
+            >>> from lotus.types import ReasoningStrategy
+            >>> df.sem_filter("The review {text} and {rating} reflect's a positive sentiment ", strategy=ReasoningStrategy.ZS_COT, return_explanations=True, return_all=True)
+            Filtering: 100%|██████████████████████████████████████████████████████████████████ 4/4 LM calls [00:01<00:00,  3.66it/s]
+                                                            Text  filter_label explanation_filter
+            0             I had two apples, then I gave away one          True
+            1                         My friend gave me an apple          True
+            2                      I gave away both of my apples         False
+            3  I gave away my apple, then a friend gave me hi...         False
+
         """
         if lotus.settings.lm is None:
             raise ValueError(

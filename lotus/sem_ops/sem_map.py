@@ -24,19 +24,52 @@ def sem_map(
     progress_bar_desc: str = "Mapping",
 ) -> SemanticMapOutput:
     """
-    Maps a list of documents to a list of outputs using a model.
+    Maps a list of documents to a list of outputs using a language model.
+
+    This function applies a natural language instruction to each document in the
+    input list, transforming them into new outputs. It supports few-shot learning
+    through examples and various reasoning strategies including chain-of-thought.
 
     Args:
-        docs (list[dict[str, Any]]): The list of documents to map.
-        model (lotus.models.LM): The model to use.
-        user_instruction (str): The user instruction for map.
-        postprocessor (Callable): The postprocessor for the model outputs. Defaults to map_postprocess.
-        examples_multimodal_data (list[dict[str, Any]] | None): The text for examples. Defaults to None.
-        examples_answers (list[str] | None): The answers for examples. Defaults to None.
-        cot_reasoning (list[str] | None): The reasoning for CoT. Defaults to None.
+        docs (list[dict[str, Any]]): The list of documents to map. Each document
+            should be a dictionary containing multimodal information (text, images, etc.).
+        model (lotus.models.LM): The language model instance to use for mapping.
+            Must be properly configured with appropriate API keys and settings.
+        user_instruction (str): The natural language instruction that guides the
+            mapping process. This instruction tells the model how to transform
+            each input document.
+        postprocessor (Callable, optional): A function to post-process the model
+            outputs. Should take (outputs, model, use_cot) and return
+            SemanticMapPostprocessOutput. Defaults to map_postprocess.
+        examples_multimodal_data (list[dict[str, Any]] | None, optional): Example
+            documents for few-shot learning. Each example should have the same
+            structure as the input docs. Defaults to None.
+        examples_answers (list[str] | None, optional): Expected outputs for the
+            example documents. Should have the same length as examples_multimodal_data.
+            Defaults to None.
+        cot_reasoning (list[str] | None, optional): Chain-of-thought reasoning
+            for the example documents. Used when strategy includes COT reasoning.
+            Defaults to None.
+        strategy (ReasoningStrategy | None, optional): The reasoning strategy to use.
+            Can be None, COT, or ZS_COT. Defaults to None.
+        safe_mode (bool, optional): Whether to enable safe mode with cost estimation.
+            Defaults to False.
+        progress_bar_desc (str, optional): Description for the progress bar.
+            Defaults to "Mapping".
 
     Returns:
-        SemanticMapOutput: The outputs, raw outputs, and explanations.
+        SemanticMapOutput: An object containing the processed outputs, raw outputs,
+            and explanations (if applicable).
+
+    Raises:
+        ValueError: If the model is not properly configured or if there are
+            issues with the input parameters.
+
+    Example:
+        >>> docs = [{"text": "Document 1"}, {"text": "Document 2"}]
+        >>> model = LM(model="gpt-4o")
+        >>> result = sem_map(docs, model, "Summarize the text in one sentence")
+        >>> print(result.outputs)
     """
 
     # prepare model inputs
@@ -77,14 +110,38 @@ def sem_map(
 
 @pd.api.extensions.register_dataframe_accessor("sem_map")
 class SemMapDataframe:
-    """DataFrame accessor for semantic map."""
+    """
+    DataFrame accessor for semantic mapping operations.
+
+    This class provides a pandas DataFrame accessor that enables semantic
+    mapping over DataFrame content using natural language instructions.
+    It supports few-shot learning through examples and various reasoning strategies.
+
+    The accessor can be used directly on any pandas DataFrame:
+        df.sem_map("Extract the key insights", return_explanations=True)
+    """
 
     def __init__(self, pandas_obj: pd.DataFrame):
+        """
+        Initialize the semantic mapping accessor.
+
+        Args:
+            pandas_obj (pd.DataFrame): The pandas DataFrame object to attach the accessor to.
+        """
         self._validate(pandas_obj)
         self._obj = pandas_obj
 
     @staticmethod
     def _validate(obj: pd.DataFrame) -> None:
+        """
+        Validate that the object is a pandas DataFrame.
+
+        Args:
+            obj (pd.DataFrame): The object to validate.
+
+        Raises:
+            AttributeError: If the object is not a pandas DataFrame.
+        """
         if not isinstance(obj, pd.DataFrame):
             raise AttributeError("Must be a DataFrame")
 
@@ -102,19 +159,68 @@ class SemMapDataframe:
         progress_bar_desc: str = "Mapping",
     ) -> pd.DataFrame:
         """
-        Applies semantic map over a dataframe.
+        Apply semantic mapping over a DataFrame.
+
+        This method performs semantic mapping on the DataFrame content using
+        a natural language instruction. It can process specific columns identified
+        in the instruction and supports few-shot learning through examples.
 
         Args:
-            user_instruction (str): The user instruction for map.
-            postprocessor (Callable): The postprocessor for the model outputs. Defaults to map_postprocess.
-            return_explanations (bool): Whether to return explanations. Defaults to False.
-            return_raw_outputs (bool): Whether to return raw outputs. Defaults to False.
-            suffix (str): The suffix for the new columns. Defaults to "_map".
-            examples (pd.DataFrame | None): The examples dataframe. Defaults to None.
-            strategy (str | None): The reasoning strategy. Defaults to None.
+            user_instruction (str): The natural language instruction that guides
+                the mapping process. Should describe how to transform each row.
+            postprocessor (Callable, optional): A function to post-process the model
+                outputs. Should take (outputs, model, use_cot) and return
+                SemanticMapPostprocessOutput. Defaults to map_postprocess.
+            return_explanations (bool, optional): Whether to include explanations
+                in the output DataFrame. Useful for debugging and understanding
+                model reasoning, when strategy is COT or ZS_COT. Defaults to False.
+            return_raw_outputs (bool, optional): Whether to include raw model
+                outputs in the output DataFrame. Useful for debugging.
+                Defaults to False.
+            suffix (str, optional): The suffix for the output column names.
+                Defaults to "_map".
+            examples (pd.DataFrame | None, optional): Example DataFrame for
+                few-shot learning. Should have the same column structure as the
+                input DataFrame plus an "Answer" column. Defaults to None.
+            strategy (ReasoningStrategy | None, optional): The reasoning strategy
+                to use. Can be None, COT, or ZS_COT. Defaults to None.
+            safe_mode (bool, optional): Whether to enable safe mode with cost
+                estimation. Defaults to False.
+            progress_bar_desc (str, optional): Description for the progress bar.
+                Defaults to "Mapping".
 
         Returns:
-            pd.DataFrame: The dataframe with the new mapped columns.
+            pd.DataFrame: A DataFrame containing the original data plus the mapped
+                outputs. Additional columns may be added for explanations and raw
+                outputs if requested.
+
+        Raises:
+            ValueError: If the language model is not configured, if specified
+                columns don't exist in the DataFrame, or if the examples DataFrame
+                doesn't have the required "Answer" column.
+
+        Example:
+            >>> import pandas as pd
+            >>> import lotus
+            >>> from lotus.models import LM, SentenceTransformersRM
+            >>> lotus.settings.configure(lm=LM(model="gpt-4o-mini"))
+            >>> df = pd.DataFrame({
+            ...     'document': ['Harry is happy and love cats', 'Harry is feeling nauseous']
+            ... })
+            # Example 1: simple mapping
+            >>> result1 = df.sem_map("Label the sentiment of Harry in the {document} as positive/negative/neutral. Answer in one word.")
+            Mapping: 100%|████████████████████████████████████████████████████████████████████ 2/2 LM calls [00:00<00:00,  3.18it/s]
+            document      _map
+            0  Harry is happy and love cats  Positive
+            1     Harry is feeling nauseous  Negative
+
+            # Example 2: with zero-shot chain-of-thought (ZS-COT) reasoning
+            >>> from lotus.types import ReasoningStrategy
+            >>> df.sem_map("Label the sentiment of Harry in the {document} as positive/negative/neutral. Answer in one word.", return_explanations=True, strategy=ReasoningStrategy.ZS_COT)
+            Mapping: 100%|████████████████████████████████████████████████████████████████████ 2/2 LM calls [00:02<00:00,  1.04s/it]
+            document       _map                                    explanation_map
+            0  Harry is happy and love cats   positive  Reasoning: The document states that "Harry is ...
+            1  Harry is feeling nauseous   negative  Reasoning: The phrase "Harry is feeling nauseo...
         """
         if lotus.settings.lm is None:
             raise ValueError(

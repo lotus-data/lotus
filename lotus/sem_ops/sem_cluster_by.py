@@ -41,6 +41,29 @@ class SemClusterByDataframe:
 
         Returns:
             pd.DataFrame: The DataFrame with the cluster assignments.
+
+        Example:
+            >>> import pandas as pd
+            >>> import lotus
+            >>> from lotus.models import LM, SentenceTransformersRM
+            >>> from lotus.vector_store import FaissVS
+            >>> lotus.settings.configure(lm=LM(model="gpt-4o-mini"), rm=SentenceTransformersRM(model="intfloat/e5-base-v2"), vs=FaissVS())
+
+            >>> df = pd.DataFrame({
+            ...     'title': ['Machine learning tutorial', 'Data science guide', 'Python basics', 'AI in finance', 'Cooking healthy food', "Recipes for the holidays"],
+            ... })
+
+            >>> df.sem_index('title', 'title_index') # only needs to be run once; sem_index will save the index to the current directory in "title_index"
+            >>> df.load_sem_index('title', 'title_index')
+
+            >>> df.sem_cluster_by('title', 2)
+                                   title  cluster_id
+            0  Machine learning tutorial           0
+            1         Data science guide           0
+            2              Python basics           0
+            3              AI in finance           0
+            4       Cooking healthy food           1
+            5   Recipes for the holidays           1
         """
         rm = lotus.settings.rm
         vs = lotus.settings.vs

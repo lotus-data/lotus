@@ -45,6 +45,54 @@ class SemSimJoinDataframe:
             lsuffix (str): The suffix to append to the left DataFrame.
             rsuffix (str): The suffix to append to the right DataFrame.
             score_suffix (str): The suffix to append to the similarity score column.
+
+        Example:
+            >>> import pandas as pd
+            >>> import lotus
+            >>> from lotus.models import RM, VS
+            >>> from lotus.vector_store import FaissVS
+
+            >>> lm = LM(model="gpt-4o-mini")
+            >>> rm = SentenceTransformersRM(model="intfloat/e5-base-v2")
+            >>> vs = FaissVS()
+
+            >>> lotus.settings.configure(lm=lm, rm=rm, vs=vs)
+
+            >>> df1 = pd.DataFrame({
+                    'article': ['Machine learning tutorial', 'Data science guide', 'Python basics', 'AI in finance', 'Cooking healthy food', "Recipes for the holidays"],
+                })
+            >>> df2 = pd.DataFrame({
+                    'category': ['Computer Science', 'AI', 'Cooking'],
+                })
+
+            >>> df1.sem_index("article", "article_index")
+            >>> df2.sem_index("category", "category_index")
+
+            Example 1: sem_sim_join, K=1, join each article with the most similar category
+            >>> df1.sem_sim_join(df2, "article", "category", K=1)
+                                article   _scores           category
+            0  Machine learning tutorial  0.834617  Computer Science
+            1         Data science guide  0.820131  Computer Science
+            2              Python basics  0.834945  Computer Science
+            3              AI in finance  0.875249                AI
+            4       Cooking healthy food  0.890393           Cooking
+            5   Recipes for the holidays  0.786058           Cooking
+
+            Example 2: sem_sim_join, K=2, join each article with the top 2 most similar categories
+            >>> df1.sem_sim_join(df2, "article", "category", K=2)
+                                 article   _scores          category
+            0  Machine learning tutorial  0.834617  Computer Science
+            0  Machine learning tutorial  0.817893                AI
+            1         Data science guide  0.820131  Computer Science
+            1         Data science guide  0.785335                AI
+            2              Python basics  0.834945  Computer Science
+            2              Python basics  0.770674                AI
+            3              AI in finance  0.875249                AI
+            3              AI in finance  0.798493  Computer Science
+            4       Cooking healthy food  0.890393           Cooking
+            4       Cooking healthy food  0.755058  Computer Science
+            5   Recipes for the holidays  0.786058           Cooking
+            5   Recipes for the holidays  0.712726  Computer Science
         """
 
         if isinstance(other, pd.Series):

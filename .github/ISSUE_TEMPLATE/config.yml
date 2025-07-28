@@ -1,0 +1,12 @@
+# Issue template configuration
+# This file allows you to set default values for issue templates
+
+# Template chooser settings
+blank_issues_enabled: false
+contact_links:
+  - name: Lotus Community Slack
+    url: https://join.slack.com/t/lotus-fnm8919/shared_invite/zt-319k232lx-nEcLF~5w274dcQLmw2Wqyg
+    about: Please ask and answer questions here.
+  - name: Lotus Documentation
+    url: https://lotus-ai.readthedocs.io/en/latest/installation.html
+    about: Please check the documentation first. 

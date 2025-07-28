@@ -20,6 +20,34 @@ def get_match_prompt_binary(
     model: lotus.models.LM,
     strategy: ReasoningStrategy | None = None,
 ) -> list[dict[str, Any]]:
+    """
+    Generate a binary comparison prompt for two documents.
+
+    This function creates a prompt that asks the language model to compare two
+    documents and select the one that better matches the user's instruction.
+    It supports different reasoning strategies including chain-of-thought.
+
+    Args:
+        doc1 (dict[str, Any]): The first document to compare. Should contain
+            multimodal information (text, images, etc.).
+        doc2 (dict[str, Any]): The second document to compare. Should contain
+            multimodal information (text, images, etc.).
+        user_instruction (str): The natural language instruction that defines
+            the comparison criteria.
+        model (lotus.models.LM): The language model instance to use for comparison.
+        strategy (ReasoningStrategy | None, optional): The reasoning strategy to use.
+            Can be None, COT, or ZS_COT. Defaults to None.
+
+    Returns:
+        list[dict[str, Any]]: A list of message dictionaries formatted for the
+            language model API.
+
+    Example:
+        >>> doc1 = {"text": "Machine learning tutorial"}
+        >>> doc2 = {"text": "Data science guide"}
+        >>> model = LM(model="gpt-4o")
+        >>> prompt = get_match_prompt_binary(doc1, doc2, "Which is more relevant to AI?", model)
+    """
     if strategy == ReasoningStrategy.ZS_COT:
         sys_prompt = (
             "Your job is to to select and return the most relevant document to the user's question.\n"
@@ -53,6 +81,26 @@ def get_match_prompt_binary(
 
 
 def parse_ans_binary(answer: str) -> tuple[bool, str]:
+    """
+    Parse a binary comparison answer from the language model.
+
+    This function extracts the model's choice (Document 1 or Document 2) and any
+    chain-of-thought reasoning from the response.
+
+    Args:
+        answer (str): The raw response from the language model.
+
+    Returns:
+        tuple[bool, str]: A tuple containing:
+            - bool: True if Document 1 was selected, False if Document 2 was selected
+            - str: Any chain-of-thought reasoning found in the response
+
+    Example:
+        >>> parse_ans_binary("Document 1 is more relevant because it focuses on AI.")
+        (True, "")
+        >>> parse_ans_binary("<think>Both are relevant but Document 1 is more specific</think>Answer: Document 1")
+        (True, "Both are relevant but Document 1 is more specific")
+    """
     lotus.logger.debug(f"Response from model: {answer}")
     cot_explanation = ""
     try:
@@ -87,6 +135,32 @@ def compare_batch_binary(
     user_instruction: str,
     strategy: ReasoningStrategy | None = None,
 ) -> tuple[list[bool], list[str], int]:
+    """
+    Compare multiple pairs of documents using binary classification.
+
+    This function processes a batch of document pairs, comparing each pair
+    according to the user's instruction and returning the results.
+
+    Args:
+        pairs (list[tuple[dict[str, Any], dict[str, Any]]]): List of document
+            pairs to compare. Each pair should contain two documents.
+        model (lotus.models.LM): The language model instance to use for comparison.
+        user_instruction (str): The natural language instruction that defines
+            the comparison criteria.
+        strategy (ReasoningStrategy | None, optional): The reasoning strategy to use.
+            Can be None, COT, or ZS_COT. Defaults to None.
+
+    Returns:
+        tuple[list[bool], list[str], int]: A tuple containing:
+            - list[bool]: Results for each pair (True if first document wins, False otherwise)
+            - list[str]: Explanations for each comparison
+            - int: Total number of tokens used
+
+    Example:
+        >>> pairs = [({"text": "AI guide"}, {"text": "ML tutorial"})]
+        >>> model = LM(model="gpt-4o")
+        >>> results, explanations, tokens = compare_batch_binary(pairs, model, "Which is more relevant to beginners?")
+    """
     match_prompts = []
     tokens = 0
     for doc1, doc2 in pairs:
@@ -106,6 +180,42 @@ def compare_batch_binary_cascade(
     cascade_threshold: float,
     strategy: ReasoningStrategy | None = None,
 ) -> tuple[list[bool], list[str], int, int, int]:
+    """
+    Compare multiple pairs of documents using a cascade approach.
+
+    This function uses a two-stage approach: first a smaller/faster model makes
+    predictions, then a larger/more accurate model is used for low-confidence cases.
+
+    Args:
+        pairs (list[tuple[dict[str, Any], dict[str, Any]]]): List of document
+            pairs to compare. Each pair should contain two documents.
+        model (lotus.models.LM): The large language model instance to use for
+            high-confidence cases.
+        user_instruction (str): The natural language instruction that defines
+            the comparison criteria.
+        cascade_threshold (float): Confidence threshold for using the large model.
+            Cases below this threshold will use the helper model.
+        strategy (ReasoningStrategy | None, optional): The reasoning strategy to use.
+            Can be None, COT, or ZS_COT. Defaults to None.
+
+    Returns:
+        tuple[list[bool], list[str], int, int, int]: A tuple containing:
+            - list[bool]: Results for each pair
+            - list[str]: Explanations for each comparison
+            - int: Total tokens used by small model
+            - int: Total tokens used by large model
+            - int: Number of calls to large model
+
+    Raises:
+        ValueError: If the helper language model is not configured.
+
+    Example:
+        >>> pairs = [({"text": "AI guide"}, {"text": "ML tutorial"})]
+        >>> model = LM(model="gpt-4o")
+        >>> results, explanations, small_tokens, large_tokens, large_calls = compare_batch_binary_cascade(
+        ...     pairs, model, "Which is more relevant?", 0.8
+        ... )
+    """
     match_prompts = []
     small_tokens = 0
     for doc1, doc2 in pairs:
@@ -171,14 +281,31 @@ def llm_naive_sort(
     safe_mode: bool = False,
 ) -> SemanticTopKOutput:
     """
-    Sorts the documents using a naive quadratic method.
+    Sort documents using a naive quadratic comparison approach.
+
+    This function implements a simple sorting algorithm that compares every pair
+    of documents and uses voting to determine the final order. While simple, it
+    requires O(n²) comparisons and is not efficient for large datasets.
 
     Args:
-        docs (list[str]): The list of documents to sort.
-        user_instruction (str): The user instruction for sorting.
+        docs (list[dict[str, Any]]): The list of documents to sort. Each document
+            should be a dictionary containing multimodal information (text, images, etc.).
+        model (lotus.models.LM): The language model instance to use for comparisons.
+        user_instruction (str): The natural language instruction that defines
+            the sorting criteria.
+        strategy (ReasoningStrategy | None, optional): The reasoning strategy to use.
+            Can be None, COT, or ZS_COT. Defaults to None.
+        safe_mode (bool, optional): Whether to enable safe mode with cost estimation.
+            Defaults to False.
 
     Returns:
-        SemanticTopKOutput: The indexes of the top k documents and stats.
+        SemanticTopKOutput: An object containing the sorted indexes and statistics.
+
+    Example:
+        >>> docs = [{"text": "AI guide"}, {"text": "ML tutorial"}, {"text": "Data science intro"}]
+        >>> model = LM(model="gpt-4o")
+        >>> result = llm_naive_sort(docs, model, "Sort by relevance to beginners")
+        >>> print(result.indexes)  # [2, 1, 0] - most to least relevant
     """
     N = len(docs)
     pairs = []
@@ -228,18 +355,36 @@ def llm_quicksort(
     safe_mode: bool = False,
 ) -> SemanticTopKOutput:
     """
-    Sorts the documents using quicksort.
+    Sort documents using a quicksort-based approach optimized for top-K retrieval.
+
+    This function implements a modified quicksort algorithm that only sorts the
+    top K elements, making it more efficient than full sorting for top-K queries.
+    It can also use embedding-based optimization for improved performance.
 
     Args:
-        docs (list[dict[str, Any]]): The list of documents to sort.
-        model (lotus.models.LM): The language model to use.
-        user_instruction (str): The user instruction for sorting.
-        K (int): The number of documents to return.
-        embedding (bool): Whether to use embedding optimization.
-        cascade_threshold (float | None): The confidence threshold for cascading to a larger model.
+        docs (list[dict[str, Any]]): The list of documents to sort. Each document
+            should be a dictionary containing multimodal information (text, images, etc.).
+        model (lotus.models.LM): The language model instance to use for comparisons.
+        user_instruction (str): The natural language instruction that defines
+            the sorting criteria.
+        K (int): The number of top documents to return.
+        embedding (bool, optional): Whether to use embedding optimization for
+            pivot selection. Defaults to False.
+        strategy (ReasoningStrategy | None, optional): The reasoning strategy to use.
+            Can be None, COT, or ZS_COT. Defaults to None.
+        cascade_threshold (float | None, optional): Confidence threshold for cascade
+            filtering. If provided, uses a two-stage model approach. Defaults to None.
+        safe_mode (bool, optional): Whether to enable safe mode with cost estimation.
+            Defaults to False.
 
     Returns:
-        SemanticTopKOutput: The indexes of the top k documents and stats
+        SemanticTopKOutput: An object containing the sorted indexes and statistics.
+
+    Example:
+        >>> docs = [{"text": "AI guide"}, {"text": "ML tutorial"}, {"text": "Data science intro"}]
+        >>> model = LM(model="gpt-4o")
+        >>> result = llm_quicksort(docs, model, "Sort by relevance to beginners", K=2)
+        >>> print(result.indexes[:2])  # Top 2 most relevant documents
     """
     stats: dict[str, Any] = {}
     stats["total_tokens"] = 0
@@ -344,7 +489,20 @@ def llm_quicksort(
 
 
 class HeapDoc:
-    """Class to define a document for the heap. Keeps track of the number of calls and tokens."""
+    """
+    Document wrapper for heap-based sorting operations.
+
+    This class wraps documents for use in heap-based sorting algorithms.
+    It tracks comparison statistics and provides a custom comparison method
+    that uses language model calls to determine document ordering.
+
+    Attributes:
+        num_calls (int): Class variable tracking total number of LM calls.
+        total_tokens (int): Class variable tracking total tokens used.
+        strategy (ReasoningStrategy | None): Class variable for reasoning strategy.
+        model (lotus.models.LM | None): Class variable for the language model.
+        explanations (dict[int, list[str]]): Class variable storing explanations.
+    """
 
     num_calls: int = 0
     total_tokens: int = 0
@@ -353,11 +511,34 @@ class HeapDoc:
     explanations: dict[int, list[str]] = {}
 
     def __init__(self, doc: dict[str, Any], user_instruction: str, idx: int) -> None:
+        """
+        Initialize a HeapDoc instance.
+
+        Args:
+            doc (dict[str, Any]): The document to wrap.
+            user_instruction (str): The instruction for comparison.
+            idx (int): The index of the document in the original list.
+        """
         self.doc = doc
         self.user_instruction = user_instruction
         self.idx = idx
 
     def __lt__(self, other: "HeapDoc") -> bool:
+        """
+        Compare this document with another using language model.
+
+        This method performs a binary comparison between two documents using
+        the configured language model and user instruction.
+
+        Args:
+            other (HeapDoc): The other document to compare against.
+
+        Returns:
+            bool: True if this document is "less than" (worse than) the other.
+
+        Raises:
+            AssertionError: If the model is not configured.
+        """
         assert HeapDoc.model is not None
         prompt = get_match_prompt_binary(
             self.doc, other.doc, self.user_instruction, strategy=self.strategy, model=HeapDoc.model
@@ -385,16 +566,32 @@ def llm_heapsort(
     safe_mode: bool = False,
 ) -> SemanticTopKOutput:
     """
-    Sorts the documents using a heap.
+    Sort documents using a heap-based approach for top-K retrieval.
+
+    This function uses a min-heap to efficiently find the top K documents.
+    It's particularly efficient for finding the top K elements without
+    fully sorting the entire dataset.
 
     Args:
-        docs (list[dict[str, Any]]): The list of documents to sort.
-        model (lotus.models.LM): The language model to use.
-        user_instruction (str): The user instruction for sorting.
-        K (int): The number of documents to return.
+        docs (list[dict[str, Any]]): The list of documents to sort. Each document
+            should be a dictionary containing multimodal information (text, images, etc.).
+        model (lotus.models.LM): The language model instance to use for comparisons.
+        user_instruction (str): The natural language instruction that defines
+            the sorting criteria.
+        K (int): The number of top documents to return.
+        strategy (ReasoningStrategy | None, optional): The reasoning strategy to use.
+            Can be None, COT, or ZS_COT. Defaults to None.
+        safe_mode (bool, optional): Whether to enable safe mode with cost estimation.
+            Defaults to False.
 
     Returns:
-        SemanticTopKOutput: The indexes of the top k documents and stats.
+        SemanticTopKOutput: An object containing the sorted indexes and statistics.
+
+    Example:
+        >>> docs = [{"text": "AI guide"}, {"text": "ML tutorial"}, {"text": "Data science intro"}]
+        >>> model = LM(model="gpt-4o")
+        >>> result = llm_heapsort(docs, model, "Sort by relevance to beginners", K=2)
+        >>> print(result.indexes[:2])  # Top 2 most relevant documents
     """
 
     if safe_mode:
@@ -426,18 +623,56 @@ def llm_heapsort(
 
 @pd.api.extensions.register_dataframe_accessor("sem_topk")
 class SemTopKDataframe:
-    """DataFrame accessor for semantic top k."""
+    """
+    DataFrame accessor for semantic top-K operations.
+
+    This class provides a pandas DataFrame accessor that enables semantic
+    top-K retrieval over DataFrame content using natural language instructions.
+    It supports multiple sorting algorithms and grouped operations.
+
+    The accessor can be used directly on any pandas DataFrame:
+        df.sem_topk("Sort by relevance to AI based on {text}", K=5) # where 'text' is a column in the dataframe
+    """
 
     def __init__(self, pandas_obj: Any) -> None:
+        """
+        Initialize the semantic top-K accessor.
+
+        Args:
+            pandas_obj (Any): The pandas DataFrame object to attach the accessor to.
+        """
         self._validate(pandas_obj)
         self._obj = pandas_obj
 
     @staticmethod
     def _validate(obj: Any) -> None:
+        """
+        Validate that the object is a pandas DataFrame.
+
+        Args:
+            obj (Any): The object to validate.
+
+        Raises:
+            AttributeError: If the object is not a pandas DataFrame.
+        """
         pass
 
     @staticmethod
     def process_group(args):
+        """
+        Process a group of data for semantic top-K operations.
+
+        This static method is used for parallel processing of grouped data.
+        It applies semantic top-K to each group and returns the results.
+
+        Args:
+            args (tuple): A tuple containing (group, user_instruction, K, method,
+                         strategy, group_by, cascade_threshold, return_stats).
+
+        Returns:
+            pd.DataFrame | tuple[pd.DataFrame, dict[str, Any]]: The top-K results
+                for the group, optionally with statistics.
+        """
         group, user_instruction, K, method, strategy, group_by, cascade_threshold, return_stats = args
         return group.sem_topk(
             user_instruction,
@@ -463,18 +698,61 @@ class SemTopKDataframe:
         return_explanations: bool = False,
     ) -> pd.DataFrame | tuple[pd.DataFrame, dict[str, Any]]:
         """
-        Sorts the DataFrame based on the user instruction and returns the top K rows.
+        Apply semantic top-K sorting over a DataFrame.
+
+        This method performs semantic sorting on the DataFrame content using
+        a natural language instruction and returns the top K most relevant rows.
+        It supports multiple sorting algorithms and group-by operations.
 
         Args:
-            user_instruction (str): The user instruction for sorting.
-            K (int): The number of rows to return.
-            method (str): The method to use for sorting. Options are "quick", "heap", "naive", "quick-sem".
-            group_by (list[str] | None): The columns to group by before sorting. Each group will be sorted separately.
-            cascade_threshold (float | None): The confidence threshold for cascading to a larger model.
-            return_stats (bool): Whether to return stats.
+            user_instruction (str): The natural language instruction that defines
+                the sorting criteria. Should describe how to rank the rows.
+            K (int): The number of top rows to return.
+            method (str, optional): The sorting algorithm to use. Options are:
+                - "quick": Quicksort-based approach (default)
+                - "heap": Heap-based approach
+                - "naive": Naive quadratic approach
+                - "quick-sem": Quicksort with semantic embedding optimization. Requires the passed column to be indexed with sem_index.
+                Defaults to "quick".
+            strategy (ReasoningStrategy | None, optional): The reasoning strategy
+                to use. Can be None, COT, or ZS_COT. Defaults to None.
+            group_by (list[str] | None, optional): Column names to group by before
+                sorting. Each group will be sorted separately. Defaults to None.
+            cascade_threshold (float | None, optional): Confidence threshold for
+                cascade filtering. If provided, uses a two-stage model approach.
+                Defaults to None.
+            return_stats (bool, optional): Whether to return sorting statistics
+                along with the results. Defaults to False.
+            safe_mode (bool, optional): Whether to enable safe mode with cost
+                estimation. Defaults to False.
+            return_explanations (bool, optional): Whether to include explanations
+                in the output DataFrame. Useful for debugging and understanding
+                model reasoning. Defaults to False.
 
         Returns:
-            pd.DataFrame | tuple[pd.DataFrame, dict[str, Any]]: The sorted DataFrame. If return_stats is True, returns a tuple with the sorted DataFrame and stats
+            pd.DataFrame | tuple[pd.DataFrame, dict[str, Any]]: A DataFrame
+                containing the top K rows, or a tuple containing the DataFrame
+                and statistics if return_stats is True.
+
+        Raises:
+            ValueError: If the language model is not configured, if specified
+                columns don't exist in the DataFrame, or if an invalid method
+                is specified.
+
+        Example:
+            >>> import pandas as pd
+            >>> import lotus
+            >>> from lotus.models import LM
+            >>> lotus.settings.configure(lm=LM(model="gpt-4o-mini"))
+            >>> df = pd.DataFrame({
+                    'title': ['AI guide', 'ML tutorial', 'Data science intro'],
+                    'category': ['AI', 'ML', 'DS']
+                })
+            >>> df.sem_topk("The tutorial {title} is best for beginners", K=3)
+                           title category
+            0  Data science intro       DS
+            1         ML tutorial       ML
+            2            AI guide       AI
         """
         model = lotus.settings.lm
         if model is None:

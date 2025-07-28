@@ -293,16 +293,34 @@ class SemAggDataframe:
                 configuration issues.
 
         Example:
+            >>> import pandas as pd
+            >>> import lotus
+            >>> from lotus.models import LM
+            >>> lotus.settings.configure(lm=LM(model="gpt-4o-mini"))
             >>> df = pd.DataFrame({
-            ...     'text': ['Document 1', 'Document 2'],
-            ...     'category': ['A', 'B']
+            ...     'journal': ['Harry is happy and love cats', 'Harry is feeling nauseous', "Harry is doing homework"],
+            ...     'date': ['Monday', 'Tuesday', "Tuesday"]
             ... })
-            >>> result1 = df.sem_agg("Summarize the key points", all_cols=True)
-            >>> result2 = df.sem_agg("Summarize the key points", all_cols=True, group_by=["category"])
-            >>> result3 = df.sem_agg("Summarize the key points of {abstract}") # where abstract is a column in the dataframe
-            >>> print(result1)
-            >>> print(result2)
-            >>> print(result3)
+
+            # Example 1: simple aggregation
+            >>> df.sem_agg("Summarize the key points", all_cols=True)
+            Aggregating: 100%|████████████████████████████████████████████████████████████████ 1/1 LM calls [00:01<00:00,  1.44s/it]
+                                                        _output
+            0  Harry experienced a range of emotions and acti...
+
+            # Example 2: grouped aggregation
+            >>> df.sem_agg("Summarize the key points", all_cols=True, group_by=["date"])
+            Aggregating: 100%|████████████████████████████████████████████████████████████████ 1/1 LM calls [00:00<00:00,  1.42it/s]
+            Aggregating: 100%|████████████████████████████████████████████████████████████████ 1/1 LM calls [00:00<00:00,  1.40it/s]
+                                                        _output     date
+            0  Harry is happy and has a fondness for cats, as...   Monday
+            0  Harry is feeling nauseous and is also doing ho...  Tuesday
+
+            # Example 3: aggregation with column reference
+            >>> df.sem_agg("Summarize the entries from {journal}")
+            Aggregating: 100%|████████████████████████████████████████████████████████████████ 1/1 LM calls [00:01<00:00,  1.05s/it]
+                                                        _output
+            0  Harry is currently experiencing a mix of emoti...
         """
 
         if lotus.settings.lm is None:

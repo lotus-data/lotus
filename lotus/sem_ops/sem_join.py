@@ -32,24 +32,65 @@ def sem_join(
     progress_bar_desc: str = "Join comparisons",
 ) -> SemanticJoinOutput:
     """
-    Joins two series using a model.
+    Joins two pandas Series using a language model based on semantic similarity.
+
+    This function performs a semantic join between two Series by evaluating each
+    pair of elements using a natural language instruction. It returns pairs that
+    satisfy the join condition as determined by the language model.
 
     Args:
-        l1 (pd.Series): The first series.
-        l2 (pd.Series): The second series.
-        ids1 (list[int]): The ids for the first series.
-        ids2 (list[int]): The ids for the second series.
-        col1_label (str): The label for the first column.
-        col2_label (str): The label for the second column.
-        model (lotus.models.LM): The model to use.
-        user_instruction (str): The user instruction for join.
-        examples_multimodal_data (list[str] | None): The examples dataframe text. Defaults to None.
-        examples_answers (list[bool] | None): The answers for examples. Defaults to None.
-        cot_reasoning (list[str] | None): The reasoning for CoT. Defaults to None.
-        default (bool): The default value for the join in case of parsing errors. Defaults to True.
+        l1 (pd.Series): The left Series to join. Contains the first set of
+            elements to be compared.
+        l2 (pd.Series): The right Series to join. Contains the second set of
+            elements to be compared.
+        ids1 (list[int]): The IDs corresponding to elements in l1. Used to
+            track which elements match in the join results.
+        ids2 (list[int]): The IDs corresponding to elements in l2. Used to
+            track which elements match in the join results.
+        col1_label (str): The label/name for the first column. Used in
+            formatting the input to the language model.
+        col2_label (str): The label/name for the second column. Used in
+            formatting the input to the language model.
+        model (lotus.models.LM): The language model instance to use for
+            evaluating join conditions. Must be properly configured.
+        user_instruction (str): The natural language instruction that defines
+            the join condition. Should describe when two elements should be
+            considered a match.
+        examples_multimodal_data (list[dict[str, Any]] | None, optional): Example
+            pairs for few-shot learning. Each example should contain both
+            left and right elements. Defaults to None.
+        examples_answers (list[bool] | None, optional): Expected boolean outputs
+            for the example pairs. Should have the same length as
+            examples_multimodal_data. Defaults to None.
+        cot_reasoning (list[str] | None, optional): Chain-of-thought reasoning
+            for the example pairs. Used when strategy includes COT reasoning.
+            Defaults to None.
+        default (bool, optional): The default value to use when the model
+            output cannot be parsed as a boolean. Defaults to True.
+        strategy (ReasoningStrategy | None, optional): The reasoning strategy
+            to use. Can be None, COT, or ZS_COT. Defaults to None.
+        safe_mode (bool, optional): Whether to enable safe mode with cost
+            estimation. Defaults to False.
+        show_progress_bar (bool, optional): Whether to show a progress bar
+            during processing. Defaults to True.
+        progress_bar_desc (str, optional): Description for the progress bar.
+            Defaults to "Join comparisons".
 
     Returns:
-        SemanticJoinOutput: The join results, filter outputs, all raw outputs, and all explanations.
+        SemanticJoinOutput: An object containing the join results (matching pairs),
+            filter outputs, raw outputs, and explanations (if applicable).
+
+    Raises:
+        ValueError: If the model is not properly configured or if there are
+            issues with the input parameters.
+
+    Example:
+        >>> l1 = pd.Series(['Machine learning', 'Data science'])
+        >>> l2 = pd.Series(['AI', 'Statistics'])
+        >>> model = LM(model="gpt-4o")
+        >>> result = sem_join(l1, l2, [0, 1], [0, 1], 'left', 'right',
+        ...                   model, "Are these topics related?")
+        >>> print(result.join_results)  # List of matching pairs
     """
     filter_outputs = []
     all_raw_outputs = []
@@ -614,6 +655,33 @@ class SemJoinDataframe:
 
         Returns:
             pd.DataFrame: The dataframe with the new joined columns.
+
+        Example:
+            >>> import pandas as pd
+            >>> import lotus
+            >>> from lotus.models import LM
+            >>> lotus.settings.configure(lm=LM(model="gpt-4o-mini"))
+
+            >>> df1 = pd.DataFrame({
+                    'article': ['Machine learning tutorial', 'Data science guide', 'Python basics', 'AI in finance', 'Cooking healthy food', "Recipes for the holidays"],
+                })
+            >>> df2 = pd.DataFrame({
+                    'category': ['Computer Science', 'AI', 'Cooking'],
+                })
+
+            >>> df1.sem_join(df2, "the {article} belongs to the {category}.")
+            Join comparisons: 100%|█████████████████████████████████████████████████████████ 18/18 LM Calls [00:05<00:00,  3.57it/s]
+                                 article          category
+            0  Machine learning tutorial  Computer Science
+            0  Machine learning tutorial                AI
+            1         Data science guide  Computer Science
+            1         Data science guide                AI
+            2              Python basics  Computer Science
+            2              Python basics                AI
+            3              AI in finance  Computer Science
+            3              AI in finance                AI
+            4       Cooking healthy food           Cooking
+            5   Recipes for the holidays           Cooking
         """
         model = lotus.settings.lm
         if model is None:
