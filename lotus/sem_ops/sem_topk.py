@@ -20,7 +20,7 @@ def get_match_prompt_binary(
     model: lotus.models.LM,
     strategy: ReasoningStrategy | None = None,
 ) -> list[dict[str, Any]]:
-    if strategy == ReasoningStrategy.ZS_COT:
+    if strategy == ReasoningStrategy.CoT:
         sys_prompt = (
             "Your job is to to select and return the most relevant document to the user's question.\n"
             "Carefully read the user's question and the two documents provided below.\n"
@@ -41,7 +41,7 @@ def get_match_prompt_binary(
         content_text, content_image_inputs = task_instructions.context_formatter(doc)
         prompt += [{"type": "text", "text": f"\nDocument {idx+1}:\n{content_text}"}, *content_image_inputs]
 
-    if strategy == ReasoningStrategy.ZS_COT and model.is_deepseek():
+    if strategy == ReasoningStrategy.CoT and model.is_deepseek():
         deepseek_instructions = """Please think through your reasoning step by step, then provide your final answer.
         You must put your reasoning insdie the <think></think> tags, then provide your 
         final answer after the </think> tag with the format: Answer: your answer."""
@@ -558,7 +558,7 @@ class SemTopKDataframe:
         new_df = new_df.reindex(output.indexes).reset_index(drop=True)
         new_df = new_df.head(K)
 
-        if return_explanations and strategy == ReasoningStrategy.ZS_COT:
+        if return_explanations and strategy == ReasoningStrategy.CoT:
             explanations = []
             for idx in output.indexes[:K]:
                 explanation = "No Comparison Made"

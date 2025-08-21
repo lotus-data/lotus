@@ -216,7 +216,26 @@ class LotusUsageLimitException(LotusException):
 # Reasoning Strategy
 ################################################################################
 class ReasoningStrategy(Enum):
-    DEFAULT = auto()
-    COT = auto()
-    ZS_COT = auto()
-    FEW_SHOT = auto()
+    """
+    Simple, intuitive reasoning strategies for semantic operations.
+
+    - CoT: Chain-of-thought reasoning with step-by-step explanations
+    - CoT_Demonstrations: CoT with few-shot examples (user-provided or bootstrapped)
+    - Demonstrations: Few-shot examples without explicit reasoning
+    """
+
+    CoT = auto()
+    CoT_Demonstrations = auto()
+    Demonstrations = auto()
+
+
+@dataclass
+class DemonstrationConfig:
+    """Configuration for demonstration-based reasoning"""
+
+    # User-provided examples (alternative to passing examples directly)
+    examples: pd.DataFrame | None = None
+    # Bootstrapping configuration - automatically generate examples
+    bootstrap: bool = False
+    num_demonstrations: int = 3
+    oracle_model: str | None = None  # If None, uses the main model

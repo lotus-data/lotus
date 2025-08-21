@@ -4,10 +4,18 @@ import pandas as pd
 
 import lotus
 from lotus.cache import operator_cache
+from lotus.models import LM
 from lotus.templates import task_instructions
-from lotus.types import LMOutput, ReasoningStrategy, SemanticMapOutput, SemanticMapPostprocessOutput
+from lotus.types import (
+    DemonstrationConfig,
+    LMOutput,
+    ReasoningStrategy,
+    SemanticMapOutput,
+    SemanticMapPostprocessOutput,
+)
 from lotus.utils import show_safe_mode
 
+from .demonstration_bootstrap import bootstrap_demonstrations_for_map
 from .postprocessors import map_postprocess
 
 
@@ -20,6 +28,7 @@ def sem_map(
     examples_answers: list[str] | None = None,
     cot_reasoning: list[str] | None = None,
     strategy: ReasoningStrategy | None = None,
+    demonstration_config: DemonstrationConfig | None = None,
     safe_mode: bool = False,
     progress_bar_desc: str = "Mapping",
 ) -> SemanticMapOutput:
@@ -34,10 +43,42 @@ def sem_map(
         examples_multimodal_data (list[dict[str, Any]] | None): The text for examples. Defaults to None.
         examples_answers (list[str] | None): The answers for examples. Defaults to None.
         cot_reasoning (list[str] | None): The reasoning for CoT. Defaults to None.
+        strategy (ReasoningStrategyType): The reasoning strategy to use. Can be CoT, Demonstrations, or both combined.
+        demonstration_config (DemonstrationConfig | None): Configuration for demonstration bootstrapping.
 
     Returns:
         SemanticMapOutput: The outputs, raw outputs, and explanations.
     """
+
+    # Handle demonstration bootstrapping
+    if (
+        (strategy in [ReasoningStrategy.Demonstrations, ReasoningStrategy.CoT_Demonstrations])
+        and demonstration_config
+        and demonstration_config.bootstrap
+    ):
+        oracle_model = None
+        if demonstration_config.oracle_model:
+            oracle_model = LM(model=demonstration_config.oracle_model)
+
+        examples_multimodal_data, examples_answers, cot_reasoning = bootstrap_demonstrations_for_map(
+            docs, user_instruction, demonstration_config, oracle_model
+        )
+
+    elif (
+        (strategy in [ReasoningStrategy.Demonstrations, ReasoningStrategy.CoT_Demonstrations])
+        and demonstration_config
+        and demonstration_config.examples is not None
+    ):
+        examples_df = demonstration_config.examples
+        assert "Answer" in examples_df.columns, "Answer must be a column in examples dataframe"
+
+        examples_multimodal_data = task_instructions.df2multimodal_info(examples_df, list(examples_df.columns))
+        examples_answers = examples_df["Answer"].tolist()
+
+        if strategy == ReasoningStrategy.CoT_Demonstrations and "Reasoning" in examples_df.columns:
+            cot_reasoning = examples_df["Reasoning"].tolist()
+        elif strategy == ReasoningStrategy.CoT_Demonstrations:
+            cot_reasoning = ["Reasoning omitted"] * len(examples_answers) if examples_answers else []
 
     # prepare model inputs
     inputs = []
@@ -60,7 +101,7 @@ def sem_map(
 
     # post process results
     postprocess_output = postprocessor(
-        lm_output.outputs, model, strategy in [ReasoningStrategy.COT, ReasoningStrategy.ZS_COT]
+        lm_output.outputs, model, strategy in [ReasoningStrategy.CoT, ReasoningStrategy.CoT_Demonstrations]
     )
     lotus.logger.debug(f"raw_outputs: {lm_output.outputs}")
     lotus.logger.debug(f"outputs: {postprocess_output.outputs}")
@@ -98,6 +139,7 @@ class SemMapDataframe:
         suffix: str = "_map",
         examples: pd.DataFrame | None = None,
         strategy: ReasoningStrategy | None = None,
+        demonstration_config: DemonstrationConfig | None = None,
         safe_mode: bool = False,
         progress_bar_desc: str = "Mapping",
     ) -> pd.DataFrame:
@@ -131,18 +173,23 @@ class SemMapDataframe:
         multimodal_data = task_instructions.df2multimodal_info(self._obj, col_li)
         formatted_usr_instr = lotus.nl_expression.nle2str(user_instruction, col_li)
 
+        # Handle examples and demonstrations
         examples_multimodal_data = None
         examples_answers = None
         cot_reasoning = None
 
-        if examples is not None:
+        if examples is not None and demonstration_config is None:
+            demonstration_config = DemonstrationConfig(examples=examples)
             assert "Answer" in examples.columns, "Answer must be a column in examples dataframe"
             examples_multimodal_data = task_instructions.df2multimodal_info(examples, col_li)
             examples_answers = examples["Answer"].tolist()
 
-            if strategy == ReasoningStrategy.COT or strategy == ReasoningStrategy.ZS_COT:
+            if strategy in [ReasoningStrategy.CoT, ReasoningStrategy.CoT_Demonstrations]:
                 return_explanations = True
-                cot_reasoning = examples["Reasoning"].tolist()
+                if "Reasoning" in examples.columns:
+                    cot_reasoning = examples["Reasoning"].tolist()
+                else:
+                    cot_reasoning = ["Reasoning omitted"] * len(examples_answers)
 
         output = sem_map(
             multimodal_data,
@@ -153,6 +200,7 @@ class SemMapDataframe:
             examples_answers=examples_answers,
             cot_reasoning=cot_reasoning,
             strategy=strategy,
+            demonstration_config=demonstration_config,
             safe_mode=safe_mode,
             progress_bar_desc=progress_bar_desc,
         )

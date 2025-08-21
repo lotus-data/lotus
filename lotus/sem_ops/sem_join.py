@@ -670,7 +670,7 @@ class SemJoinDataframe:
             examples_multimodal_data = task_instructions.df2multimodal_info(examples, [real_left_on, real_right_on])
             examples_answers = examples["Answer"].tolist()
 
-            if strategy == ReasoningStrategy.COT:
+            if strategy == ReasoningStrategy.CoT:
                 return_explanations = True
                 cot_reasoning = examples["Reasoning"].tolist()
 

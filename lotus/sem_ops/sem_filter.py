@@ -6,9 +6,11 @@ from numpy.typing import NDArray
 
 import lotus
 from lotus.cache import operator_cache
+from lotus.models import LM
 from lotus.templates import task_instructions
 from lotus.types import (
     CascadeArgs,
+    DemonstrationConfig,
     LMOutput,
     LogprobsForFilterCascade,
     ProxyModel,
@@ -18,6 +20,7 @@ from lotus.types import (
 from lotus.utils import show_safe_mode
 
 from .cascade_utils import calibrate_llm_logprobs, importance_sampling, learn_cascade_thresholds
+from .demonstration_bootstrap import bootstrap_demonstrations_for_filter
 from .postprocessors import filter_postprocess
 
 
@@ -30,6 +33,7 @@ def sem_filter(
     examples_answers: list[bool] | None = None,
     cot_reasoning: list[str] | None = None,
     strategy: ReasoningStrategy | None = None,
+    demonstration_config: DemonstrationConfig | None = None,
     logprobs: bool = False,
     safe_mode: bool = False,
     show_progress_bar: bool = True,
@@ -47,12 +51,44 @@ def sem_filter(
         examples_multimodal_data (list[dict[str, Any]] | None): The text for examples. Defaults to None.
         examples_answers (list[bool] | None): The answers for examples. Defaults to None.
         cot_reasoning (list[str] | None): The reasoning for CoT. Defaults to None.
+        strategy (ReasoningStrategyType): The reasoning strategy to use. Can be CoT, Demonstrations, or both combined.
+        demonstration_config (DemonstrationConfig | None): Configuration for demonstration bootstrapping.
         logprobs (bool): Whether to return log probabilities. Defaults to False.
         additional_cot_instructions (str): Additional instructions for the CoT. Defaults to "".
 
     Returns:
         SemanticFilterOutput: The True/False outputs, raw outputs, and explanations, and log probabilities.
     """
+
+    # Handle demonstration bootstrapping
+    if (
+        strategy in [ReasoningStrategy.Demonstrations, ReasoningStrategy.CoT_Demonstrations]
+        and demonstration_config
+        and demonstration_config.bootstrap
+    ):
+        oracle_model = None
+        if demonstration_config.oracle_model:
+            oracle_model = LM(model=demonstration_config.oracle_model)
+
+        examples_multimodal_data, examples_answers, cot_reasoning = bootstrap_demonstrations_for_filter(
+            docs, user_instruction, demonstration_config, oracle_model
+        )
+    elif (
+        strategy in [ReasoningStrategy.Demonstrations, ReasoningStrategy.CoT_Demonstrations]
+        and demonstration_config
+        and demonstration_config.examples is not None
+    ):
+        examples_df = demonstration_config.examples
+        assert "Answer" in examples_df.columns, "Answer must be a column in examples dataframe"
+
+        examples_multimodal_data = task_instructions.df2multimodal_info(examples_df, list(examples_df.columns))
+        examples_answers = examples_df["Answer"].tolist()
+
+        if strategy == ReasoningStrategy.CoT_Demonstrations and "Reasoning" in examples_df.columns:
+            cot_reasoning = examples_df["Reasoning"].tolist()
+        elif strategy == ReasoningStrategy.CoT_Demonstrations:
+            cot_reasoning = ["Reasoning omitted"] * len(examples_answers) if examples_answers else []
+
     inputs = []
     for doc in docs:
         prompt = lotus.templates.task_instructions.filter_formatter(
@@ -122,6 +158,7 @@ def learn_filter_cascade_thresholds(
             examples_answers=examples_answers,
             cot_reasoning=cot_reasoning,
             strategy=strategy,
+            demonstration_config=None,  # No demonstration config for threshold learning
             safe_mode=False,
             progress_bar_desc="Running oracle for threshold learning",
             additional_cot_instructions=additional_cot_instructions,
@@ -168,6 +205,7 @@ class SemFilterDataframe:
         examples: pd.DataFrame | None = None,
         helper_examples: pd.DataFrame | None = None,
         strategy: ReasoningStrategy | None = None,
+        demonstration_config: DemonstrationConfig | None = None,
         cascade_args: CascadeArgs | None = None,
         return_stats: bool = False,
         safe_mode: bool = False,
@@ -205,6 +243,7 @@ class SemFilterDataframe:
         lotus.logger.debug(user_instruction)
         col_li = lotus.nl_expression.parse_cols(user_instruction)
         lotus.logger.debug(col_li)
+
         helper_strategy = strategy
 
         # check that column exists
@@ -219,12 +258,18 @@ class SemFilterDataframe:
         examples_multimodal_data = None
         examples_answers = None
         cot_reasoning = None
-        if examples is not None:
+
+        # Create demonstration config if examples are provided but no config exists
+        if examples is not None and demonstration_config is None:
+            demonstration_config = DemonstrationConfig(examples=examples)
             assert "Answer" in examples.columns, "Answer must be a column in examples dataframe"
             examples_multimodal_data = task_instructions.df2multimodal_info(examples, col_li)
             examples_answers = examples["Answer"].tolist()
 
-            if strategy == ReasoningStrategy.COT and "Reasoning" in examples.columns:
+            if (
+                strategy in [ReasoningStrategy.CoT, ReasoningStrategy.CoT_Demonstrations]
+                and "Reasoning" in examples.columns
+            ):
                 cot_reasoning = examples["Reasoning"].tolist()
 
         pos_cascade_threshold, neg_cascade_threshold = None, None
@@ -237,7 +282,7 @@ class SemFilterDataframe:
                 assert "Answer" in helper_examples.columns, "Answer must be a column in examples dataframe"
                 helper_examples_multimodal_data = task_instructions.df2multimodal_info(helper_examples, col_li)
                 helper_examples_answers = helper_examples["Answer"].tolist()
-                if helper_strategy == ReasoningStrategy.COT and "Reasoning" in helper_examples.columns:
+                if helper_strategy == ReasoningStrategy.CoT and "Reasoning" in helper_examples.columns:
                     helper_cot_reasoning = helper_examples["Reasoning"].tolist()
 
         if cascade_args:
@@ -256,7 +301,7 @@ class SemFilterDataframe:
                 if not lotus.settings.helper_lm:
                     raise ValueError("Helper LM must be set in settings")
 
-                if helper_strategy == ReasoningStrategy.COT:
+                if helper_strategy in [ReasoningStrategy.CoT, ReasoningStrategy.CoT_Demonstrations]:
                     raise ValueError("CoT not supported for helper models in cascades.")
 
                 # Run small LM and get logits
@@ -270,6 +315,7 @@ class SemFilterDataframe:
                     cot_reasoning=helper_cot_reasoning,
                     logprobs=True,
                     strategy=helper_strategy,
+                    demonstration_config=None,  # Helper models don't use demonstration config
                     safe_mode=safe_mode,
                     show_progress_bar=True,
                     progress_bar_desc="Running helper LM",
@@ -364,6 +410,7 @@ class SemFilterDataframe:
                     examples_answers=examples_answers,
                     cot_reasoning=cot_reasoning,
                     strategy=strategy,
+                    demonstration_config=demonstration_config,
                     safe_mode=safe_mode,
                     progress_bar_desc="Running predicate evals with oracle LM",
                     additional_cot_instructions=additional_cot_instructions,
@@ -387,6 +434,7 @@ class SemFilterDataframe:
                 examples_answers=examples_answers,
                 cot_reasoning=cot_reasoning,
                 strategy=strategy,
+                demonstration_config=demonstration_config,
                 safe_mode=safe_mode,
                 show_progress_bar=True,
                 progress_bar_desc=progress_bar_desc,
