@@ -136,7 +136,7 @@ def test_topk_operation(setup_models, model):
 
     strategies = ["quick", "heap", "naive"]
     for strategy in strategies:
-        sorted_df = df.sem_topk(user_instruction, K=2, strategy=strategy)
+        sorted_df = df.sem_topk(user_instruction, K=3, strategy=strategy)
 
         top_2_actual = set(sorted_df["image"].values)
         assert top_2_expected.issubset(top_2_actual)

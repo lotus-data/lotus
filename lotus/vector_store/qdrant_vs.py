@@ -7,16 +7,17 @@ from lotus.types import RMOutput
 from lotus.vector_store.vs import VS
 
 try:
-    from qdrant_client import QdrantClient
     from qdrant_client.http import models
+
+    qdrant_available = True
 except ImportError:
-    QdrantClient = None
+    qdrant_available = False
 
 
 class QdrantVS(VS):
     def __init__(self, client, max_batch_size: int = 128):
-        if QdrantClient is None:
-            raise ImportError("Please install the qdrant client using `pip install lotus[qdrant]`")
+        if not qdrant_available:
+            raise ImportError("Please install the qdrant client using `pip install lotus-ai[qdrant]`")
 
         super().__init__()
         self.client = client

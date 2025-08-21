@@ -24,17 +24,51 @@ def sem_extract(
     strategy: ReasoningStrategy | None = None,
 ) -> SemanticExtractOutput:
     """
-    Extracts attributes and values from a list of documents using a model.
+    Extracts structured attributes and values from a list of documents using a language model.
+
+    This function uses a language model to extract specific information from documents
+    and return it in a structured format. It can extract multiple attributes at once
+    and optionally include quotes from the source text.
 
     Args:
-        docs (list[dict[str, Any]]): The list of documents to extract from.
-        model (lotus.models.LM): The model to use.
-        output_cols (dict[str, str | None]): A mapping from desired output column names to optional descriptions.
-        extract_quotes (bool): Whether to extract quotes for the output columns. Defaults to False.
-        postprocessor (Callable): The postprocessor for the model outputs. Defaults to extract_postprocess.
+        docs (list[dict[str, Any]]): The list of documents to extract from. Each
+            document should be a dictionary containing multimodal information
+            (text, images, etc.).
+        model (lotus.models.LM): The language model instance to use for extraction.
+            Must be properly configured with appropriate API keys and settings.
+        output_cols (dict[str, str | None]): A mapping from desired output column
+            names to optional descriptions. The descriptions help guide the model
+            on what to extract. For example: {"sentiment": "positive/negative/neutral",
+            "confidence": "0-1 scale"}.
+        extract_quotes (bool, optional): Whether to extract supporting quotes from
+            the source text for each extracted value. Defaults to False.
+        postprocessor (Callable, optional): A function to post-process the model
+            outputs. Should take (outputs, model, return_explanations) and return
+            SemanticExtractPostprocessOutput. Defaults to extract_postprocess.
+        safe_mode (bool, optional): Whether to enable safe mode with cost estimation.
+            Defaults to False.
+        progress_bar_desc (str, optional): Description for the progress bar.
+            Defaults to "Extracting".
+        return_explanations (bool, optional): Whether to return explanations for
+            the extraction decisions. Useful for debugging and understanding
+            model reasoning. Defaults to False.
+        strategy (ReasoningStrategy | None, optional): The reasoning strategy to use.
+            Can be None, COT, or ZS_COT. Defaults to None.
 
     Returns:
-        SemanticExtractOutput: The outputs, raw outputs, and quotes.
+        SemanticExtractOutput: An object containing the extracted outputs, raw
+            outputs, and explanations (if requested).
+
+    Raises:
+        ValueError: If the model is not properly configured or if there are
+            issues with the input parameters.
+
+    Example:
+        >>> docs = [{"text": "The product is excellent with 5 stars"}]
+        >>> model = LM(model="gpt-4o")
+        >>> output_cols = {"sentiment": "positive/negative/neutral", "rating": "1-5 scale"}
+        >>> result = sem_extract(docs, model, output_cols)
+        >>> print(result.outputs)  # [{"sentiment": "positive", "rating": "5"}]
     """
     # prepare model inputs
     inputs = []
@@ -70,12 +104,39 @@ def sem_extract(
 
 @pd.api.extensions.register_dataframe_accessor("sem_extract")
 class SemExtractDataFrame:
+    """
+    DataFrame accessor for semantic extraction operations.
+
+    This class provides a pandas DataFrame accessor that enables structured
+    information extraction from DataFrame content using natural language
+    instructions. It can extract multiple attributes simultaneously and
+    return them as new columns.
+
+    The accessor can be used directly on any pandas DataFrame:
+        df.sem_extract(['text'], {'sentiment': 'positive/negative/neutral'})
+    """
+
     def __init__(self, pandas_obj: pd.DataFrame):
+        """
+        Initialize the semantic extraction accessor.
+
+        Args:
+            pandas_obj (pd.DataFrame): The pandas DataFrame object to attach the accessor to.
+        """
         self._validate(pandas_obj)
         self._obj = pandas_obj
 
     @staticmethod
     def _validate(obj: pd.DataFrame) -> None:
+        """
+        Validate that the object is a pandas DataFrame.
+
+        Args:
+            obj (pd.DataFrame): The object to validate.
+
+        Raises:
+            AttributeError: If the object is not a pandas DataFrame.
+        """
         if not isinstance(obj, pd.DataFrame):
             raise AttributeError("Must be a DataFrame")
 
@@ -95,17 +156,67 @@ class SemExtractDataFrame:
         strategy: ReasoningStrategy | None = None,
     ) -> pd.DataFrame:
         """
-        Extracts the attributes and values of a dataframe.
+        Extract structured attributes and values from a DataFrame.
+
+        This method performs structured information extraction on the DataFrame
+        content using specified input columns and output column definitions.
+        It can extract multiple attributes simultaneously and add them as new
+        columns to the DataFrame.
 
         Args:
-            input_cols (list[str]): The columns that a model should extract from.
-            output_cols (dict[str, str | None]): A mapping from desired output column names to optional descriptions.
-            extract_quotes (bool): Whether to extract quotes for the output columns. Defaults to False.
-            postprocessor (Callable): The postprocessor for the model outputs. Defaults to extract_postprocess.
-            return_raw_outputs (bool): Whether to return raw outputs. Defaults to False.
+            input_cols (list[str]): The columns that the model should extract
+                information from. These columns will be used as input to the
+                language model.
+            output_cols (dict[str, str | None]): A mapping from desired output
+                column names to optional descriptions. The descriptions help guide
+                the model on what to extract. For example: {"sentiment": "positive/negative/neutral",
+                "confidence": "0-1 scale"}.
+            extract_quotes (bool, optional): Whether to extract supporting quotes
+                from the source text for each extracted value. Defaults to False.
+            postprocessor (Callable, optional): A function to post-process the model
+                outputs. Should take (outputs, model, return_explanations) and return
+                SemanticExtractPostprocessOutput. Defaults to extract_postprocess.
+            return_raw_outputs (bool, optional): Whether to include raw model
+                outputs in the output DataFrame. Useful for debugging.
+                Defaults to False.
+            safe_mode (bool, optional): Whether to enable safe mode with cost
+                estimation. Defaults to False.
+            progress_bar_desc (str, optional): Description for the progress bar.
+                Defaults to "Extracting".
+            return_explanations (bool, optional): Whether to include explanations
+                in the output DataFrame. Useful for debugging and understanding
+                model reasoning. Defaults to False.
+            strategy (ReasoningStrategy | None, optional): The reasoning strategy
+                to use. Can be None, COT, or ZS_COT. Defaults to None.
 
         Returns:
-            pd.DataFrame: The dataframe with the new mapped columns.
+            pd.DataFrame: A DataFrame containing the original data plus the
+                extracted attributes as new columns.
+
+        Raises:
+            ValueError: If the language model is not configured, if specified
+                input columns don't exist in the DataFrame, or if there are
+                other configuration issues.
+
+        Example:
+            >>> import pandas as pd
+            >>> import lotus
+            >>> from lotus.models import LM
+            >>> lotus.settings.configure(lm=LM(model="gpt-4o-mini"))
+
+            >>> df = pd.DataFrame({
+            ...     'text': ['Great product!', 'Terrible service'],
+            ...     'rating': [5, 1]
+            ... })
+
+            >>> df.sem_extract(
+            ...     ['text'],
+            ...     {'sentiment': 'positive/negative/neutral', 'emotion': 'joy/anger/sadness'}
+            ... )
+            Extracting: 100%|█████████████████████████████████████████████████████████████████ 2/2 LM calls [00:00<00:00,  2.20it/s]
+                        text  rating sentiment emotion
+            0    Great product!    5  positive     joy
+            1  Terrible service    1  negative   anger
         """
         if lotus.settings.lm is None:
             raise ValueError(

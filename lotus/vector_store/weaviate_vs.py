@@ -10,14 +10,16 @@ try:
     import weaviate
     from weaviate.classes.config import Configure, DataType, Property
     from weaviate.classes.query import Filter, MetadataQuery
+
+    weaviate_available = True
 except ImportError:
-    weaviate = None
+    weaviate_available = False
 
 
 class WeaviateVS(VS):
     def __init__(self, client, vector_index_config=None):
-        if weaviate is None:
-            raise ImportError("Please install the weaviate client using `pip install lotus[weaviate]`")
+        if not weaviate_available:
+            raise ImportError("Please install the weaviate client using `pip install lotus-ai[weaviate]`")
 
         super().__init__()
         self.client = client
