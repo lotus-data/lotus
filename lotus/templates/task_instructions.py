@@ -279,6 +279,10 @@ def extract_formatter(
         f"The response should be valid JSON format with the following fields: {fields_str}.\n"
     )
 
+    # Add CoT instructions for CoT strategy
+    if strategy == ReasoningStrategy.CoT:
+        sys_instruction += "\n\nFor your response, first provide your reasoning, then give your final answer in the specified JSON format."
+
     messages = [
         {"role": "system", "content": sys_instruction},
         user_message_formatter(multimodal_data),

@@ -43,7 +43,7 @@ def sem_extract(
         extract_quotes (bool, optional): Whether to extract supporting quotes from
             the source text for each extracted value. Defaults to False.
         postprocessor (Callable, optional): A function to post-process the model
-            outputs. Should take (outputs, model, return_explanations) and return
+            outputs. Should take (outputs, model, cot_reasoning) and return
             SemanticExtractPostprocessOutput. Defaults to extract_postprocess.
         safe_mode (bool, optional): Whether to enable safe mode with cost estimation.
             Defaults to False.
@@ -88,7 +88,8 @@ def sem_extract(
     lm_output: LMOutput = model(inputs, response_format={"type": "json_object"}, progress_bar_desc=progress_bar_desc)
 
     # post process results
-    postprocess_output = postprocessor(lm_output.outputs, model, return_explanations)
+    cot_reasoning = strategy in [ReasoningStrategy.CoT, ReasoningStrategy.CoT_Demonstrations]
+    postprocess_output = postprocessor(lm_output.outputs, model, cot_reasoning)
     lotus.logger.debug(f"raw_outputs: {lm_output.outputs}")
     lotus.logger.debug(f"outputs: {postprocess_output.outputs}")
     lotus.logger.debug(f"explanations: {postprocess_output.explanations}")
@@ -174,7 +175,7 @@ class SemExtractDataFrame:
             extract_quotes (bool, optional): Whether to extract supporting quotes
                 from the source text for each extracted value. Defaults to False.
             postprocessor (Callable, optional): A function to post-process the model
-                outputs. Should take (outputs, model, return_explanations) and return
+                outputs. Should take (outputs, model, cot_reasoning) and return
                 SemanticExtractPostprocessOutput. Defaults to extract_postprocess.
             return_raw_outputs (bool, optional): Whether to include raw model
                 outputs in the output DataFrame. Useful for debugging.
