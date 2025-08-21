@@ -228,15 +228,84 @@ def learn_filter_cascade_thresholds(
 @pd.api.extensions.register_dataframe_accessor("sem_filter")
 class SemFilterDataframe:
     """
-    DataFrame accessor for semantic filtering operations.
+    Apply semantic filtering over a DataFrame.
 
-    This class provides a pandas DataFrame accessor that enables semantic
-    filtering over DataFrame content using natural language instructions.
-    It supports few-shot learning through examples and cascade filtering
-    for improved performance.
+    This method performs semantic filtering on the DataFrame content using
+    a natural language instruction. It can process specific columns identified
+    in the instruction and supports few-shot learning through examples.
 
-    The accessor can be used directly on any pandas DataFrame:
-        df.sem_filter("Is this a positive sentiment?")
+    Args:
+        user_instruction (str): The natural language instruction that defines
+            the filter condition. Should describe what criteria rows must meet.
+        return_raw_outputs (bool, optional): Whether to include raw model
+            outputs in the output DataFrame. Useful for debugging.
+            Defaults to False.
+        return_explanations (bool, optional): Whether to include explanations
+            in the output DataFrame. Useful for debugging and understanding
+            model reasoning, when using chain-of-thought. Defaults to False.
+        return_all (bool, optional): Whether to return all rows (including
+            filtered out ones) or only the rows that pass the filter.
+            Defaults to False.
+        default (bool, optional): The default value to use when the model
+            output cannot be parsed as a boolean. Defaults to True.
+        suffix (str, optional): The suffix for the output column names.
+            Defaults to "_filter".
+        examples (pd.DataFrame | None, optional): Example DataFrame for
+            few-shot learning. Should have the same column structure as the
+            input DataFrame plus an "Answer" column. Defaults to None.
+        helper_examples (pd.DataFrame | None, optional): Additional helper
+            examples for cascade filtering. Defaults to None.
+        strategy (ReasoningStrategy | None, optional): The reasoning strategy
+            to use. Can be None, COT, or ZS_COT. Defaults to None.
+        cascade_args (CascadeArgs | None, optional): Configuration for cascade
+            filtering. Includes parameters like recall_target, precision_target,
+            sampling_percentage, and failure_probability. Defaults to None.
+        return_stats (bool, optional): Whether to return filtering statistics
+            along with the filtered DataFrame. Defaults to False.
+        safe_mode (bool, optional): Whether to enable safe mode with cost
+            estimation. Defaults to False.
+        progress_bar_desc (str, optional): Description for the progress bar.
+            Defaults to "Filtering".
+        additional_cot_instructions (str, optional): Additional instructions
+            for chain-of-thought reasoning. Defaults to "".
+
+    Returns:
+        pd.DataFrame | tuple[pd.DataFrame, dict[str, Any]]: A DataFrame
+            containing the original data plus the filter results, or a tuple
+            containing the DataFrame and statistics if return_stats is True.
+
+    Raises:
+        ValueError: If the language model is not configured, if specified
+            columns don't exist in the DataFrame, or if the examples DataFrame
+            doesn't have the required "Answer" column.
+
+    Example:
+        >>> import pandas as pd
+        >>> import lotus
+        >>> from lotus.models import LM
+        >>> lotus.settings.configure(lm=LM(model="gpt-4o-mini"))
+
+        >>> df = pd.DataFrame({
+                'text': ['Great product!', 'Terrible service'],
+                'rating': [5, 1]
+            })
+
+        # Example 1: simple filtering
+        >>> df.sem_filter("The review {text} and {rating} reflect's a positive sentiment ")
+        Filtering: 100%|██████████████████████████████████████████████████████████████████ 2/2 LM calls [00:00<00:00,  2.06it/s]
+                    text  rating
+        0  Great product!      5
+
+        # Example 2: with zero-shot chain-of-thought (ZS-COT) reasoning
+        >>> from lotus.types import ReasoningStrategy
+        >>> df.sem_filter("The review {text} and {rating} reflect's a positive sentiment ", strategy=ReasoningStrategy.ZS_COT, return_explanations=True, return_all=True)
+        Filtering: 100%|██████████████████████████████████████████████████████████████████ 4/4 LM calls [00:01<00:00,  3.66it/s]
+                                                        Text  filter_label explanation_filter
+        0             I had two apples, then I gave away one          True
+        1                         My friend gave me an apple          True
+        2                      I gave away both of my apples         False
+        3  I gave away my apple, then a friend gave me hi...         False
+
     """
 
     def __init__(self, pandas_obj: Any):
@@ -283,86 +352,6 @@ class SemFilterDataframe:
         progress_bar_desc: str = "Filtering",
         additional_cot_instructions: str = "",
     ) -> pd.DataFrame | tuple[pd.DataFrame, dict[str, Any]]:
-        """
-        Apply semantic filtering over a DataFrame.
-
-        This method performs semantic filtering on the DataFrame content using
-        a natural language instruction. It can process specific columns identified
-        in the instruction and supports few-shot learning through examples.
-
-        Args:
-            user_instruction (str): The natural language instruction that defines
-                the filter condition. Should describe what criteria rows must meet.
-            return_raw_outputs (bool, optional): Whether to include raw model
-                outputs in the output DataFrame. Useful for debugging.
-                Defaults to False.
-            return_explanations (bool, optional): Whether to include explanations
-                in the output DataFrame. Useful for debugging and understanding
-                model reasoning, when using chain-of-thought. Defaults to False.
-            return_all (bool, optional): Whether to return all rows (including
-                filtered out ones) or only the rows that pass the filter.
-                Defaults to False.
-            default (bool, optional): The default value to use when the model
-                output cannot be parsed as a boolean. Defaults to True.
-            suffix (str, optional): The suffix for the output column names.
-                Defaults to "_filter".
-            examples (pd.DataFrame | None, optional): Example DataFrame for
-                few-shot learning. Should have the same column structure as the
-                input DataFrame plus an "Answer" column. Defaults to None.
-            helper_examples (pd.DataFrame | None, optional): Additional helper
-                examples for cascade filtering. Defaults to None.
-            strategy (ReasoningStrategy | None, optional): The reasoning strategy
-                to use. Can be None, COT, or ZS_COT. Defaults to None.
-            cascade_args (CascadeArgs | None, optional): Configuration for cascade
-                filtering. Includes parameters like recall_target, precision_target,
-                sampling_percentage, and failure_probability. Defaults to None.
-            return_stats (bool, optional): Whether to return filtering statistics
-                along with the filtered DataFrame. Defaults to False.
-            safe_mode (bool, optional): Whether to enable safe mode with cost
-                estimation. Defaults to False.
-            progress_bar_desc (str, optional): Description for the progress bar.
-                Defaults to "Filtering".
-            additional_cot_instructions (str, optional): Additional instructions
-                for chain-of-thought reasoning. Defaults to "".
-
-        Returns:
-            pd.DataFrame | tuple[pd.DataFrame, dict[str, Any]]: A DataFrame
-                containing the original data plus the filter results, or a tuple
-                containing the DataFrame and statistics if return_stats is True.
-
-        Raises:
-            ValueError: If the language model is not configured, if specified
-                columns don't exist in the DataFrame, or if the examples DataFrame
-                doesn't have the required "Answer" column.
-
-        Example:
-            >>> import pandas as pd
-            >>> import lotus
-            >>> from lotus.models import LM
-            >>> lotus.settings.configure(lm=LM(model="gpt-4o-mini"))
-
-            >>> df = pd.DataFrame({
-                    'text': ['Great product!', 'Terrible service'],
-                    'rating': [5, 1]
-                })
-
-            # Example 1: simple filtering
-            >>> df.sem_filter("The review {text} and {rating} reflect's a positive sentiment ")
-            Filtering: 100%|██████████████████████████████████████████████████████████████████ 2/2 LM calls [00:00<00:00,  2.06it/s]
-                        text  rating
-            0  Great product!      5
-
-            # Example 2: with zero-shot chain-of-thought (ZS-COT) reasoning
-            >>> from lotus.types import ReasoningStrategy
-            >>> df.sem_filter("The review {text} and {rating} reflect's a positive sentiment ", strategy=ReasoningStrategy.ZS_COT, return_explanations=True, return_all=True)
-            Filtering: 100%|██████████████████████████████████████████████████████████████████ 4/4 LM calls [00:01<00:00,  3.66it/s]
-                                                            Text  filter_label explanation_filter
-            0             I had two apples, then I gave away one          True
-            1                         My friend gave me an apple          True
-            2                      I gave away both of my apples         False
-            3  I gave away my apple, then a friend gave me hi...         False
-
-        """
         if lotus.settings.lm is None:
             raise ValueError(
                 "The language model must be an instance of LM. Please configure a valid language model using lotus.settings.configure()"

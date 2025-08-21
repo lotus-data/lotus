@@ -193,16 +193,67 @@ def sem_agg(
 @pd.api.extensions.register_dataframe_accessor("sem_agg")
 class SemAggDataframe:
     """
-    DataFrame accessor for semantic aggregation operations.
+    Apply semantic aggregation over a DataFrame.
 
-    This class provides a pandas DataFrame accessor that enables semantic
-    aggregation over DataFrame content using natural language instructions.
-    It supports both single aggregation and grouped aggregation operations.
+    This method performs semantic aggregation on the DataFrame content using
+    a natural language instruction. It can process all columns or specific
+    columns identified in the instruction, and supports grouped aggregation.
 
-    The accessor can be used directly on any pandas DataFrame:
-        df.sem_agg("Summarize the key insights", all_cols=True)
-        df.sem_agg("Summarize the key insights", all_cols=True, group_by=["category"])
-        df.sem_agg("Summarize the key insights of {abstract}") # where abstract is a column in the dataframe
+    Args:
+        user_instruction (str): The natural language instruction that guides
+            the aggregation process. Should describe what kind of aggregation
+            or summary is desired.
+        all_cols (bool, optional): Whether to use all columns in the DataFrame
+            for aggregation. If False, only columns mentioned in the instruction
+            will be used. Defaults to False.
+        suffix (str, optional): The suffix for the output column name.
+            Defaults to "_output".
+        group_by (list[str] | None, optional): Column names to group by before
+            aggregation. Each group will be aggregated separately. Defaults to None.
+        safe_mode (bool, optional): Whether to enable safe mode for aggregation.
+            Defaults to False.
+        progress_bar_desc (str, optional): Description for the progress bar.
+            Defaults to "Aggregating".
+
+    Returns:
+        pd.DataFrame: A DataFrame containing the aggregated results. The output
+            will have one row per group (if group_by is specified) or one row
+            for the entire dataset.
+
+    Raises:
+        ValueError: If the language model is not configured, if specified
+            columns don't exist in the DataFrame, or if there are other
+            configuration issues.
+
+    Example:
+        >>> import pandas as pd
+        >>> import lotus
+        >>> from lotus.models import LM
+        >>> lotus.settings.configure(lm=LM(model="gpt-4o-mini"))
+        >>> df = pd.DataFrame({
+        ...     'journal': ['Harry is happy and love cats', 'Harry is feeling nauseous', "Harry is doing homework"],
+        ...     'date': ['Monday', 'Tuesday', "Tuesday"]
+        ... })
+
+        # Example 1: simple aggregation
+        >>> df.sem_agg("Summarize the key points", all_cols=True)
+        Aggregating: 100%|████████████████████████████████████████████████████████████████ 1/1 LM calls [00:01<00:00,  1.44s/it]
+                                                    _output
+        0  Harry experienced a range of emotions and acti...
+
+        # Example 2: grouped aggregation
+        >>> df.sem_agg("Summarize the key points", all_cols=True, group_by=["date"])
+        Aggregating: 100%|████████████████████████████████████████████████████████████████ 1/1 LM calls [00:00<00:00,  1.42it/s]
+        Aggregating: 100%|████████████████████████████████████████████████████████████████ 1/1 LM calls [00:00<00:00,  1.40it/s]
+                                                    _output     date
+        0  Harry is happy and has a fondness for cats, as...   Monday
+        0  Harry is feeling nauseous and is also doing ho...  Tuesday
+
+        # Example 3: aggregation with column reference
+        >>> df.sem_agg("Summarize the entries from {journal}")
+        Aggregating: 100%|████████████████████████████████████████████████████████████████ 1/1 LM calls [00:01<00:00,  1.05s/it]
+                                                    _output
+        0  Harry is currently experiencing a mix of emoti...
     """
 
     def __init__(self, pandas_obj: Any):
@@ -259,70 +310,6 @@ class SemAggDataframe:
         safe_mode: bool = False,
         progress_bar_desc: str = "Aggregating",
     ) -> pd.DataFrame:
-        """
-        Apply semantic aggregation over a DataFrame.
-
-        This method performs semantic aggregation on the DataFrame content using
-        a natural language instruction. It can process all columns or specific
-        columns identified in the instruction, and supports grouped aggregation.
-
-        Args:
-            user_instruction (str): The natural language instruction that guides
-                the aggregation process. Should describe what kind of aggregation
-                or summary is desired.
-            all_cols (bool, optional): Whether to use all columns in the DataFrame
-                for aggregation. If False, only columns mentioned in the instruction
-                will be used. Defaults to False.
-            suffix (str, optional): The suffix for the output column name.
-                Defaults to "_output".
-            group_by (list[str] | None, optional): Column names to group by before
-                aggregation. Each group will be aggregated separately. Defaults to None.
-            safe_mode (bool, optional): Whether to enable safe mode for aggregation.
-                Defaults to False.
-            progress_bar_desc (str, optional): Description for the progress bar.
-                Defaults to "Aggregating".
-
-        Returns:
-            pd.DataFrame: A DataFrame containing the aggregated results. The output
-                will have one row per group (if group_by is specified) or one row
-                for the entire dataset.
-
-        Raises:
-            ValueError: If the language model is not configured, if specified
-                columns don't exist in the DataFrame, or if there are other
-                configuration issues.
-
-        Example:
-            >>> import pandas as pd
-            >>> import lotus
-            >>> from lotus.models import LM
-            >>> lotus.settings.configure(lm=LM(model="gpt-4o-mini"))
-            >>> df = pd.DataFrame({
-            ...     'journal': ['Harry is happy and love cats', 'Harry is feeling nauseous', "Harry is doing homework"],
-            ...     'date': ['Monday', 'Tuesday', "Tuesday"]
-            ... })
-
-            # Example 1: simple aggregation
-            >>> df.sem_agg("Summarize the key points", all_cols=True)
-            Aggregating: 100%|████████████████████████████████████████████████████████████████ 1/1 LM calls [00:01<00:00,  1.44s/it]
-                                                        _output
-            0  Harry experienced a range of emotions and acti...
-
-            # Example 2: grouped aggregation
-            >>> df.sem_agg("Summarize the key points", all_cols=True, group_by=["date"])
-            Aggregating: 100%|████████████████████████████████████████████████████████████████ 1/1 LM calls [00:00<00:00,  1.42it/s]
-            Aggregating: 100%|████████████████████████████████████████████████████████████████ 1/1 LM calls [00:00<00:00,  1.40it/s]
-                                                        _output     date
-            0  Harry is happy and has a fondness for cats, as...   Monday
-            0  Harry is feeling nauseous and is also doing ho...  Tuesday
-
-            # Example 3: aggregation with column reference
-            >>> df.sem_agg("Summarize the entries from {journal}")
-            Aggregating: 100%|████████████████████████████████████████████████████████████████ 1/1 LM calls [00:01<00:00,  1.05s/it]
-                                                        _output
-            0  Harry is currently experiencing a mix of emoti...
-        """
-
         if lotus.settings.lm is None:
             raise ValueError(
                 "The language model must be an instance of LM. Please configure a valid language model using lotus.settings.configure()"
