@@ -1,13 +1,3 @@
-"""
-Simple Reasoning Strategies Demo
-
-This example shows the new, simplified reasoning system in Lotus:
-1. ReasoningStrategy.CoT - Chain-of-thought reasoning
-2. ReasoningStrategy.Demonstrations - Few-shot examples
-3. ReasoningStrategy.CoT_Demonstrations - Both combined
-4. Automatic demonstration bootstrapping
-"""
-
 import pandas as pd
 
 import lotus
