@@ -5,7 +5,7 @@ import pytest
 
 import lotus
 from lotus.models import LM
-from lotus.types import DemonstrationConfig, PromptStrategy
+from lotus.types import PromptStrategy
 
 lotus.logger.setLevel("DEBUG")
 
@@ -81,7 +81,7 @@ def test_deepseek_cot_demonstrations_combined():
 
 @pytest.mark.skipif(not ENABLE_OLLAMA_TESTS, reason="Skipping test because Ollama tests are not enabled")
 def test_deepseek_demonstration_config():
-    """Test DeepSeek with DemonstrationConfig."""
+    """Test DeepSeek with examples."""
     lm = LM(model=MODEL_NAME)
     lotus.settings.configure(lm=lm)
 
@@ -89,15 +89,12 @@ def test_deepseek_demonstration_config():
     df = pd.DataFrame(data)
     user_instruction = "{Animal} can fly"
 
-    # Provide examples via DemonstrationConfig
+    # Provide examples
     examples = pd.DataFrame({"Animal": ["Bird", "Elephant"], "Answer": [True, False]})
-
-    demo_config = DemonstrationConfig(examples=examples)
 
     result = df.sem_filter(
         user_instruction,
         prompt_strategy=PromptStrategy(cot=True, dems=examples),
-        demonstration_config=demo_config,
         return_all=True,
     )
 
@@ -118,12 +115,9 @@ def test_deepseek_bootstrapping():
     user_instruction = "{City} is in Asia"
 
     # Configure bootstrapping
-    demo_config = DemonstrationConfig(bootstrap=True, num_demonstrations=2)
-
     result = df.sem_filter(
         user_instruction,
-        prompt_strategy=PromptStrategy(cot=True, dems="auto"),
-        demonstration_config=demo_config,
+        prompt_strategy=PromptStrategy(cot=True, dems="auto", max_dems=2),
         return_explanations=True,
         return_all=True,
     )

@@ -83,7 +83,19 @@ print(res)
 # Print total LM usage
 lm.print_total_usage()
 ```
+### Tutorials
 
+Below are some short tutorials in Google Colab, to help you get started.
+
+<div align="center">
+
+| Tutorial                                           | Difficulty                                                      | Colab Link                                                                                                                                                                                                    |
+|----------------------------------------------------|-----------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 1. Introduction to Semantic Operators and LOTUS             | ![](https://img.shields.io/badge/Level-Beginner-green.svg)      | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1mP65YHHdD6mnZmC5-Uqm2uCXJ4-Kbkhu?usp=sharing)              |
+| 2. Analyzing Agent Traces                           | ![](https://img.shields.io/badge/Level-Intermediate-yellow.svg)      | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1EJm9A8r_ShYxR0s218J70XhsopOgeT6k?usp=sharing)   |
+| 3. System Prompt Analysis with LOTUS | ![](https://img.shields.io/badge/Level-Intermediate-yellow.svg)      | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1NSVQYOMp2GCre5ZRgvgs6BPGOa20ySMc?usp=sharing) |
+| 4. Processing Multimodal Datasets                             | ![](https://img.shields.io/badge/Level-Intermediate-yellow.svg) | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/18oaa12T6PrhHIYGw-L01gw1bDmTYaE_e)   |
+</div>
 
 ## Key Concept: The Semantic Operator Model
 LOTUS introduces the semantic operator programming model. Semantic operators are declarative transformations over one or more datasets, parameterized by a natural language expression, that can be implemented by a variety of AI-based algorithms. Semantic operators seamlessly extend the relational model, operating over tables that may contain traditional structured data as well as unstructured fields, such as free-form text. These composable, modular language- based operators allow you to write AI-based pipelines with high-level logic, leaving the rest of the work to the query engine! Each operator can be implemented and optimized in multiple ways, opening a rich space for execution plans, similar to relational operators. To learn more about the semantic operator model, read the full [research paper](https://arxiv.org/abs/2407.11418).

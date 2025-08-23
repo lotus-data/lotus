@@ -605,7 +605,57 @@ def learn_join_cascade_threshold(
 
 @pd.api.extensions.register_dataframe_accessor("sem_join")
 class SemJoinDataframe:
-    """DataFrame accessor for semantic join."""
+    """
+    Applies semantic join over a dataframe.
+
+    Args:
+        other (pd.DataFrame | pd.Series): The other dataframe or series to join with.
+        join_instruction (str): The user instruction for join.
+        return_explanations (bool): Whether to return explanations. Defaults to False.
+        how (str): The type of join to perform. Defaults to "inner".
+        suffix (str): The suffix for the new columns. Defaults to "_join".
+        examples (pd.DataFrame | None): The examples dataframe. Defaults to None.
+        strategy (str | None): The reasoning strategy. Defaults to None.
+        default (bool): The default value for the join in case of parsing errors. Defaults to True.
+        cascade_args (CascadeArgs | None): The arguments for join cascade. Defaults to None.
+            recall_target (float | None): The target recall. Defaults to None.
+            precision_target (float | None): The target precision when cascading. Defaults to None.
+            sampling_percentage (float): The percentage of the data to sample when cascading. Defaults to 0.1.
+            failure_probability (float): The failure probability when cascading. Defaults to 0.2.
+            map_instruction (str): The map instruction when cascading. Defaults to None.
+            map_examples (pd.DataFrame): The map examples when cascading. Defaults to None.
+        return_stats (bool): Whether to return stats. Defaults to False.
+
+    Returns:
+        pd.DataFrame: The dataframe with the new joined columns.
+
+    Example:
+        >>> import pandas as pd
+        >>> import lotus
+        >>> from lotus.models import LM
+        >>> lotus.settings.configure(lm=LM(model="gpt-4o-mini"))
+
+        >>> df1 = pd.DataFrame({
+                'article': ['Machine learning tutorial', 'Data science guide', 'Python basics', 'AI in finance', 'Cooking healthy food', "Recipes for the holidays"],
+            })
+        >>> df2 = pd.DataFrame({
+                'category': ['Computer Science', 'AI', 'Cooking'],
+            })
+
+        >>> df1.sem_join(df2, "the {article} belongs to the {category}.")
+        Join comparisons: 100%|█████████████████████████████████████████████████████████ 18/18 LM Calls [00:05<00:00,  3.57it/s]
+                                article          category
+        0  Machine learning tutorial  Computer Science
+        0  Machine learning tutorial                AI
+        1         Data science guide  Computer Science
+        1         Data science guide                AI
+        2              Python basics  Computer Science
+        2              Python basics                AI
+        3              AI in finance  Computer Science
+        3              AI in finance                AI
+        4       Cooking healthy food           Cooking
+        5   Recipes for the holidays           Cooking
+    """
 
     def __init__(self, pandas_obj: Any):
         self._validate(pandas_obj)
@@ -632,57 +682,6 @@ class SemJoinDataframe:
         safe_mode: bool = False,
         progress_bar_desc: str = "Join comparisons",
     ) -> pd.DataFrame:
-        """
-        Applies semantic join over a dataframe.
-
-        Args:
-            other (pd.DataFrame | pd.Series): The other dataframe or series to join with.
-            join_instruction (str): The user instruction for join.
-            return_explanations (bool): Whether to return explanations. Defaults to False.
-            how (str): The type of join to perform. Defaults to "inner".
-            suffix (str): The suffix for the new columns. Defaults to "_join".
-            examples (pd.DataFrame | None): The examples dataframe. Defaults to None.
-            strategy (str | None): The reasoning strategy. Defaults to None.
-            default (bool): The default value for the join in case of parsing errors. Defaults to True.
-            cascade_args (CascadeArgs | None): The arguments for join cascade. Defaults to None.
-                recall_target (float | None): The target recall. Defaults to None.
-                precision_target (float | None): The target precision when cascading. Defaults to None.
-                sampling_percentage (float): The percentage of the data to sample when cascading. Defaults to 0.1.
-                failure_probability (float): The failure probability when cascading. Defaults to 0.2.
-                map_instruction (str): The map instruction when cascading. Defaults to None.
-                map_examples (pd.DataFrame): The map examples when cascading. Defaults to None.
-            return_stats (bool): Whether to return stats. Defaults to False.
-
-        Returns:
-            pd.DataFrame: The dataframe with the new joined columns.
-
-        Example:
-            >>> import pandas as pd
-            >>> import lotus
-            >>> from lotus.models import LM
-            >>> lotus.settings.configure(lm=LM(model="gpt-4o-mini"))
-
-            >>> df1 = pd.DataFrame({
-                    'article': ['Machine learning tutorial', 'Data science guide', 'Python basics', 'AI in finance', 'Cooking healthy food', "Recipes for the holidays"],
-                })
-            >>> df2 = pd.DataFrame({
-                    'category': ['Computer Science', 'AI', 'Cooking'],
-                })
-
-            >>> df1.sem_join(df2, "the {article} belongs to the {category}.")
-            Join comparisons: 100%|█████████████████████████████████████████████████████████ 18/18 LM Calls [00:05<00:00,  3.57it/s]
-                                 article          category
-            0  Machine learning tutorial  Computer Science
-            0  Machine learning tutorial                AI
-            1         Data science guide  Computer Science
-            1         Data science guide                AI
-            2              Python basics  Computer Science
-            2              Python basics                AI
-            3              AI in finance  Computer Science
-            3              AI in finance                AI
-            4       Cooking healthy food           Cooking
-            5   Recipes for the holidays           Cooking
-        """
         model = lotus.settings.lm
         if model is None:
             raise ValueError(

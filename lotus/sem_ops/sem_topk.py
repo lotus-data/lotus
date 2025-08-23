@@ -636,14 +636,61 @@ def llm_heapsort(
 @pd.api.extensions.register_dataframe_accessor("sem_topk")
 class SemTopKDataframe:
     """
-    DataFrame accessor for semantic top-K operations.
+    Apply semantic top-K sorting over a DataFrame.
 
-    This class provides a pandas DataFrame accessor that enables semantic
-    top-K retrieval over DataFrame content using natural language instructions.
-    It supports multiple sorting algorithms and grouped operations.
+    This method performs semantic sorting on the DataFrame content using
+    a natural language instruction and returns the top K most relevant rows.
+    It supports multiple sorting algorithms and group-by operations.
 
-    The accessor can be used directly on any pandas DataFrame:
-        df.sem_topk("Sort by relevance to AI based on {text}", K=5) # where 'text' is a column in the dataframe
+    Args:
+        user_instruction (str): The natural language instruction that defines
+            the sorting criteria. Should describe how to rank the rows.
+        K (int): The number of top rows to return.
+        method (str, optional): The sorting algorithm to use. Options are:
+            - "quick": Quicksort-based approach (default)
+            - "heap": Heap-based approach
+            - "naive": Naive quadratic approach
+            - "quick-sem": Quicksort with semantic embedding optimization. Requires the passed column to be indexed with sem_index.
+            Defaults to "quick".
+        prompt_strategy (PromptStrategy | None, optional): The prompt strategy
+            to use. Configures chain-of-thought, demonstrations, and bootstrapping. Defaults to None.
+        group_by (list[str] | None, optional): Column names to group by before
+            sorting. Each group will be sorted separately. Defaults to None.
+        cascade_threshold (float | None, optional): Confidence threshold for
+            cascade filtering. If provided, uses a two-stage model approach.
+            Defaults to None.
+        return_stats (bool, optional): Whether to return sorting statistics
+            along with the results. Defaults to False.
+        safe_mode (bool, optional): Whether to enable safe mode with cost
+            estimation. Defaults to False.
+        return_explanations (bool, optional): Whether to include explanations
+            in the output DataFrame. Useful for debugging and understanding
+            model reasoning. Defaults to False.
+
+    Returns:
+        pd.DataFrame | tuple[pd.DataFrame, dict[str, Any]]: A DataFrame
+            containing the top K rows, or a tuple containing the DataFrame
+            and statistics if return_stats is True.
+
+    Raises:
+        ValueError: If the language model is not configured, if specified
+            columns don't exist in the DataFrame, or if an invalid method
+            is specified.
+
+    Example:
+        >>> import pandas as pd
+        >>> import lotus
+        >>> from lotus.models import LM
+        >>> lotus.settings.configure(lm=LM(model="gpt-4o-mini"))
+        >>> df = pd.DataFrame({
+                'title': ['AI guide', 'ML tutorial', 'Data science intro'],
+                'category': ['AI', 'ML', 'DS']
+            })
+        >>> df.sem_topk("The tutorial {title} is best for beginners", K=3)
+                        title category
+        0  Data science intro       DS
+        1         ML tutorial       ML
+        2            AI guide       AI
     """
 
     def __init__(self, pandas_obj: Any) -> None:
@@ -709,63 +756,6 @@ class SemTopKDataframe:
         safe_mode: bool = False,
         return_explanations: bool = False,
     ) -> pd.DataFrame | tuple[pd.DataFrame, dict[str, Any]]:
-        """
-        Apply semantic top-K sorting over a DataFrame.
-
-        This method performs semantic sorting on the DataFrame content using
-        a natural language instruction and returns the top K most relevant rows.
-        It supports multiple sorting algorithms and group-by operations.
-
-        Args:
-            user_instruction (str): The natural language instruction that defines
-                the sorting criteria. Should describe how to rank the rows.
-            K (int): The number of top rows to return.
-            method (str, optional): The sorting algorithm to use. Options are:
-                - "quick": Quicksort-based approach (default)
-                - "heap": Heap-based approach
-                - "naive": Naive quadratic approach
-                - "quick-sem": Quicksort with semantic embedding optimization. Requires the passed column to be indexed with sem_index.
-                Defaults to "quick".
-            strategy (PromptStrategy | None, optional): The reasoning strategy
-                to use. Can be None, COT, or ZS_COT. Defaults to None.
-            group_by (list[str] | None, optional): Column names to group by before
-                sorting. Each group will be sorted separately. Defaults to None.
-            cascade_threshold (float | None, optional): Confidence threshold for
-                cascade filtering. If provided, uses a two-stage model approach.
-                Defaults to None.
-            return_stats (bool, optional): Whether to return sorting statistics
-                along with the results. Defaults to False.
-            safe_mode (bool, optional): Whether to enable safe mode with cost
-                estimation. Defaults to False.
-            return_explanations (bool, optional): Whether to include explanations
-                in the output DataFrame. Useful for debugging and understanding
-                model reasoning. Defaults to False.
-
-        Returns:
-            pd.DataFrame | tuple[pd.DataFrame, dict[str, Any]]: A DataFrame
-                containing the top K rows, or a tuple containing the DataFrame
-                and statistics if return_stats is True.
-
-        Raises:
-            ValueError: If the language model is not configured, if specified
-                columns don't exist in the DataFrame, or if an invalid method
-                is specified.
-
-        Example:
-            >>> import pandas as pd
-            >>> import lotus
-            >>> from lotus.models import LM
-            >>> lotus.settings.configure(lm=LM(model="gpt-4o-mini"))
-            >>> df = pd.DataFrame({
-                    'title': ['AI guide', 'ML tutorial', 'Data science intro'],
-                    'category': ['AI', 'ML', 'DS']
-                })
-            >>> df.sem_topk("The tutorial {title} is best for beginners", K=3)
-                           title category
-            0  Data science intro       DS
-            1         ML tutorial       ML
-            2            AI guide       AI
-        """
         model = lotus.settings.lm
         if model is None:
             raise ValueError(

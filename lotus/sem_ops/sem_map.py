@@ -6,7 +6,6 @@ import lotus
 from lotus.cache import operator_cache
 from lotus.templates import task_instructions
 from lotus.types import (
-    DemonstrationConfig,
     LMOutput,
     PromptStrategy,
     SemanticMapOutput,
@@ -26,7 +25,6 @@ def sem_map(
     examples_answers: list[str] | None = None,
     cot_reasoning: list[str] | None = None,
     prompt_strategy: PromptStrategy | None = None,
-    demonstration_config: DemonstrationConfig | None = None,
     safe_mode: bool = False,
     progress_bar_desc: str = "Mapping",
 ) -> SemanticMapOutput:
@@ -122,14 +120,68 @@ def sem_map(
 @pd.api.extensions.register_dataframe_accessor("sem_map")
 class SemMapDataframe:
     """
-    DataFrame accessor for semantic mapping operations.
+    Apply semantic mapping over a DataFrame.
 
-    This class provides a pandas DataFrame accessor that enables semantic
-    mapping over DataFrame content using natural language instructions.
-    It supports few-shot learning through examples and various reasoning strategies.
+    This method performs semantic mapping on the DataFrame content using
+    a natural language instruction. It can process specific columns identified
+    in the instruction and supports few-shot learning through examples.
 
-    The accessor can be used directly on any pandas DataFrame:
-        df.sem_map("Extract the key insights", return_explanations=True)
+    Args:
+        user_instruction (str): The natural language instruction that guides
+            the mapping process. Should describe how to transform each row.
+        postprocessor (Callable, optional): A function to post-process the model
+            outputs. Should take (outputs, model, use_cot) and return
+            SemanticMapPostprocessOutput. Defaults to map_postprocess.
+        return_explanations (bool, optional): Whether to include explanations
+            in the output DataFrame. Useful for debugging and understanding
+            model reasoning, when strategy is COT or ZS_COT. Defaults to False.
+        return_raw_outputs (bool, optional): Whether to include raw model
+            outputs in the output DataFrame. Useful for debugging.
+            Defaults to False.
+        suffix (str, optional): The suffix for the output column names.
+            Defaults to "_map".
+        examples (pd.DataFrame | None, optional): Example DataFrame for
+            few-shot learning. Should have the same column structure as the
+            input DataFrame plus an "Answer" column. Defaults to None.
+        prompt_strategy (PromptStrategy | None, optional): The prompt strategy
+            to use. Can be None, COT, or ZS_COT. Defaults to None.
+        safe_mode (bool, optional): Whether to enable safe mode with cost
+            estimation. Defaults to False.
+        progress_bar_desc (str, optional): Description for the progress bar.
+            Defaults to "Mapping".
+
+    Returns:
+        pd.DataFrame: A DataFrame containing the original data plus the mapped
+            outputs. Additional columns may be added for explanations and raw
+            outputs if requested.
+
+    Raises:
+        ValueError: If the language model is not configured, if specified
+            columns don't exist in the DataFrame, or if the examples DataFrame
+            doesn't have the required "Answer" column.
+
+    Example:
+        >>> import pandas as pd
+        >>> import lotus
+        >>> from lotus.models import LM, SentenceTransformersRM
+        >>> lotus.settings.configure(lm=LM(model="gpt-4o-mini"))
+        >>> df = pd.DataFrame({
+        ...     'document': ['Harry is happy and love cats', 'Harry is feeling nauseous']
+        ... })
+        # Example 1: simple mapping
+        >>> result1 = df.sem_map("Label the sentiment of Harry in the {document} as positive/negative/neutral. Answer in one word.")
+        Mapping: 100%|████████████████████████████████████████████████████████████████████ 2/2 LM calls [00:00<00:00,  3.18it/s]
+        document      _map
+        0  Harry is happy and love cats  Positive
+        1     Harry is feeling nauseous  Negative
+
+        # Example 2: with zero-shot chain-of-thought (ZS-COT) reasoning
+        >>> from lotus.types import PromptStrategy
+        >>> df.sem_map("Label the sentiment of Harry in the {document} as positive/negative/neutral. Answer in one word.", return_explanations=True, prompt_strategy=PromptStrategy(cot=True))
+        Mapping: 100%|████████████████████████████████████████████████████████████████████ 2/2 LM calls [00:02<00:00,  1.04s/it]
+        document       _map                                    explanation_map
+        0  Harry is happy and love cats   positive  Reasoning: The document states that "Harry is ...
+        1  Harry is feeling nauseous   negative  Reasoning: The phrase "Harry is feeling nauseo...
     """
 
     def __init__(self, pandas_obj: pd.DataFrame):
@@ -166,74 +218,9 @@ class SemMapDataframe:
         suffix: str = "_map",
         examples: pd.DataFrame | None = None,
         prompt_strategy: PromptStrategy | None = None,
-        demonstration_config: DemonstrationConfig | None = None,
         safe_mode: bool = False,
         progress_bar_desc: str = "Mapping",
     ) -> pd.DataFrame:
-        """
-        Apply semantic mapping over a DataFrame.
-
-        This method performs semantic mapping on the DataFrame content using
-        a natural language instruction. It can process specific columns identified
-        in the instruction and supports few-shot learning through examples.
-
-        Args:
-            user_instruction (str): The natural language instruction that guides
-                the mapping process. Should describe how to transform each row.
-            postprocessor (Callable, optional): A function to post-process the model
-                outputs. Should take (outputs, model, use_cot) and return
-                SemanticMapPostprocessOutput. Defaults to map_postprocess.
-            return_explanations (bool, optional): Whether to include explanations
-                in the output DataFrame. Useful for debugging and understanding
-                model reasoning, when strategy is COT or ZS_COT. Defaults to False.
-            return_raw_outputs (bool, optional): Whether to include raw model
-                outputs in the output DataFrame. Useful for debugging.
-                Defaults to False.
-            suffix (str, optional): The suffix for the output column names.
-                Defaults to "_map".
-            examples (pd.DataFrame | None, optional): Example DataFrame for
-                few-shot learning. Should have the same column structure as the
-                input DataFrame plus an "Answer" column. Defaults to None.
-            prompt_strategy (PromptStrategy | None, optional): The prompt strategy
-                to use. Can be None, COT, or ZS_COT. Defaults to None.
-            safe_mode (bool, optional): Whether to enable safe mode with cost
-                estimation. Defaults to False.
-            progress_bar_desc (str, optional): Description for the progress bar.
-                Defaults to "Mapping".
-
-        Returns:
-            pd.DataFrame: A DataFrame containing the original data plus the mapped
-                outputs. Additional columns may be added for explanations and raw
-                outputs if requested.
-
-        Raises:
-            ValueError: If the language model is not configured, if specified
-                columns don't exist in the DataFrame, or if the examples DataFrame
-                doesn't have the required "Answer" column.
-
-        Example:
-            >>> import pandas as pd
-            >>> import lotus
-            >>> from lotus.models import LM, SentenceTransformersRM
-            >>> lotus.settings.configure(lm=LM(model="gpt-4o-mini"))
-            >>> df = pd.DataFrame({
-            ...     'document': ['Harry is happy and love cats', 'Harry is feeling nauseous']
-            ... })
-            # Example 1: simple mapping
-            >>> result1 = df.sem_map("Label the sentiment of Harry in the {document} as positive/negative/neutral. Answer in one word.")
-            Mapping: 100%|████████████████████████████████████████████████████████████████████ 2/2 LM calls [00:00<00:00,  3.18it/s]
-            document      _map
-            0  Harry is happy and love cats  Positive
-            1     Harry is feeling nauseous  Negative
-
-            # Example 2: with zero-shot chain-of-thought (ZS-COT) reasoning
-            >>> from lotus.types import PromptStrategy
-            >>> df.sem_map("Label the sentiment of Harry in the {document} as positive/negative/neutral. Answer in one word.", return_explanations=True, prompt_strategy=PromptStrategy(cot=True))
-            Mapping: 100%|████████████████████████████████████████████████████████████████████ 2/2 LM calls [00:02<00:00,  1.04s/it]
-            document       _map                                    explanation_map
-            0  Harry is happy and love cats   positive  Reasoning: The document states that "Harry is ...
-            1  Harry is feeling nauseous   negative  Reasoning: The phrase "Harry is feeling nauseo...
-        """
         if lotus.settings.lm is None:
             raise ValueError(
                 "The language model must be an instance of LM. Please configure a valid language model using lotus.settings.configure()"
@@ -254,8 +241,7 @@ class SemMapDataframe:
         examples_answers = None
         cot_reasoning = None
 
-        if examples is not None and demonstration_config is None:
-            demonstration_config = DemonstrationConfig(examples=examples)
+        if examples is not None:
             assert "Answer" in examples.columns, "Answer must be a column in examples dataframe"
             examples_multimodal_data = task_instructions.df2multimodal_info(examples, col_li)
             examples_answers = examples["Answer"].tolist()
@@ -276,7 +262,6 @@ class SemMapDataframe:
             examples_answers=examples_answers,
             cot_reasoning=cot_reasoning,
             prompt_strategy=prompt_strategy,
-            demonstration_config=demonstration_config,
             safe_mode=safe_mode,
             progress_bar_desc=progress_bar_desc,
         )

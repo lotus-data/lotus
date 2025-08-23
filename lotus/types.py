@@ -252,19 +252,3 @@ class PromptStrategy:
     dems: pd.DataFrame | str | None = None
     max_dems: int = 3
     teacher_lm: Any = None  # lotus.models.LM type, but avoiding circular import
-
-
-@dataclass
-class DemonstrationConfig:
-    """
-    DEPRECATED: Use PromptStrategy instead.
-
-    Configuration for demonstration-based reasoning
-    """
-
-    # User-provided examples (alternative to passing examples directly)
-    examples: pd.DataFrame | None = None
-    # Bootstrapping configuration - automatically generate examples
-    bootstrap: bool = False
-    num_demonstrations: int = 3
-    oracle_model: str | None = None  # If None, uses the main model

@@ -263,15 +263,15 @@ class TestReasoningStrategies(BaseTest):
             assert len(explanation) > 0
 
     # =============================================================================
-    # DemonstrationConfig and Bootstrapping Tests
+    # Examples and Bootstrapping Tests
     # =============================================================================
 
-    def test_demonstration_config_basic(self, sample_courses_df, setup_model):
-        """Test DemonstrationConfig with user-provided examples"""
+    def test_demonstration_basic(self, sample_courses_df, setup_model):
+        """Test with user-provided examples"""
         df = sample_courses_df
         instruction = "{Course Name} requires a lot of math"
 
-        # Examples provided via DemonstrationConfig
+        # Examples provided
         examples = pd.DataFrame({"Course Name": ["Machine Learning", "Literature"], "Answer": [True, False]})
 
         result = df.sem_filter(

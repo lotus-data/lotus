@@ -9,7 +9,6 @@ from lotus.cache import operator_cache
 from lotus.templates import task_instructions
 from lotus.types import (
     CascadeArgs,
-    DemonstrationConfig,
     LMOutput,
     LogprobsForFilterCascade,
     PromptStrategy,
@@ -31,7 +30,6 @@ def sem_filter(
     examples_answers: list[bool] | None = None,
     cot_reasoning: list[str] | None = None,
     prompt_strategy: PromptStrategy | None = None,
-    demonstration_config: DemonstrationConfig | None = None,
     logprobs: bool = False,
     safe_mode: bool = False,
     show_progress_bar: bool = True,
@@ -206,7 +204,6 @@ def learn_filter_cascade_thresholds(
             examples_answers=examples_answers,
             cot_reasoning=cot_reasoning,
             prompt_strategy=prompt_strategy,
-            demonstration_config=None,  # No demonstration config for threshold learning
             safe_mode=False,
             progress_bar_desc="Running oracle for threshold learning",
             additional_cot_instructions=additional_cot_instructions,
@@ -347,7 +344,6 @@ class SemFilterDataframe:
         examples: pd.DataFrame | None = None,
         helper_examples: pd.DataFrame | None = None,
         prompt_strategy: PromptStrategy | None = None,
-        demonstration_config: DemonstrationConfig | None = None,
         cascade_args: CascadeArgs | None = None,
         return_stats: bool = False,
         safe_mode: bool = False,
@@ -379,9 +375,8 @@ class SemFilterDataframe:
         examples_answers = None
         cot_reasoning = None
 
-        # Create demonstration config if examples are provided but no config exists
-        if examples is not None and demonstration_config is None:
-            demonstration_config = DemonstrationConfig(examples=examples)
+        # Handle examples
+        if examples is not None:
             assert "Answer" in examples.columns, "Answer must be a column in examples dataframe"
             examples_multimodal_data = task_instructions.df2multimodal_info(examples, col_li)
             examples_answers = examples["Answer"].tolist()
@@ -432,7 +427,6 @@ class SemFilterDataframe:
                     cot_reasoning=helper_cot_reasoning,
                     logprobs=True,
                     prompt_strategy=helper_strategy,
-                    demonstration_config=None,  # Helper models don't use demonstration config
                     safe_mode=safe_mode,
                     show_progress_bar=True,
                     progress_bar_desc="Running helper LM",
@@ -527,7 +521,6 @@ class SemFilterDataframe:
                     examples_answers=examples_answers,
                     cot_reasoning=cot_reasoning,
                     prompt_strategy=prompt_strategy,
-                    demonstration_config=demonstration_config,
                     safe_mode=safe_mode,
                     progress_bar_desc="Running predicate evals with oracle LM",
                     additional_cot_instructions=additional_cot_instructions,
@@ -551,7 +544,6 @@ class SemFilterDataframe:
                 examples_answers=examples_answers,
                 cot_reasoning=cot_reasoning,
                 prompt_strategy=prompt_strategy,
-                demonstration_config=demonstration_config,
                 safe_mode=safe_mode,
                 show_progress_bar=True,
                 progress_bar_desc=progress_bar_desc,
