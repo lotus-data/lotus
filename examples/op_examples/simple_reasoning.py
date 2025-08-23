@@ -2,7 +2,7 @@ import pandas as pd
 
 import lotus
 from lotus.models import LM
-from lotus.types import DemonstrationConfig, ReasoningStrategy
+from lotus.types import PromptStrategy
 
 # Configure the language model
 lm = LM(model="gpt-4o-mini")
@@ -23,7 +23,9 @@ print()
 
 # Example 2: Chain-of-Thought reasoning
 print("=== 2. Chain-of-Thought Reasoning ===")
-cot_df = df.sem_filter(user_instruction, strategy=ReasoningStrategy.CoT, return_explanations=True, return_all=True)
+cot_df = df.sem_filter(
+    user_instruction, prompt_strategy=PromptStrategy(cot=True), return_explanations=True, return_all=True
+)
 print(cot_df[["Course Name", "filter_label", "explanation_filter"]])
 print()
 
@@ -33,8 +35,7 @@ examples = pd.DataFrame({"Course Name": ["Machine Learning", "Literature", "Phys
 
 demo_df = df.sem_filter(
     user_instruction,
-    strategy=ReasoningStrategy.Demonstrations,
-    examples=examples,  # Still works for backward compatibility
+    prompt_strategy=PromptStrategy(dems=examples),
     return_all=True,
 )
 print(demo_df[["Course Name", "filter_label"]])
@@ -56,8 +57,7 @@ examples_with_reasoning = pd.DataFrame(
 
 combined_df = df.sem_filter(
     user_instruction,
-    strategy=ReasoningStrategy.CoT_Demonstrations,
-    examples=examples_with_reasoning,
+    prompt_strategy=PromptStrategy(cot=True, dems=examples_with_reasoning),
     return_explanations=True,
     return_all=True,
 )
@@ -66,12 +66,10 @@ print()
 
 # Example 5: Automatic demonstration bootstrapping
 print("=== 5. Bootstrapped Demonstrations ===")
-bootstrap_config = DemonstrationConfig(bootstrap=True, num_demonstrations=2)
 
 bootstrap_df = df.sem_filter(
     user_instruction,
-    strategy=ReasoningStrategy.CoT_Demonstrations,
-    demonstration_config=bootstrap_config,
+    prompt_strategy=PromptStrategy(cot=True, dems="auto", max_dems=2),
     return_explanations=True,
     return_all=True,
 )

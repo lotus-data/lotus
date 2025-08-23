@@ -6,7 +6,7 @@ from tokenizers import Tokenizer
 
 import lotus
 from lotus.models import LM, SentenceTransformersRM
-from lotus.types import CascadeArgs
+from lotus.types import CascadeArgs, PromptStrategy
 from lotus.vector_store import FaissVS
 
 ################################################################################
@@ -269,7 +269,7 @@ def test_filter_operation_cot(setup_models, model):
     }
     df = pd.DataFrame(data)
     user_instruction = "{Text} I have at least one apple"
-    filtered_df = df.sem_filter(user_instruction, strategy="cot")
+    filtered_df = df.sem_filter(user_instruction, prompt_strategy=PromptStrategy(cot=True))
     expected_df = pd.DataFrame({"Text": ["I had two apples, then I gave away one", "My friend gave me an apple"]})
     assert filtered_df.equals(expected_df)
 
@@ -302,8 +302,7 @@ def test_filter_operation_cot_fewshot(setup_models, model):
     user_instruction = "{Sequence} is increasing"
     filtered_df = df.sem_filter(
         user_instruction,
-        strategy="cot",
-        examples=examples_df,
+        prompt_strategy=PromptStrategy(cot=True, dems=examples_df),
         additional_cot_instructions="Assume the most typical or logical case.",
     )
     expected_df = pd.DataFrame(
@@ -339,7 +338,7 @@ def test_filter_operation_cot_fewshot_no_reasoning(setup_models, model):
     examples_df = pd.DataFrame(examples)
 
     user_instruction = "{Sequence} is increasing"
-    filtered_df = df.sem_filter(user_instruction, strategy="cot", examples=examples_df)
+    filtered_df = df.sem_filter(user_instruction, prompt_strategy=PromptStrategy(cot=True, dems=examples_df))
     expected_df = pd.DataFrame(
         {
             "Sequence": [
