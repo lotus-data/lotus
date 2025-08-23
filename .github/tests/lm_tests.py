@@ -289,11 +289,12 @@ def test_filter_operation_cot_fewshot(setup_models, model):
     }
     df = pd.DataFrame(data)
     examples = {
-        "Sequence": ["1, 2, 3", "penny, nickel, dime, quarter", "villiage, town, city"],
-        "Answer": [True, True, True],
+        "Sequence": ["1, 2, 3", "A, B, C", "penny, nickel, dime, quarter", "villiage, town, city"],
+        "Answer": [True, True, True, True],
         "Reasoning": [
             "1, 2, 3 is an increasing sequence of numbers",
-            "penny, nickel, dime, quarter is an increasing sequence of coins",
+            "A, B, C is an increasing sequence of letters in alphabetical order",
+            "penny, nickel, dime, quarter is an increasing sequence of coins by value",
             "villiage, town, city is an increasing sequence of settlements",
         ],
     }
@@ -302,7 +303,8 @@ def test_filter_operation_cot_fewshot(setup_models, model):
     user_instruction = "{Sequence} is increasing"
     filtered_df = df.sem_filter(
         user_instruction,
-        prompt_strategy=PromptStrategy(cot=True, dems=examples_df),
+        prompt_strategy=PromptStrategy(cot=True),
+        examples=examples_df,
         additional_cot_instructions="Assume the most typical or logical case.",
     )
     expected_df = pd.DataFrame(
@@ -332,13 +334,13 @@ def test_filter_operation_cot_fewshot_no_reasoning(setup_models, model):
     }
     df = pd.DataFrame(data)
     examples = {
-        "Sequence": ["1, 2, 3", "penny, nickel, dime, quarter", "villiage, town, city"],
-        "Answer": [True, True, True],
+        "Sequence": ["1, 2, 3", "penny, nickel, dime, quarter", "villiage, town, city", "A, B, C"],
+        "Answer": [True, True, True, True],
     }
     examples_df = pd.DataFrame(examples)
 
     user_instruction = "{Sequence} is increasing"
-    filtered_df = df.sem_filter(user_instruction, prompt_strategy=PromptStrategy(cot=True, dems=examples_df))
+    filtered_df = df.sem_filter(user_instruction, prompt_strategy=PromptStrategy(cot=True), examples=examples_df)
     expected_df = pd.DataFrame(
         {
             "Sequence": [
