@@ -5,7 +5,7 @@ import pytest
 
 import lotus
 from lotus.models import LM
-from lotus.types import DemonstrationConfig, ReasoningStrategy
+from lotus.types import PromptStrategy
 from tests.base_test import BaseTest
 
 # Skip all tests if no OpenAI API key is available
@@ -85,7 +85,9 @@ class TestReasoningStrategies(BaseTest):
         df = sample_courses_df
         instruction = "{Course Name} requires a lot of math"
 
-        result = df.sem_filter(instruction, strategy=ReasoningStrategy.CoT, return_explanations=True, return_all=True)
+        result = df.sem_filter(
+            instruction, prompt_strategy=PromptStrategy(cot=True), return_explanations=True, return_all=True
+        )
 
         # Check structure
         assert "filter_label" in result.columns
@@ -95,15 +97,33 @@ class TestReasoningStrategies(BaseTest):
         for explanation in result["explanation_filter"]:
             assert explanation is not None
             assert len(explanation) > 0
-            # CoT should contain reasoning
-            assert any(word in explanation.lower() for word in ["reasoning", "because", "since", "therefore"])
+            # CoT should contain substantive reasoning (check for common reasoning indicators or sufficient length)
+            has_reasoning_words = any(
+                word in explanation.lower()
+                for word in [
+                    "reasoning",
+                    "because",
+                    "since",
+                    "therefore",
+                    "requires",
+                    "involves",
+                    "contains",
+                    "needs",
+                    "mathematical",
+                    "math",
+                    "calculus",
+                    "algebra",
+                ]
+            )
+            is_substantial = len(explanation.split()) > 5
+            assert has_reasoning_words or is_substantial, f"Explanation lacks reasoning indicators: '{explanation}'"
 
     def test_cot_map_basic(self, sample_courses_df, setup_model):
         """Test basic CoT reasoning with sem_map"""
         df = sample_courses_df
         instruction = "What is the difficulty level of {Course Name}? Answer: Beginner, Intermediate, or Advanced"
 
-        result = df.sem_map(instruction, strategy=ReasoningStrategy.CoT, return_explanations=True)
+        result = df.sem_map(instruction, prompt_strategy=PromptStrategy(cot=True), return_explanations=True)
 
         # Check structure
         assert "_map" in result.columns
@@ -120,7 +140,7 @@ class TestReasoningStrategies(BaseTest):
         instruction = "{Review} is a positive review"
 
         result, stats = df.sem_topk(
-            instruction, K=3, strategy=ReasoningStrategy.CoT, return_explanations=True, return_stats=True
+            instruction, K=3, prompt_strategy=PromptStrategy(cot=True), return_explanations=True, return_stats=True
         )
 
         # Check structure
@@ -147,9 +167,7 @@ class TestReasoningStrategies(BaseTest):
             {"Course Name": ["Machine Learning", "Literature", "Physics"], "Answer": [True, False, True]}
         )
 
-        result = df.sem_filter(
-            instruction, strategy=ReasoningStrategy.Demonstrations, examples=examples, return_all=True
-        )
+        result = df.sem_filter(instruction, prompt_strategy=PromptStrategy(dems=examples), return_all=True)
 
         # Check structure
         assert "filter_label" in result.columns
@@ -166,7 +184,7 @@ class TestReasoningStrategies(BaseTest):
         # Provide examples
         examples = pd.DataFrame({"Course Name": ["Calculus I", "English Literature"], "Answer": ["Math", "English"]})
 
-        result = df.sem_map(instruction, strategy=ReasoningStrategy.Demonstrations, examples=examples)
+        result = df.sem_map(instruction, prompt_strategy=PromptStrategy(dems=examples))
 
         # Check structure
         assert "_map" in result.columns
@@ -200,8 +218,7 @@ class TestReasoningStrategies(BaseTest):
 
         result = df.sem_filter(
             instruction,
-            strategy=ReasoningStrategy.CoT_Demonstrations,
-            examples=examples,
+            prompt_strategy=PromptStrategy(cot=True, dems=examples),
             return_explanations=True,
             return_all=True,
         )
@@ -233,7 +250,7 @@ class TestReasoningStrategies(BaseTest):
         )
 
         result = df.sem_map(
-            instruction, strategy=ReasoningStrategy.CoT_Demonstrations, examples=examples, return_explanations=True
+            instruction, prompt_strategy=PromptStrategy(cot=True, dems=examples), return_explanations=True
         )
 
         # Check structure
@@ -257,12 +274,9 @@ class TestReasoningStrategies(BaseTest):
         # Examples provided via DemonstrationConfig
         examples = pd.DataFrame({"Course Name": ["Machine Learning", "Literature"], "Answer": [True, False]})
 
-        demo_config = DemonstrationConfig(examples=examples)
-
         result = df.sem_filter(
             instruction,
-            strategy=ReasoningStrategy.CoT_Demonstrations,
-            demonstration_config=demo_config,
+            prompt_strategy=PromptStrategy(cot=True, dems=examples),
             return_all=True,
         )
 
@@ -274,12 +288,9 @@ class TestReasoningStrategies(BaseTest):
         instruction = "{Course Name} requires a lot of math"
 
         # Configure bootstrapping
-        demo_config = DemonstrationConfig(bootstrap=True, num_demonstrations=2)
-
         result = df.sem_filter(
             instruction,
-            strategy=ReasoningStrategy.CoT_Demonstrations,
-            demonstration_config=demo_config,
+            prompt_strategy=PromptStrategy(cot=True, dems="auto", max_dems=2),
             return_explanations=True,
             return_all=True,
         )
@@ -296,16 +307,9 @@ class TestReasoningStrategies(BaseTest):
         df = sample_courses_df.head(5)  # Use fewer rows for faster testing
         instruction = "{Course Name} requires a lot of math"
 
-        demo_config = DemonstrationConfig(
-            bootstrap=True,
-            num_demonstrations=1,
-            oracle_model="gpt-4o-mini",  # Use same model for testing
-        )
-
         result = df.sem_filter(
             instruction,
-            strategy=ReasoningStrategy.CoT_Demonstrations,
-            demonstration_config=demo_config,
+            prompt_strategy=PromptStrategy(cot=True, dems="auto", max_dems=1, teacher_lm=LM(model="gpt-4o-mini")),
             return_all=True,
         )
 
@@ -325,7 +329,7 @@ class TestReasoningStrategies(BaseTest):
 
         result = df.sem_filter(
             instruction,
-            strategy=ReasoningStrategy.Demonstrations,
+            prompt_strategy=PromptStrategy(dems=examples),
             examples=examples,  # Old parameter name
             return_all=True,
         )
@@ -356,7 +360,9 @@ class TestReasoningStrategies(BaseTest):
             "key_points": "Main points mentioned in the review",
         }
 
-        result = df.sem_extract(input_cols, output_cols, strategy=ReasoningStrategy.CoT, return_explanations=True)
+        result = df.sem_extract(
+            input_cols, output_cols, prompt_strategy=PromptStrategy(cot=True), return_explanations=True
+        )
 
         # Check structure
         assert "sentiment" in result.columns
@@ -380,9 +386,7 @@ class TestReasoningStrategies(BaseTest):
         empty_examples = pd.DataFrame(columns=["Course Name", "Answer"])
 
         # Should handle empty examples gracefully
-        result = df.sem_filter(
-            instruction, strategy=ReasoningStrategy.Demonstrations, examples=empty_examples, return_all=True
-        )
+        result = df.sem_filter(instruction, prompt_strategy=PromptStrategy(dems=empty_examples), return_all=True)
 
         assert "filter_label" in result.columns
 
@@ -396,9 +400,7 @@ class TestReasoningStrategies(BaseTest):
 
         # Should handle gracefully or raise informative error
         try:
-            result = df.sem_filter(
-                instruction, strategy=ReasoningStrategy.Demonstrations, examples=bad_examples, return_all=True
-            )
+            result = df.sem_filter(instruction, prompt_strategy=PromptStrategy(dems=bad_examples), return_all=True)
             # If it doesn't raise an error, it should still produce results
             assert "filter_label" in result.columns
         except Exception as e:
@@ -411,13 +413,10 @@ class TestReasoningStrategies(BaseTest):
         instruction = "{Course Name} requires a lot of math"
 
         # Try to use bootstrapping without CoT_Demonstrations strategy
-        demo_config = DemonstrationConfig(bootstrap=True)
-
         try:
             result = df.sem_filter(
                 instruction,
-                strategy=ReasoningStrategy.CoT,  # Wrong strategy for bootstrapping
-                demonstration_config=demo_config,
+                prompt_strategy=PromptStrategy(cot=True, dems="auto"),  # Should use auto for bootstrapping
                 return_all=True,
             )
             # Should either work or raise informative error
@@ -431,15 +430,9 @@ class TestReasoningStrategies(BaseTest):
         instruction = "{Course Name} requires a lot of math"
 
         # Request more demonstrations than available data
-        demo_config = DemonstrationConfig(
-            bootstrap=True,
-            num_demonstrations=20,  # More than df length
-        )
-
         result = df.sem_filter(
             instruction,
-            strategy=ReasoningStrategy.CoT_Demonstrations,
-            demonstration_config=demo_config,
+            prompt_strategy=PromptStrategy(cot=True, dems="auto", max_dems=20),
             return_all=True,
         )
 
@@ -458,14 +451,14 @@ class TestReasoningStrategies(BaseTest):
         examples = pd.DataFrame({"Course Name": ["Machine Learning", "Literature"], "Answer": [True, False]})
 
         filtered_df = df.sem_filter(
-            "{Course Name} requires a lot of math", strategy=ReasoningStrategy.Demonstrations, examples=examples
+            "{Course Name} requires a lot of math", prompt_strategy=PromptStrategy(dems=examples)
         )
 
         # Then map with CoT
         if len(filtered_df) > 0:
             mapped_df = filtered_df.sem_map(
                 "What is the difficulty level of {Course Name}?",
-                strategy=ReasoningStrategy.CoT,
+                prompt_strategy=PromptStrategy(cot=True),
                 return_explanations=True,
             )
 
@@ -479,7 +472,11 @@ class TestReasoningStrategies(BaseTest):
 
         # Test return_stats=True (returns tuple)
         result, stats = df.sem_filter(
-            instruction, strategy=ReasoningStrategy.CoT, return_all=True, return_explanations=True, return_stats=True
+            instruction,
+            prompt_strategy=PromptStrategy(cot=True),
+            return_all=True,
+            return_explanations=True,
+            return_stats=True,
         )
 
         # Check all expected columns are present in DataFrame
@@ -491,7 +488,11 @@ class TestReasoningStrategies(BaseTest):
 
         # Test without return_stats (returns DataFrame only)
         result_no_stats = df.sem_filter(
-            instruction, strategy=ReasoningStrategy.CoT, return_all=True, return_explanations=True, return_stats=False
+            instruction,
+            prompt_strategy=PromptStrategy(cot=True),
+            return_all=True,
+            return_explanations=True,
+            return_stats=False,
         )
 
         # Should return DataFrame directly

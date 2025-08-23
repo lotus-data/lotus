@@ -22,7 +22,7 @@ from lotus.sem_ops import (
 )
 from lotus.web_search import web_search, WebSearchCorpus
 from lotus.settings import settings  # type: ignore[attr-defined]
-from lotus.types import ReasoningStrategy, DemonstrationConfig
+from lotus.types import PromptStrategy, DemonstrationConfig
 
 
 logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
@@ -52,6 +52,6 @@ __all__ = [
     "dtype_extensions",
     "web_search",
     "WebSearchCorpus",
-    "ReasoningStrategy",
+    "PromptStrategy",
     "DemonstrationConfig",
 ]

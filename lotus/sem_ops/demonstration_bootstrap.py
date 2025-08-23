@@ -4,7 +4,7 @@ from typing import Any
 import lotus
 from lotus.models import LM
 from lotus.templates import task_instructions
-from lotus.types import DemonstrationConfig, ReasoningStrategy
+from lotus.types import DemonstrationConfig, PromptStrategy
 
 
 def bootstrap_demonstrations_for_filter(
@@ -46,10 +46,12 @@ def bootstrap_demonstrations_for_filter(
         # Generate with CoT reasoning if needed
         if config.oracle_model or hasattr(config, "include_reasoning"):
             # Generate with CoT reasoning
-            prompt = task_instructions.filter_formatter(model, doc, user_instruction, strategy=ReasoningStrategy.CoT)
+            prompt = task_instructions.filter_formatter(
+                model, doc, user_instruction, prompt_strategy=PromptStrategy(cot=True)
+            )
         else:
             # Generate without reasoning
-            prompt = task_instructions.filter_formatter(model, doc, user_instruction, strategy=None)
+            prompt = task_instructions.filter_formatter(model, doc, user_instruction, prompt_strategy=None)
 
         # Get oracle response
         response = model([prompt], progress_bar_desc="Bootstrapping demonstrations")
@@ -107,10 +109,12 @@ def bootstrap_demonstrations_for_map(
         # Generate with CoT reasoning if needed
         if config.oracle_model or hasattr(config, "include_reasoning"):
             # Generate with CoT reasoning
-            prompt = task_instructions.map_formatter(model, doc, user_instruction, strategy=ReasoningStrategy.CoT)
+            prompt = task_instructions.map_formatter(
+                model, doc, user_instruction, prompt_strategy=PromptStrategy(cot=True)
+            )
         else:
             # Generate without reasoning
-            prompt = task_instructions.map_formatter(model, doc, user_instruction, strategy=None)
+            prompt = task_instructions.map_formatter(model, doc, user_instruction, prompt_strategy=None)
 
         # Get oracle response
         response = model([prompt], progress_bar_desc="Bootstrapping demonstrations")
@@ -168,10 +172,12 @@ def bootstrap_demonstrations_for_extract(
         # Generate with CoT reasoning if needed
         if config.oracle_model or hasattr(config, "include_reasoning"):
             # Generate with CoT reasoning
-            prompt = task_instructions.extract_formatter(model, doc, output_cols, strategy=ReasoningStrategy.CoT)
+            prompt = task_instructions.extract_formatter(
+                model, doc, output_cols, prompt_strategy=PromptStrategy(cot=True)
+            )
         else:
             # Generate without reasoning
-            prompt = task_instructions.extract_formatter(model, doc, output_cols, strategy=None)
+            prompt = task_instructions.extract_formatter(model, doc, output_cols, prompt_strategy=None)
 
         # Get oracle response
         response = model([prompt], progress_bar_desc="Bootstrapping demonstrations")

@@ -187,6 +187,7 @@ def filter_postprocess(
     llm_answers: list[str],
     model: lotus.models.LM,
     default: bool = True,
+    cot_reasoning: bool = False,
 ) -> SemanticFilterPostprocessOutput:
     """
     Postprocess the output of the filter operator.
@@ -214,8 +215,12 @@ def filter_postprocess(
             lotus.logger.info(f"\t Failed to parse {answer}: defaulting to {default}")
             return default
 
-    postprocessor = get_cot_postprocessor(model)
-    outputs, explanations = postprocessor(llm_answers)
+    if cot_reasoning:
+        postprocessor = get_cot_postprocessor(model)
+        outputs, explanations = postprocessor(llm_answers)
+    else:
+        outputs = llm_answers
+        explanations = [None] * len(llm_answers)
 
     boolean_outputs = [process_outputs(answer) for answer in outputs]
 

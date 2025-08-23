@@ -5,7 +5,7 @@ import pytest
 
 import lotus
 from lotus.models import LM
-from lotus.types import DemonstrationConfig, ReasoningStrategy
+from lotus.types import DemonstrationConfig, PromptStrategy
 
 lotus.logger.setLevel("DEBUG")
 
@@ -27,9 +27,7 @@ def test_deepseek_demonstrations_only():
     # Provide examples without reasoning
     examples = pd.DataFrame({"Course": ["Statistics", "Poetry", "Physics"], "Answer": [True, False, True]})
 
-    result = df.sem_filter(
-        user_instruction, strategy=ReasoningStrategy.Demonstrations, examples=examples, return_all=True
-    )
+    result = df.sem_filter(user_instruction, prompt_strategy=PromptStrategy(dems=examples), return_all=True)
 
     assert "filter_label" in result.columns
     # Should identify math courses correctly based on examples
@@ -62,7 +60,7 @@ def test_deepseek_cot_demonstrations_combined():
 
     result = df.sem_filter(
         user_instruction,
-        strategy=ReasoningStrategy.CoT_Demonstrations,
+        prompt_strategy=PromptStrategy(cot=True, dems=examples),
         examples=examples,
         return_explanations=True,
         return_all=True,
@@ -98,7 +96,7 @@ def test_deepseek_demonstration_config():
 
     result = df.sem_filter(
         user_instruction,
-        strategy=ReasoningStrategy.CoT_Demonstrations,
+        prompt_strategy=PromptStrategy(cot=True, dems=examples),
         demonstration_config=demo_config,
         return_all=True,
     )
@@ -124,7 +122,7 @@ def test_deepseek_bootstrapping():
 
     result = df.sem_filter(
         user_instruction,
-        strategy=ReasoningStrategy.CoT_Demonstrations,
+        prompt_strategy=PromptStrategy(cot=True, dems="auto"),
         demonstration_config=demo_config,
         return_explanations=True,
         return_all=True,
@@ -162,7 +160,7 @@ def test_deepseek_extract_with_cot():
 
     input_cols = ["Review"]  # Columns to extract from
 
-    result = df.sem_extract(input_cols, output_cols, strategy=ReasoningStrategy.CoT, return_explanations=True)
+    result = df.sem_extract(input_cols, output_cols, prompt_strategy=PromptStrategy(cot=True), return_explanations=True)
 
     assert "sentiment" in result.columns
     assert "main_feature" in result.columns
@@ -188,7 +186,7 @@ def test_deepseek_backward_compatibility():
     result_default = df.sem_filter(user_instruction, return_all=True)
 
     # Test with explicit CoT strategy
-    result_cot = df.sem_filter(user_instruction, strategy=ReasoningStrategy.CoT, return_all=True)
+    result_cot = df.sem_filter(user_instruction, prompt_strategy=PromptStrategy(cot=True), return_all=True)
 
     # Both should work and produce results
     assert "filter_label" in result_default.columns
@@ -210,9 +208,7 @@ def test_deepseek_error_handling():
     empty_examples = pd.DataFrame(columns=["Text", "Answer"])
 
     try:
-        result = df.sem_filter(
-            user_instruction, strategy=ReasoningStrategy.Demonstrations, examples=empty_examples, return_all=True
-        )
+        result = df.sem_filter(user_instruction, prompt_strategy=PromptStrategy(dems=empty_examples), return_all=True)
         # Should handle gracefully
         assert "filter_label" in result.columns
     except Exception as e:
@@ -232,14 +228,14 @@ def test_deepseek_multiple_operations_chaining():
     # First filter with demonstrations
     examples = pd.DataFrame({"Product": ["Laptop", "Book"], "Answer": [True, False]})
 
-    filtered_df = df.sem_filter(
-        "{Product} is an electronic device", strategy=ReasoningStrategy.Demonstrations, examples=examples
-    )
+    filtered_df = df.sem_filter("{Product} is an electronic device", prompt_strategy=PromptStrategy(dems=examples))
 
     # Then map with CoT
     if len(filtered_df) > 0:
         mapped_df = filtered_df.sem_map(
-            "What category does {Product} belong to?", strategy=ReasoningStrategy.CoT, return_explanations=True
+            "What category does {Product} belong to?",
+            prompt_strategy=PromptStrategy(cot=True),
+            return_explanations=True,
         )
 
         assert "_map" in mapped_df.columns
