@@ -81,9 +81,9 @@ def deepseek_cot_postprocessor(llm_answers: list[str], for_extract: bool = False
 
         if for_extract:
             try:
-                json_obj = json.loads(llm_answer)
+                json_obj = json.loads(answer)
             except json.JSONDecodeError:
-                lotus.logger.info(f"\t Failed to parse: {llm_answer}")
+                lotus.logger.info(f"\t Failed to parse: {answer}")
                 json_obj = {}
             json_obj = {key: str(value) for key, value in json_obj.items()}
             outputs.append(json_obj)
