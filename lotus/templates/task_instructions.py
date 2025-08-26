@@ -269,13 +269,21 @@ def extract_formatter(
 
     fields_str = ", ".join(all_fields)
 
-    sys_instruction = (
-        "The user will provide the columns that need to be extracted and some relevant context.\n"
-        f"Your job is to extract these columns and provide only a concise value for each field "
-        f"and the corresponding full quote for each field in the '{', '.join([f'{col}_quote' for col in output_col_names])}' fields.\n"
-        f"Here is a description of each field: {output_cols_with_desc}\n"
-        f"The response should be valid JSON format with the following fields: {fields_str}.\n"
-    )
+    if extract_quotes:
+        sys_instruction = (
+            "The user will provide the columns that need to be extracted and some relevant context.\n"
+            f"Your job is to extract these columns and provide only a concise value for each field "
+            f"and the corresponding full quote for each field in the '{', '.join([f'{col}_quote' for col in output_col_names])}' fields.\n"
+            f"Here is a description of each field: {output_cols_with_desc}\n"
+            f"The response should be valid JSON format with the following fields: {fields_str}.\n"
+        )
+    else:
+        sys_instruction = (
+            "The user will provide the columns that need to be extracted and some relevant context.\n"
+            f"Your job is to extract these columns and provide only a concise value for each field.\n"
+            f"Here is a description of each field: {output_cols_with_desc}\n"
+            f"The response should be valid JSON format with the following fields: {fields_str}.\n"
+        )
 
     messages = [
         {"role": "system", "content": sys_instruction},
