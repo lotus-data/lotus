@@ -557,10 +557,10 @@ def test_llm_as_judge(setup_models, model):
         ],
     }
     df = pd.DataFrame(data)
-    judge_instruction = "Evaluate the student {answer} for the {question}"
-    expected_scores = [8, 1]
+    judge_instruction = "Rate the accuracy and completeness of this {answer} to the {question} on a scale of 1-10, where 10 is excellent. Only output the score."
+    expected_scores = ["8", "1"]
     df = df.llm_as_judge(judge_instruction)
-    assert all(df["_judge_0"].values == expected_scores)
+    assert list(df["_judge_0"].values) == expected_scores
 
 
 @pytest.mark.parametrize("model", get_enabled("gpt-4o-mini", "ollama/llama3.1"))
@@ -586,7 +586,7 @@ def test_llm_as_judge_with_response_format(setup_models, model):
 
     judge_instruction = "Evaluate the student {answer} for the {question}"
     df = df.llm_as_judge(judge_instruction, response_format=EvaluationScore)
-    assert all([df["_judge_0"].values[0].score, df["_judge_0"].values[1].score] == [8, 1])
+    assert [df["_judge_0"].values[0].score, df["_judge_0"].values[1].score] == [8, 1]
 
 
 @pytest.mark.parametrize("model", get_enabled("gpt-4o-mini", "ollama/llama3.1"))
@@ -612,5 +612,5 @@ def test_pairwise_judge(setup_models, model):
     df = df.pairwise_judge(
         col1="model_a", col2="model_b", judge_instruction=judge_instruction, permute_cols=True, n_trials=2
     )
-    assert df["_judge_model_a_model_b_0"].values == ["A", "B"]
-    assert df["_judge_model_b_model_a_0"].values == ["A", "B"]
+    assert list(df["_judge_model_a_model_b_0"].values) == ["A", "B"]
+    assert list(df["_judge_model_b_model_a_0"].values) == ["A", "B"]
