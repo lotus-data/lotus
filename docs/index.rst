@@ -68,6 +68,7 @@ LOTUS implements the semantic operator programming model and provides an optimiz
    prompt_strategies
    configurations
    reasoning_models
+   evals
 
 .. toctree::
    :hidden:
