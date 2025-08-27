@@ -612,5 +612,5 @@ def test_pairwise_judge(setup_models, model):
     df = df.pairwise_judge(
         col1="model_a", col2="model_b", judge_instruction=judge_instruction, permute_cols=True, n_trials=2
     )
-    assert df["_judge_A_B_0"].values == ["A", "B"]
-    assert df["_judge_B_A_0"].values == ["A", "B"]
+    assert df["_judge_model_a_model_b_0"].values == ["A", "B"]
+    assert df["_judge_model_b_model_a_0"].values == ["A", "B"]
