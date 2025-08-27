@@ -3,18 +3,17 @@ sem_map
 
 Overview
 ----------
-This operato performs a semantic projection over an input column. The langex parameter specifies this projection in natural language.
+This operator performs a semantic mapping over input data using natural language instructions. It applies a user-defined instruction to each row of data, transforming the content based on the specified criteria. The operator supports both DataFrame operations and direct function calls on multimodal data.
 
 Motivation
 -----------
-The sem_map operator is useful for performing a row-wise operations over the data.
+The sem_map operator is useful for performing row-wise transformations over data using natural language instructions. It enables users to apply complex mappings, transformations, or analyses without writing custom code, making it ideal for tasks like content summarization, sentiment analysis, format conversion, and data enrichment.
 
-Example
+Basic Example
 ----------
 .. code-block:: python
 
     import pandas as pd
-
     import lotus
     from lotus.models import LM
 
@@ -50,13 +49,28 @@ Output:
 
 Required Parameters
 ---------------------
-- **user_instruction** : The user instruction for map.
-- **postprocessor** : The postprocessor for the model outputs. Defaults to map_postprocess.
+- **user_instruction** (str): The natural language instruction that guides the mapping process. Should describe how to transform each row. Column names can be referenced using curly braces, e.g., "{column_name}".
 
 Optional Parameters
 ---------------------
-- **return_explanations** : Whether to return explanations. Defaults to False.
-- **return_raw_outputs** : Whether to return raw outputs. Defaults to False.
-- **suffix** : The suffix for the new columns. Defaults to "_map".
-- **examples** : The examples dataframe. Defaults to None.
-- **strategy** : The reasoning strategy. Defaults to None.
+- **system_prompt** (str | None): Custom system prompt to use. Defaults to None.
+- **postprocessor** (Callable): Function to post-process model outputs. Should take (outputs, model, use_cot) and return SemanticMapPostprocessOutput. Defaults to map_postprocess.
+- **return_explanations** (bool): Whether to include explanations in the output DataFrame. Useful for debugging and understanding model reasoning. Defaults to False.
+- **return_raw_outputs** (bool): Whether to include raw model outputs in the output DataFrame. Useful for debugging. Defaults to False.
+- **suffix** (str): The suffix for the output column names. Defaults to "_map".
+- **examples** (pd.DataFrame | None): Example DataFrame for few-shot learning. Should have the same column structure as the input DataFrame plus an "Answer" column. Defaults to None.
+- **strategy** (ReasoningStrategy | None): The reasoning strategy to use. Can be None, COT (Chain-of-Thought), or ZS_COT (Zero-Shot Chain-of-Thought). Defaults to None.
+- **safe_mode** (bool): Whether to enable safe mode with cost estimation before execution. Defaults to False.
+- **progress_bar_desc** (str): Description for the progress bar. Defaults to "Mapping".
+- **model_kwargs**: Additional keyword arguments to pass to the language model.
+
+
+Return Types and Output Structure
+----------------------------------
+
+The sem_map operator returns a DataFrame with the following columns:
+
+- **Original columns**: All original DataFrame columns are preserved
+- **{suffix}**: The main output column (default suffix is "_map")
+- **explanation{suffix}**: Explanations column (when return_explanations=True)
+- **raw_output{suffix}**: Raw model outputs (when return_raw_outputs=True)

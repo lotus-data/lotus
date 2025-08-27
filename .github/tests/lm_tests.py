@@ -2,6 +2,7 @@ import os
 
 import pandas as pd
 import pytest
+from pydantic import BaseModel, Field
 from tokenizers import Tokenizer
 
 import lotus
@@ -534,3 +535,82 @@ def test_custom_tokenizer():
     tokens = custom_lm.count_tokens("Hello, world!")
     assert custom_lm.count_tokens([{"role": "user", "content": "Hello, world!"}]) == tokens
     assert tokens < 100
+
+
+################################################################################
+# Eval tests
+################################################################################
+@pytest.mark.parametrize("model", get_enabled("gpt-4o-mini", "ollama/llama3.1"))
+def test_llm_as_judge(setup_models, model):
+    lm = setup_models[model]
+    lotus.settings.configure(lm=lm)
+
+    data = {
+        "student_id": [1, 2],
+        "question": [
+            "Explain the difference between supervised and unsupervised learning",
+            "What is the purpose of cross-validation in machine learning?",
+        ],
+        "answer": [
+            "Supervised learning uses labeled data to train models, while unsupervised learning finds patterns in unlabeled data. For example, classification is supervised, clustering is unsupervised.",
+            "Gradient descent is an optimization algorithm that minimizes cost functions by iteratively moving in the direction of steepest descent of the gradient.",
+        ],
+    }
+    df = pd.DataFrame(data)
+    judge_instruction = "Evaluate the student {answer} for the {question}"
+    expected_scores = [8, 1]
+    df = df.llm_as_judge(judge_instruction)
+    assert df["_judge_0"].values == expected_scores
+
+
+@pytest.mark.parametrize("model", get_enabled("gpt-4o-mini", "ollama/llama3.1"))
+def test_llm_as_judge_with_response_format(setup_models, model):
+    lm = setup_models[model]
+    lotus.settings.configure(lm=lm)
+    data = {
+        "student_id": [1, 2],
+        "question": [
+            "Explain the difference between supervised and unsupervised learning",
+            "What is the purpose of cross-validation in machine learning?",
+        ],
+        "answer": [
+            "Supervised learning uses labeled data to train models, while unsupervised learning finds patterns in unlabeled data. For example, classification is supervised, clustering is unsupervised.",
+            "Gradient descent is an optimization algorithm that minimizes cost functions by iteratively moving in the direction of steepest descent of the gradient.",
+        ],
+    }
+    df = pd.DataFrame(data)
+
+    class EvaluationScore(BaseModel):
+        score: int = Field(description="Score from 1-10")
+        reasoning: str = Field(description="Detailed reasoning for the score")
+
+    judge_instruction = "Evaluate the student {answer} for the {question}"
+    df = df.llm_as_judge(judge_instruction, response_format=EvaluationScore)
+    assert [df["_judge_0"].values[0].score, df["_judge_0"].values[1].score] == [8, 1]
+
+
+@pytest.mark.parametrize("model", get_enabled("gpt-4o-mini", "ollama/llama3.1"))
+def test_pairwise_judge(setup_models, model):
+    lm = setup_models[model]
+    lotus.settings.configure(lm=lm)
+    data = {
+        "prompt": [
+            "Write a one-sentence summary of the benefits of regular exercise.",
+            "Suggest a polite email subject line to schedule a 1:1 meeting.",
+        ],
+        "model_a": [
+            "Regular exercise improves physical health and mental well-being by boosting energy, mood, and resilience.",
+            "Meeting request.",
+        ],
+        "model_b": [
+            "Exercise is good.",
+            "Requesting a 1:1: finding time to connect next week?",
+        ],
+    }
+    df = pd.DataFrame(data)
+    judge_instruction = "Given the prompt {prompt}, compare the two responses. Output only 'A' or 'B' or 'Tie' if the responses are equally good."
+    df = df.pairwise_judge(
+        col1="model_a", col2="model_b", judge_instruction=judge_instruction, permute_cols=True, n_trials=2
+    )
+    assert df["_judge_A_B_0"].values == ["A", "B"]
+    assert df["_judge_B_A_0"].values == ["A", "B"]

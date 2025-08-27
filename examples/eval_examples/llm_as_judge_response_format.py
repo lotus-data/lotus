@@ -17,7 +17,7 @@ data = {
         "Describe how gradient descent works",
         "What are the advantages of ensemble methods?",
     ],
-    "answer": [
+    "student_answer": [
         "Supervised learning uses labeled data to train models, while unsupervised learning finds patterns in unlabeled data. For example, classification is supervised, clustering is unsupervised.",
         "Cross-validation helps assess model performance by splitting data into training and validation sets multiple times to get a better estimate of how the model generalizes.",
         "Gradient descent is an optimization algorithm that minimizes cost functions by iteratively moving in the direction of steepest descent of the gradient.",

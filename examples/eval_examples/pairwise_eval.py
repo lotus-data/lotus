@@ -28,9 +28,6 @@ df = pd.DataFrame(data)
 
 judge_instruction = (
     "Given the prompt {prompt}, compare the two responses.\n"
-    "- Response A: {model_a}\n"
-    "- Response B: {model_b}\n\n"
-    "Choose the better response based on helpfulness, correctness, and clarity. "
     "Output only 'A' or 'B' or 'Tie' if the responses are equally good."
 )
 
