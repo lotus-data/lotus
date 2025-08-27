@@ -36,6 +36,52 @@ Creating a LM object to use Meta-Llama-3-8B-Instruct on vLLM
         max_tokens=1000)
 
 
+Rate Limits
+-----------
+The LM class supports rate limiting through the ``rate_limit`` parameter to control the number of requests made to the LLM provider per minute. The delay between batches is computed automatically to ensure the specified number of requests per minute is not exceeded. Users do not need to set a delay manually; the system will dynamically adjust the timing between batches based on actual batch completion time.
+
+Example setting rate limits:
+
+.. code-block:: python
+
+    from lotus.models import LM
+    
+    # Basic rate limiting - 30 requests per minute
+    lm = LM(
+        model="gpt-4o",
+        rate_limit=30  # 30 requests per minute
+    )
+    
+    # For strict rate limits (e.g., free tier APIs)
+    lm = LM(
+        model="gpt-4o",
+        max_batch_size=10,  # Optional: for local serving
+        rate_limit=10      # Caps at 10 requests per minute
+    )
+    
+    # Traditional approach using only max_batch_size
+    lm = LM(
+        model="gpt-4o",
+        max_batch_size=64
+    )
+
+The rate limiting parameters are particularly useful when:
+- Working with models that have strict API rate limits (e.g., free tier accounts)
+- Processing large datasets that require multiple API calls
+- Ensuring consistent performance across different model providers
+- Automatically handling delays between batches to respect rate limits
+
+**Rate Limiting Parameters:**
+
+- ``rate_limit`` (int | None): Maximum requests per minute. When set, the delay between batches is handled automatically.
+- ``max_batch_size`` (int): Maximum number of requests sent in a single batch (mainly for local serving).
+
+**How it works:**
+When ``rate_limit`` is set, the system:
+1. Calculates the maximum batch size as the minimum of ``rate_limit`` and ``max_batch_size`` (if both are set).
+2. Dynamically computes and enforces the delay between batches based on actual batch completion time, so the specified rate is not exceeded.
+3. Maintains backward compatibility—existing code without rate limiting continues to work unchanged.
+
 Usage Limits
 -----------
 The LM class supports setting usage limits to control costs and token consumption. You can set limits on:

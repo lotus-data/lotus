@@ -9,7 +9,16 @@ from lotus.cache import operator_cache
 
 @pd.api.extensions.register_dataframe_accessor("sem_dedup")
 class SemDedupByDataframe:
-    """DataFrame accessor for semantic deduplication."""
+    """
+    Perform semantic deduplication on the DataFrame.
+
+    Args:
+        col_name (str): The column name to deduplicate on.
+        threshold (float): The threshold for similarity score.
+
+    Returns:
+        pd.DataFrame: The DataFrame with duplicates removed.
+    """
 
     def __init__(self, pandas_obj: Any):
         self._validate(pandas_obj)
@@ -26,16 +35,6 @@ class SemDedupByDataframe:
         col_name: str,
         threshold: float,
     ) -> pd.DataFrame:
-        """
-        Perform semantic deduplication on the DataFrame.
-
-        Args:
-            col_name (str): The column name to deduplicate on.
-            threshold (float): The threshold for similarity score.
-
-        Returns:
-            pd.DataFrame: The DataFrame with duplicates removed.
-        """
         rm = lotus.settings.rm
         vs = lotus.settings.vs
         if rm is None or vs is None:

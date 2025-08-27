@@ -15,13 +15,14 @@ Example
     import pandas as pd
 
     import lotus
-    from lotus.models import LM, CrossEncoderReranker, SentenceTransformersRM
+    from lotus.models import LM, SentenceTransformersRM
+    from lotus.vector_store import FaissVS
 
     lm = LM(model="gpt-4o-mini")
     rm = SentenceTransformersRM(model="intfloat/e5-base-v2")
-    reranker = CrossEncoderReranker(model="mixedbread-ai/mxbai-rerank-large-v1")
+    vs = FaissVS()
 
-    lotus.settings.configure(lm=lm, rm=rm, reranker=reranker)
+    lotus.settings.configure(lm=lm, rm=rm, reranker=reranker, vs=vs)
     data = {
         "Course Name": [
             "Probability and Random Processes",
@@ -44,6 +45,9 @@ Example
 
     df = df.sem_index("Course Name", "index_dir")
     print(df)
+
+    # upon reloading
+    df = df.load_sem_index("Course Name, "index_dir")
 
 Output:
 

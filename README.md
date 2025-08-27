@@ -1,7 +1,7 @@
 # LOTUS:  A Query Engine For Processing Data with LLMs
 <!--- BADGES: START --->
 <!--[![Colab Demo](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1OzoJXH13aOwNOIEemClxzNCNYnqSGxVl?usp=sharing)-->
-[![Colab Demo](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1qtmklXD_J1SSJLR86ws4GsYcLln6FZqY?usp=sharing#scrollTo=p5YByUTZqUqN)
+[![Colab Demo](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1mP65YHHdD6mnZmC5-Uqm2uCXJ4-Kbkhu?usp=sharing)
 [![Arxiv](https://img.shields.io/badge/arXiv-2407.11418-B31B1B.svg)][#arxiv-paper-package]
 [![Slack](https://img.shields.io/badge/slack-lotus-purple.svg?logo=slack)][#slack]
 [![Documentation Status](https://readthedocs.org/projects/lotus-ai/badge/?version=latest)](https://lotus-ai.readthedocs.io/en/latest/?badge=latest)
@@ -18,7 +18,7 @@ LOTUS makes LLM-powered data processing fast and easy.
 
 LOTUS (**L**LMs **O**ver **T**ables of **U**nstructured and **S**tructured Data) provides a declarative programming model and an optimized query engine for serving powerful reasoning-based query pipelines over structured and unstructured data! We provide a simple and intuitive Pandas-like API, that implements **semantic operators**. 
 
-For trouble-shooting or feature requests, please raise an issue and we'll get to it promptly. To share feedback and applications you're working on, you can send us a message on our [community slack](https://join.slack.com/t/lotus-fnm8919/shared_invite/zt-2tnq6948j-juGuSIR0__fsh~kUmZ6TJw), or send an email (lianapat@stanford.edu).
+For trouble-shooting or feature requests, please raise an issue and we'll get to it promptly. To share feedback and applications you're working on, you can send us a message on our [community slack](https://join.slack.com/t/lotus-fnm8919/shared_invite/zt-319k232lx-nEcLF~5w274dcQLmw2Wqyg), or send an email (lianapat@stanford.edu).
 
 # Installation
 For the latest stable release:
@@ -58,7 +58,7 @@ import lotus
 from lotus.models import LM
 
 # configure the LM, and remember to export your API key
-lm = LM(model="gpt-4o-mini")
+lm = LM(model="gpt-4.1-nano")
 lotus.settings.configure(lm=lm)
 
 # create dataframes with course names and skills
@@ -83,10 +83,22 @@ print(res)
 # Print total LM usage
 lm.print_total_usage()
 ```
+### Tutorials
 
+Below are some short tutorials in Google Colab, to help you get started.
+
+<div align="center">
+
+| Tutorial                                           | Difficulty                                                      | Colab Link                                                                                                                                                                                                    |
+|----------------------------------------------------|-----------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 1. Introduction to Semantic Operators and LOTUS             | ![](https://img.shields.io/badge/Level-Beginner-green.svg)      | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1mP65YHHdD6mnZmC5-Uqm2uCXJ4-Kbkhu?usp=sharing)              |
+| 2. Analyzing Agent Traces                           | ![](https://img.shields.io/badge/Level-Intermediate-yellow.svg)      | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1EJm9A8r_ShYxR0s218J70XhsopOgeT6k?usp=sharing)   |
+| 3. System Prompt Analysis with LOTUS | ![](https://img.shields.io/badge/Level-Intermediate-yellow.svg)      | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1NSVQYOMp2GCre5ZRgvgs6BPGOa20ySMc?usp=sharing) |
+| 4. Processing Multimodal Datasets                             | ![](https://img.shields.io/badge/Level-Intermediate-yellow.svg) | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/18oaa12T6PrhHIYGw-L01gw1bDmTYaE_e)   |
+</div>
 
 ## Key Concept: The Semantic Operator Model
-LOTUS implements the semantic operator programming model. Semantic operators as declarative transformations on one or more datasets, parameterized by a natural language expression, that can be implemented by a variety of AI-based algorithms. Semantic operators seamlessly extend the relational model, operating over tables that may contain traditional structured data as well as unstructured fields, such as free-form text. These composable, modular language- based operators allow you to write AI-based pipelines with high-level logic, leaving the rest of the work to the query engine! Each operator can be implemented and optimized in multiple ways, opening a rich space for execution plans, similar to relational operators. To learn more about the semantic operator model, read the full [research paper](https://arxiv.org/abs/2407.11418).
+LOTUS introduces the semantic operator programming model. Semantic operators are declarative transformations over one or more datasets, parameterized by a natural language expression, that can be implemented by a variety of AI-based algorithms. Semantic operators seamlessly extend the relational model, operating over tables that may contain traditional structured data as well as unstructured fields, such as free-form text. These composable, modular language- based operators allow you to write AI-based pipelines with high-level logic, leaving the rest of the work to the query engine! Each operator can be implemented and optimized in multiple ways, opening a rich space for execution plans, similar to relational operators. To learn more about the semantic operator model, read the full [research paper](https://arxiv.org/abs/2407.11418).
 
 LOTUS offers a number of semantic operators in a Pandas-like API, some of which are described below. To learn more about semantic operators provided in LOTUS, check out the full [documentation](https://lotus-ai.readthedocs.io/en/latest/), run the [colab tutorial](https://colab.research.google.com/drive/1OzoJXH13aOwNOIEemClxzNCNYnqSGxVl?usp=sharing), or you can also refer to these [examples](https://github.com/TAG-Research/lotus/tree/main/examples/op_examples).
 
@@ -112,9 +124,29 @@ There are 3 main model classes in LOTUS:
     - Any `CrossEncoder` from `SentenceTransformers` can be used with the `CrossEncoderReranker` class, by passing the model name to the `model` parameter (see [an example here](examples/op_examples/search.py)).
 
 # Feature Requests and Contributing
-If you have a feature request, we're happy to hear from you! Please open an issue.
 
-If you're interested in contributing, we'd be happy to coordinate on ongoing efforts! Please send an email to Liana (lianapat@stanford.edu) or reach out on our [slack](https://join.slack.com/t/lotus-fnm8919/shared_invite/zt-319k232lx-nEcLF~5w274dcQLmw2Wqyg). 
+We welcome contributions from the community! Whether you're reporting bugs, suggesting features, or contributing code, we have comprehensive templates and guidelines to help you get started.
+
+## Getting Started
+
+Before contributing, please:
+
+1. **Read our [Contributing Guide](CONTRIBUTING.md)** - Comprehensive guidelines for contributors
+2. **Check existing issues** - Avoid duplicates by searching existing issues and pull requests
+3. **Join our community** - Connect with us on [Slack](https://join.slack.com/t/lotus-fnm8919/shared_invite/zt-319k232lx-nEcLF~5w274dcQLmw2Wqyg)
+
+
+## Development Setup
+
+For development setup and detailed contribution guidelines, see our [Contributing Guide](CONTRIBUTING.md).
+
+## Community
+
+- **Slack**: [Join our community](https://join.slack.com/t/lotus-fnm8919/shared_invite/zt-319k232lx-nEcLF~5w274dcQLmw2Wqyg) 
+- **Email**: lianapat@stanford.edu
+- **Discussions**: [GitHub Discussions](https://github.com/lotus-data/lotus/discussions)
+
+We're excited to see what you build with LOTUS! 🚀
 
 # References
 For recent updates related to LOTUS, follow [@lianapatel_](https://x.com/lianapatel_) on X.

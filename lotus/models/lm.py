@@ -1,12 +1,15 @@
 import hashlib
 import logging
+import math
+import time
 import warnings
 from typing import Any
 
 import litellm
 import numpy as np
 from litellm import batch_completion, completion_cost
-from litellm.types.utils import ChatCompletionTokenLogprob, Choices, ModelResponse
+from litellm.exceptions import AuthenticationError
+from litellm.types.utils import ChatCompletionTokenLogprob, ChoiceLogprobs, Choices, ModelResponse
 from litellm.utils import token_counter
 from openai._exceptions import OpenAIError
 from pydantic import BaseModel
@@ -29,6 +32,31 @@ logging.getLogger("httpx").setLevel(logging.CRITICAL)
 
 
 class LM:
+    """
+    Language Model class for interacting with various LLM providers.
+
+    This class provides a unified interface for making requests to different language
+    model providers through LiteLLM. It supports caching, rate limiting, usage tracking,
+    and batch processing for efficient API usage.
+
+    The class maintains separate physical and virtual usage statistics, where:
+    - Physical usage: Actual API calls made (with caching applied)
+    - Virtual usage: Total usage if no caching was used
+
+    Attributes:
+        model (str): Name of the model to use.
+        max_ctx_len (int): Maximum context length in tokens.
+        max_tokens (int): Maximum number of tokens to generate.
+        rate_limit (int | None): Maximum requests per minute.
+        max_batch_size (int): Maximum batch size for concurrent requests.
+        tokenizer (Tokenizer | None): Custom tokenizer instance.
+        kwargs (dict): Configuration parameters for the LLM API.
+        stats (LMStats): Usage statistics tracking.
+        physical_usage_limit (UsageLimit): Physical usage limits.
+        virtual_usage_limit (UsageLimit): Virtual usage limits.
+        cache: Cache instance for storing responses.
+    """
+
     def __init__(
         self,
         model: str = "gpt-4o-mini",
@@ -36,13 +64,15 @@ class LM:
         max_ctx_len: int = 128000,
         max_tokens: int = 512,
         max_batch_size: int = 64,
+        rate_limit: int | None = None,
         tokenizer: Tokenizer | None = None,
-        cache=None,
+        cache: Any = None,
         physical_usage_limit: UsageLimit = UsageLimit(),
         virtual_usage_limit: UsageLimit = UsageLimit(),
         **kwargs: dict[str, Any],
     ):
-        """Language Model class for interacting with various LLM providers.
+        """
+        Initialize the Language Model instance.
 
         Args:
             model (str): Name of the model to use. Defaults to "gpt-4o-mini".
@@ -50,15 +80,25 @@ class LM:
             max_ctx_len (int): Maximum context length in tokens. Defaults to 128000.
             max_tokens (int): Maximum number of tokens to generate. Defaults to 512.
             max_batch_size (int): Maximum batch size for concurrent requests. Defaults to 64.
+            rate_limit (int | None): Maximum requests per minute. If set, caps max_batch_size and adds delays.
             tokenizer (Tokenizer | None): Custom tokenizer instance. Defaults to None.
             cache: Cache instance to use. Defaults to None.
-            usage_limit (UsageLimit): Usage limits for the model. Defaults to UsageLimit().
+            physical_usage_limit (UsageLimit): Physical usage limits for the model. Defaults to UsageLimit().
+            virtual_usage_limit (UsageLimit): Virtual usage limits for the model. Defaults to UsageLimit().
             **kwargs: Additional keyword arguments passed to the underlying LLM API.
         """
         self.model = model
         self.max_ctx_len = max_ctx_len
         self.max_tokens = max_tokens
-        self.max_batch_size = max_batch_size
+        self.rate_limit = rate_limit
+        if rate_limit is not None:
+            self._rate_limit_delay: float = 60 / rate_limit
+            if max_batch_size is not None:
+                self.max_batch_size = min(rate_limit, max_batch_size)
+            else:
+                self.max_batch_size = rate_limit
+        else:
+            self.max_batch_size = max_batch_size
         self.tokenizer = tokenizer
         self.kwargs = dict(temperature=temperature, max_tokens=max_tokens, **kwargs)
 
@@ -84,7 +124,20 @@ class LM:
         if lotus.settings.enable_cache:
             # Check cache and separate cached and uncached messages
             hashed_messages = [self._hash_messages(msg, all_kwargs) for msg in messages]
-            cached_responses = [self.cache.get(hash) for hash in hashed_messages]
+            cached_responses_raw = [self.cache.get(hash) for hash in hashed_messages]
+            # Filter out None values and ensure they are ModelResponse
+            cached_responses: list[ModelResponse | None] = []
+            for resp in cached_responses_raw:
+                if resp is None:
+                    cached_responses.append(None)
+                elif isinstance(resp, ModelResponse):
+                    cached_responses.append(resp)
+                else:
+                    # Skip invalid cached responses
+                    cached_responses.append(None)
+        else:
+            hashed_messages = []
+            cached_responses = []
 
         uncached_data = (
             [(msg, hash) for msg, hash, resp in zip(messages, hashed_messages, cached_responses) if resp is None]
@@ -108,7 +161,7 @@ class LM:
         # Update virtual stats for cached responses
         if lotus.settings.enable_cache:
             for resp in cached_responses:
-                if resp is not None:
+                if resp is not None and isinstance(resp, ModelResponse):
                     self._update_stats(resp, is_cached=True)
 
         # Merge all responses in original order and extract outputs
@@ -148,8 +201,25 @@ class LM:
             return response_format.model_validate_json(output)
         return output
 
-    def _process_uncached_messages(self, uncached_data, all_kwargs, show_progress_bar, progress_bar_desc):
-        """Processes uncached messages in batches and returns responses."""
+    def _process_uncached_messages(
+        self,
+        uncached_data: list[tuple[list[dict[str, str]], str]],
+        all_kwargs: dict[str, Any],
+        show_progress_bar: bool,
+        progress_bar_desc: str,
+    ) -> list[ModelResponse]:
+        """
+        Process uncached messages in batches and return responses.
+
+        Args:
+            uncached_data: List of tuples containing (messages, hash) for uncached messages.
+            all_kwargs: Complete keyword arguments for the LLM API.
+            show_progress_bar: Whether to show progress bar.
+            progress_bar_desc: Description for the progress bar.
+
+        Returns:
+            List of ModelResponse objects from the LLM API.
+        """
         total_calls = len(uncached_data)
 
         pbar = tqdm(
@@ -160,17 +230,76 @@ class LM:
         )
 
         batch = [msg for msg, _ in uncached_data]
-        uncached_responses = batch_completion(
-            self.model, batch, drop_params=True, max_workers=self.max_batch_size, **all_kwargs
-        )
 
-        pbar.update(total_calls)
+        if self.rate_limit is not None:
+            uncached_responses = self._process_with_rate_limiting(batch, all_kwargs, pbar)
+        else:
+            uncached_responses = batch_completion(
+                self.model, batch, drop_params=True, max_workers=self.max_batch_size, **all_kwargs
+            )
+            pbar.update(total_calls)
+
         pbar.close()
-
         return uncached_responses
 
-    def _cache_response(self, response, hash):
-        """Caches a response and updates stats if successful."""
+    def _process_with_rate_limiting(
+        self, batch: list[list[dict[str, str]]], all_kwargs: dict[str, Any], pbar: tqdm
+    ) -> list[ModelResponse]:
+        """
+        Process messages with rate limiting applied.
+
+        This method processes messages in batches while respecting the rate limit
+        by adding delays between batches to ensure the rate limit is not exceeded.
+
+        Args:
+            batch: List of message lists to process.
+            all_kwargs: Complete keyword arguments for the LLM API.
+            pbar: Progress bar instance to update.
+
+        Returns:
+            List of ModelResponse objects from the LLM API.
+        """
+        responses = []
+        num_batches = math.ceil(len(batch) / self.max_batch_size)
+        # We know rate_limit is not None because we're in the rate limiting branch
+        assert self.rate_limit is not None
+        min_interval_per_request = 60 / self.rate_limit  # seconds per request
+
+        for i in range(num_batches):
+            start_time = time.time()
+            start_idx = i * self.max_batch_size
+            end_idx = min((i + 1) * self.max_batch_size, len(batch))
+            sub_batch = batch[start_idx:end_idx]
+            sub_responses = batch_completion(
+                self.model, sub_batch, drop_params=True, max_workers=self.max_batch_size, **all_kwargs
+            )
+            responses.extend(sub_responses)
+            pbar.update(len(sub_batch))
+            end_time = time.time()
+            elapsed = end_time - start_time
+
+            # Calculate required delay based on number of requests in this batch
+            # Each request should be spaced by min_interval_per_request
+            required_time_for_batch = len(sub_batch) * min_interval_per_request
+
+            # Only sleep if the batch was faster than the required time
+            if i < num_batches - 1:  # Don't sleep after the last batch
+                to_sleep = required_time_for_batch - elapsed
+                if to_sleep > 0:
+                    time.sleep(to_sleep)
+        return responses
+
+    def _cache_response(self, response: ModelResponse, hash: str) -> None:
+        """
+        Cache a response and update stats if successful.
+
+        Args:
+            response: ModelResponse object to cache.
+            hash: Hash key for the cache entry.
+
+        Raises:
+            OpenAIError: If the response contains an error.
+        """
         if isinstance(response, OpenAIError):
             raise response
         self.cache.insert(hash, response)
@@ -236,6 +365,10 @@ class LM:
             self._check_usage_limit(self.stats.physical_usage, self.physical_usage_limit, "physical")
 
     def _get_top_choice(self, response: ModelResponse) -> str:
+        # Handle authentication errors and other exceptions
+        if isinstance(response, (AuthenticationError, OpenAIError)):
+            raise response
+
         choice = response.choices[0]
         assert isinstance(choice, Choices)
         if choice.message.content is None:
@@ -243,10 +376,15 @@ class LM:
         return choice.message.content
 
     def _get_top_choice_logprobs(self, response: ModelResponse) -> list[ChatCompletionTokenLogprob]:
+        # Handle authentication errors and other exceptions
+        if isinstance(response, (AuthenticationError, OpenAIError)):
+            raise response
+
         choice = response.choices[0]
         assert isinstance(choice, Choices)
+        assert choice.logprobs is not None and isinstance(choice.logprobs, ChoiceLogprobs)
         logprobs = choice.logprobs["content"]
-        return [ChatCompletionTokenLogprob(**logprob) for logprob in logprobs]
+        return logprobs
 
     def format_logprobs_for_cascade(self, logprobs: list[list[ChatCompletionTokenLogprob]]) -> LogprobsForCascade:
         all_tokens = []

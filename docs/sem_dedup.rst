@@ -21,10 +21,12 @@ Example
 
     import lotus
     from lotus.models import SentenceTransformersRM
+    from lotus.vector_store import FaissVS
 
     rm = SentenceTransformersRM(model="intfloat/e5-base-v2")
+    vs = FaissVS()
 
-    lotus.settings.configure(rm=rm)
+    lotus.settings.configure(rm=rm, vs=vs)
     data = {
         "Text": [
             "Probability and Random Processes",

@@ -104,6 +104,10 @@ def filter_formatter(
         sys_instruction += cot_prompt_formatter(
             reasoning_instructions=reasoning_instructions, answer_instructions=answer_instructions
         )
+    elif strategy == ReasoningStrategy.ZS_COT:
+        sys_instruction += cot_prompt_formatter(
+            reasoning_instructions=reasoning_instructions, answer_instructions=answer_instructions
+        )
     else:
         sys_instruction += non_cot_prompt_formatter(answer_instructions=answer_instructions)
 
@@ -131,7 +135,7 @@ def filter_formatter(
             # reasoning as filler if the user wants cot reasoning
             if cot_reasoning:
                 content = cot_formatter(cot_reasoning[idx], str(ex_ans))
-            elif strategy == "cot":
+            elif strategy == ReasoningStrategy.COT:
                 content = cot_formatter("Reasoning omitted", str(ex_ans))
             else:
                 content = answer_only_formatter(str(ex_ans))

@@ -106,35 +106,6 @@ def get_cot_postprocessor(model: lotus.models.LM, for_extract: bool = False) -> 
     return cot_postprocessor
 
 
-def map_postprocess_cot(llm_answers: list[str]) -> SemanticMapPostprocessOutput:
-    """
-    Postprocess the output of the map operator with CoT reasoning.
-
-    Args:
-        llm_answers (list[str]): The list of llm answers.
-
-    Returns:
-        SemanticMapPostprocessOutput
-    """
-    outputs: list[str] = []
-    explanations: list[str | None] = []
-
-    for llm_answer in llm_answers:
-        reasoning_idx = llm_answer.find("Reasoning:\n")
-        if reasoning_idx == -1:
-            reasoning_idx = 0
-        else:
-            reasoning_idx += len("Reasoning:\n")
-
-        answer_idx = llm_answer.find("Answer:")
-        reasoning = llm_answer[reasoning_idx:answer_idx].rstrip("\n").lstrip("\n")
-        answer = llm_answer[answer_idx + len("Answer:") :]
-        outputs.append(answer)
-        explanations.append(reasoning)
-
-    return SemanticMapPostprocessOutput(raw_outputs=llm_answers, outputs=outputs, explanations=explanations)
-
-
 def map_postprocess(
     llm_answers: list[str],
     model: lotus.models.LM,

@@ -74,6 +74,21 @@ The `DirectoryReader` class also supports PPT files, downloading and extracting 
     df = DirectoryReader().add(ppt_url).to_df(per_page=True)
     print(f"PPT Slides Extracted:\n{df[['page_label', 'content']]}")
 
+Chunking
+--------
+You aslo have the option to chunk the documents. This is useful when you have a large document and you want to process it in smaller chunks.
+You can specify the chunk size and the overlap between the chunks or use the default values of 1000 and 50 respectively.
+
+.. code-block:: python
+
+  from lotus.file_extractors import DirectoryReader
+
+  pdf_url = "https://arxiv.org/pdf/1706.03762"
+
+  df = DirectoryReader().add(pdf_url).to_df(chunk=True, chunk_size=1000, chunk_overlap=20)
+  print(f"PDF Chunked:\n{df[['content']]}")
+
+
 Optional Parameters for initializing DirectoryReader
 --------------------------------
 - **recursive (bool)**: Whether to recursively search subdirectories. Default is `False`.
@@ -109,7 +124,7 @@ Available Methods
 - **add_multiple(paths: list[str | Path])**: 
   Adds multiple files, directories, or URLs.
 
-- **to_df(per_page: bool=True, page_separator: str="\n", show_progress: bool=False)**:
+- **to_df(per_page: bool=True, page_separator: str="\n", show_progress: bool=False, chunk: bool=False, chunk_size: int=1000, chunk_overlap: int=50)**:
   Converts content into a pandas DataFrame.
 
 

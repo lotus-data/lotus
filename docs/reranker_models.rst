@@ -17,9 +17,11 @@ Passing the LM, Retrieval, and ReRanker to model parameters
 
     import lotus
     from lotus.models import LM, CrossEncoderReranker, SentenceTransformersRM
+    from lotus.vector_store import FaissVS
 
     lm = LM(model="gpt-4o-mini")
     rm = SentenceTransformersRM(model="intfloat/e5-base-v2")
     reranker = CrossEncoderReranker(model="mixedbread-ai/mxbai-rerank-large-v1")
+    vs = FaissVS()
 
-    lotus.settings.configure(lm=lm, rm=rm, reranker=reranker)
+    lotus.settings.configure(lm=lm, rm=rm, reranker=reranker, vs=vs)

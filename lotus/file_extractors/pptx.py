@@ -28,6 +28,15 @@ class PptxReader(BaseReader):
         device: str | None = None,
         **gen_kwargs,
     ) -> None:
+        """
+        Initialize the PptxReader.
+
+        Args:
+            should_caption_images (bool): Whether to caption images in the slides.
+            caption_model (str): The model to use for image captioning.
+            device (str | None): The device to use for image captioning. If None, it will be inferred.
+            **gen_kwargs: Additional keyword arguments to pass to the image captioning model.
+        """
         try:
             from pptx import Presentation  # noqa
         except ImportError:
@@ -42,6 +51,13 @@ class PptxReader(BaseReader):
             self.gen_kwargs = gen_kwargs or {"max_length": 16, "num_beams": 4}
 
     def _init_caption_images(self, caption_model, device):
+        """
+        Initialize the image captioning model and related components.
+
+        Args:
+            caption_model (str): The model to use for image captioning.
+            device (str | None): The device to use for image captioning. If None, it will be inferred.
+        """
         try:
             import torch  # noqa
             from PIL import Image  # noqa
@@ -62,7 +78,15 @@ class PptxReader(BaseReader):
         self.tokenizer = AutoTokenizer.from_pretrained(caption_model)
 
     def caption_image(self, image_bytes: bytes) -> str:
-        """Generate text caption of image."""
+        """
+        Generate a text caption for an image.
+
+        Args:
+            image_bytes (bytes): The image data in bytes.
+
+        Returns:
+            str: The generated caption for the image.
+        """
         from PIL import Image
 
         i_image: Image.ImageFile.ImageFile | Image.Image = Image.open(BytesIO(image_bytes))
@@ -83,10 +107,29 @@ class PptxReader(BaseReader):
         extra_info: dict | None = None,
         fs: AbstractFileSystem | None = None,
     ) -> list[Document]:
-        """Parse file."""
+        """
+        Parse a PowerPoint file and extract its content as a list of Documents.
+
+        Args:
+            file (Path): The path to the PowerPoint file.
+            extra_info (dict | None): Additional metadata to include in each Document.
+            fs (AbstractFileSystem | None): Optional filesystem object for reading the file.
+
+        Returns:
+            list[Document]: A list of Document objects, one per slide.
+        """
         from pptx import Presentation
 
         def get_shape_text(shape):
+            """
+            Extract text and optionally image captions from a shape.
+
+            Args:
+                shape: The shape object from the slide.
+
+            Returns:
+                str: The extracted text and/or image caption.
+            """
             text = f"{shape.text}\n" if hasattr(shape, "text") else ""
             if hasattr(shape, "image") and self.should_caption_images:
                 text += f"Image: {self.caption_image(shape.image.blob)}\n\n"

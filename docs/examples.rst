@@ -13,12 +13,16 @@ This can be achieved by applying a semantic filter followed by a semantic aggreg
 
     import lotus
     from lotus.models import SentenceTransformersRM, LM
+    from lotus.vector_store import FaissVS
 
     # Configure models for LOTUS
     lm = LM(model="gpt-4o-mini")
     rm = SentenceTransformersRM(model="intfloat/e5-base-v2")
+    vs = FaissVS()
 
-    lotus.settings.configure(lm=lm, rm=rm)
+    lotus.settings.configure(lm=lm, rm=rm, vs=vs)
+
+
 
     # Dataset containing courses and their descriptions/workloads
     data = [
