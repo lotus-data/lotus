@@ -232,6 +232,8 @@ class PromptStrategy:
         max_dems (int): Maximum number of demonstrations to use. Defaults to 3.
         teacher_lm: Language model to use for bootstrapping demonstrations.
             If None, uses the main model. Defaults to None.
+        additional_cot_instructions (str): Additional instructions for
+            chain-of-thought reasoning. Defaults to "".
 
     Example:
         >>> # Chain-of-thought with user-provided demonstrations
@@ -252,3 +254,4 @@ class PromptStrategy:
     dems: pd.DataFrame | str | None = None
     max_dems: int = 3
     teacher_lm: Any = None  # lotus.models.LM type, but avoiding circular import
+    additional_cot_instructions: str = ""

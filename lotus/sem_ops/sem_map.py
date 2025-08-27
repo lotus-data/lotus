@@ -13,6 +13,7 @@ from lotus.types import (
 )
 from lotus.utils import show_safe_mode
 
+from .cascade_utils import bootstrap_demonstrations
 from .postprocessors import map_postprocess
 
 
@@ -241,7 +242,42 @@ class SemMapDataframe:
         examples_answers = None
         cot_reasoning = None
 
-        if examples is not None:
+        # Handle examples from PromptStrategy.dems first, then fall back to examples parameter for backward compatibility
+        if prompt_strategy is not None and prompt_strategy.dems is not None:
+            if isinstance(prompt_strategy.dems, pd.DataFrame):
+                # User-provided examples
+                examples_source = prompt_strategy.dems
+                assert "Answer" in examples_source.columns, "Answer must be a column in examples dataframe"
+                examples_multimodal_data = task_instructions.df2multimodal_info(examples_source, col_li)
+                examples_answers = examples_source["Answer"].tolist()
+
+                if prompt_strategy.cot:
+                    return_explanations = True
+                    if "Reasoning" in examples_source.columns:
+                        cot_reasoning = examples_source["Reasoning"].tolist()
+                    else:
+                        cot_reasoning = ["Reasoning omitted"] * len(examples_answers)
+
+            elif prompt_strategy.dems == "auto":
+                # Auto-bootstrap demonstrations
+                try:
+                    examples_multimodal_data, examples_answers, cot_reasoning = bootstrap_demonstrations(
+                        data=self._obj,
+                        col_li=col_li,
+                        user_instruction=formatted_usr_instr,
+                        prompt_strategy=prompt_strategy,
+                        operation_type="map",
+                    )
+                    if prompt_strategy.cot and examples_answers:
+                        return_explanations = True
+                except Exception as e:
+                    lotus.logger.warning(f"Failed to bootstrap demonstrations: {e}")
+                    # Fall back to no examples
+                    examples_multimodal_data = None
+                    examples_answers = None
+                    cot_reasoning = None
+        elif examples is not None:
+            # Backward compatibility: use the old examples parameter
             assert "Answer" in examples.columns, "Answer must be a column in examples dataframe"
             examples_multimodal_data = task_instructions.df2multimodal_info(examples, col_li)
             examples_answers = examples["Answer"].tolist()

@@ -315,6 +315,132 @@ class TestReasoningStrategies(BaseTest):
 
         assert "filter_label" in result.columns
 
+    def test_bootstrapping_map_operation(self, sample_courses_df, setup_model):
+        """Test auto-bootstrapping with map operation"""
+        df = sample_courses_df.head(4)  # Use fewer rows for faster testing
+        instruction = "What is the difficulty level of {Course Name}? Answer: Beginner, Intermediate, or Advanced"
+
+        result = df.sem_map(
+            instruction,
+            prompt_strategy=PromptStrategy(cot=True, dems="auto", max_dems=2),
+            return_explanations=True,
+        )
+
+        # Check structure
+        assert "_map" in result.columns
+        assert "explanation_map" in result.columns
+
+        # Check that all difficulty levels are reasonable
+        for difficulty in result["_map"]:
+            assert isinstance(difficulty, str)
+            assert len(difficulty) > 0
+
+    def test_bootstrapping_without_cot(self, sample_courses_df, setup_model):
+        """Test auto-bootstrapping without chain-of-thought"""
+        df = sample_courses_df.head(4)
+        instruction = "{Course Name} requires a lot of math"
+
+        result = df.sem_filter(
+            instruction,
+            prompt_strategy=PromptStrategy(cot=False, dems="auto", max_dems=2),
+            return_all=True,
+        )
+
+        # Check structure
+        assert "filter_label" in result.columns
+        # Should not have explanations when CoT is disabled
+        assert "explanation_filter" not in result.columns
+
+    def test_bootstrapping_max_dems_limit(self, sample_courses_df, setup_model):
+        """Test that max_dems is respected"""
+        df = sample_courses_df
+        instruction = "{Course Name} requires a lot of math"
+
+        # Request more demonstrations than available data
+        result = df.sem_filter(
+            instruction,
+            prompt_strategy=PromptStrategy(cot=True, dems="auto", max_dems=100),
+            return_all=True,
+        )
+
+        # Should still work and be limited by available data
+        assert "filter_label" in result.columns
+
+    def test_bootstrapping_with_additional_instructions(self, sample_courses_df, setup_model):
+        """Test auto-bootstrapping with additional CoT instructions"""
+        df = sample_courses_df.head(4)
+        instruction = "{Course Name} requires a lot of math"
+
+        result = df.sem_filter(
+            instruction,
+            prompt_strategy=PromptStrategy(
+                cot=True,
+                dems="auto",
+                max_dems=2,
+                additional_cot_instructions="Consider the mathematical content and prerequisites carefully.",
+            ),
+            return_explanations=True,
+            return_all=True,
+        )
+
+        # Check structure
+        assert "filter_label" in result.columns
+        assert "explanation_filter" in result.columns
+
+        # Check that explanations are provided
+        for explanation in result["explanation_filter"]:
+            assert explanation is not None
+            assert len(explanation) > 0
+
+    def test_bootstrapping_error_handling(self, sample_courses_df, setup_model):
+        """Test that bootstrapping errors are handled gracefully"""
+        df = sample_courses_df.head(2)
+        instruction = "{Course Name} requires a lot of math"
+
+        # This should work even if bootstrapping encounters issues
+        result = df.sem_filter(
+            instruction,
+            prompt_strategy=PromptStrategy(cot=True, dems="auto", max_dems=1),
+            return_all=True,
+        )
+
+        # Should still produce results
+        assert "filter_label" in result.columns
+        assert len(result) == len(df)
+
+    def test_bootstrapping_empty_data_handling(self, setup_model):
+        """Test bootstrapping with empty or minimal data"""
+        empty_df = pd.DataFrame({"Course Name": []})
+        instruction = "{Course Name} requires a lot of math"
+
+        # Should handle empty data gracefully
+        result = empty_df.sem_filter(
+            instruction,
+            prompt_strategy=PromptStrategy(cot=True, dems="auto", max_dems=2),
+            return_all=True,
+        )
+
+        assert "filter_label" in result.columns
+        assert len(result) == 0
+
+    def test_bootstrapping_integration_with_existing_features(self, sample_courses_df, setup_model):
+        """Test that auto-bootstrapping works with other features like return_stats"""
+        df = sample_courses_df.head(4)
+        instruction = "{Course Name} requires a lot of math"
+
+        result, stats = df.sem_filter(
+            instruction,
+            prompt_strategy=PromptStrategy(cot=True, dems="auto", max_dems=2),
+            return_explanations=True,
+            return_all=True,
+            return_stats=True,
+        )
+
+        # Check structure
+        assert "filter_label" in result.columns
+        assert "explanation_filter" in result.columns
+        assert isinstance(stats, dict)
+
     # =============================================================================
     # Backward Compatibility Tests
     # =============================================================================
@@ -502,3 +628,126 @@ class TestReasoningStrategies(BaseTest):
         # Test that filtering works correctly
         positive_results = result[result["filter_label"]]
         assert len(positive_results) >= 0  # Should have some math courses
+
+    # =============================================================================
+    # Direct Bootstrap Function Tests
+    # =============================================================================
+
+    def test_bootstrap_demonstrations_function_direct(self, sample_courses_df, setup_model):
+        """Test the bootstrap_demonstrations function directly"""
+        import lotus.nl_expression as nle
+        from lotus.sem_ops.cascade_utils import bootstrap_demonstrations
+
+        df = sample_courses_df.head(4)
+        user_instruction = "{Course Name} requires a lot of math"
+        col_li = nle.parse_cols(user_instruction)
+        formatted_instruction = nle.nle2str(user_instruction, col_li)
+
+        prompt_strategy = PromptStrategy(cot=True, dems="auto", max_dems=2, teacher_lm=setup_model)
+
+        # Test the function directly
+        examples_multimodal_data, examples_answers, cot_reasoning = bootstrap_demonstrations(
+            data=df,
+            col_li=col_li,
+            user_instruction=formatted_instruction,
+            prompt_strategy=prompt_strategy,
+            operation_type="filter",
+        )
+
+        # Check outputs
+        assert isinstance(examples_multimodal_data, list)
+        assert isinstance(examples_answers, list)
+        assert len(examples_multimodal_data) == len(examples_answers)
+        assert len(examples_multimodal_data) <= prompt_strategy.max_dems
+
+        # Check CoT reasoning
+        if prompt_strategy.cot:
+            assert cot_reasoning is not None
+            assert isinstance(cot_reasoning, list)
+            assert len(cot_reasoning) == len(examples_answers)
+            for reasoning in cot_reasoning:
+                assert isinstance(reasoning, str)
+                assert len(reasoning) > 0
+
+        # Check answer types for filter operation
+        for answer in examples_answers:
+            assert isinstance(answer, bool)
+
+    def test_bootstrap_demonstrations_map_operation_direct(self, sample_courses_df, setup_model):
+        """Test bootstrap_demonstrations function for map operation"""
+        import lotus.nl_expression as nle
+        from lotus.sem_ops.cascade_utils import bootstrap_demonstrations
+
+        df = sample_courses_df.head(3)
+        user_instruction = "What is the difficulty level of {Course Name}?"
+        col_li = nle.parse_cols(user_instruction)
+        formatted_instruction = nle.nle2str(user_instruction, col_li)
+
+        prompt_strategy = PromptStrategy(cot=False, dems="auto", max_dems=2, teacher_lm=setup_model)
+
+        # Test the function for map operation
+        examples_multimodal_data, examples_answers, cot_reasoning = bootstrap_demonstrations(
+            data=df,
+            col_li=col_li,
+            user_instruction=formatted_instruction,
+            prompt_strategy=prompt_strategy,
+            operation_type="map",
+        )
+
+        # Check outputs
+        assert isinstance(examples_multimodal_data, list)
+        assert isinstance(examples_answers, list)
+        assert len(examples_multimodal_data) == len(examples_answers)
+
+        # Check answer types for map operation
+        for answer in examples_answers:
+            assert isinstance(answer, str)
+            assert len(answer) > 0
+
+        # No CoT reasoning expected
+        assert cot_reasoning is None
+
+    def test_bootstrap_demonstrations_error_cases(self, sample_courses_df, setup_model):
+        """Test bootstrap_demonstrations function error handling"""
+        import lotus.nl_expression as nle
+        from lotus.sem_ops.cascade_utils import bootstrap_demonstrations
+
+        df = sample_courses_df.head(2)
+        user_instruction = "{Course Name} requires a lot of math"
+        col_li = nle.parse_cols(user_instruction)
+        formatted_instruction = nle.nle2str(user_instruction, col_li)
+
+        # Test with no teacher model - temporarily clear lotus.settings.lm
+        original_lm = lotus.settings.lm
+        lotus.settings.lm = None
+
+        try:
+            prompt_strategy_no_teacher = PromptStrategy(cot=True, dems="auto", max_dems=2, teacher_lm=None)
+
+            with pytest.raises(ValueError, match="No teacher model available for bootstrapping"):
+                bootstrap_demonstrations(
+                    data=df,
+                    col_li=col_li,
+                    user_instruction=formatted_instruction,
+                    prompt_strategy=prompt_strategy_no_teacher,
+                    operation_type="filter",
+                )
+        finally:
+            # Restore the original LM
+            lotus.settings.lm = original_lm
+
+        # Test with unsupported operation type
+        prompt_strategy = PromptStrategy(cot=True, dems="auto", max_dems=1, teacher_lm=setup_model)
+
+        examples_multimodal_data, examples_answers, cot_reasoning = bootstrap_demonstrations(
+            data=df,
+            col_li=col_li,
+            user_instruction=formatted_instruction,
+            prompt_strategy=prompt_strategy,
+            operation_type="unsupported_operation",
+        )
+
+        # Should return empty results for unsupported operations
+        assert examples_multimodal_data == []
+        assert examples_answers == []
+        assert cot_reasoning is None
