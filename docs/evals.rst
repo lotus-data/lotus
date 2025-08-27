@@ -173,9 +173,6 @@ Position bias occurs when judges systematically prefer responses in certain posi
         permute_cols=True,
     )
 
-    # Results will include separate columns for each ordering:
-    # - _judge_model_a_model_b_0, _judge_model_a_model_b_1 (A vs B)
-    # - _judge_model_b_model_a_0, _judge_model_b_model_a_1 (B vs A)
 
 Advanced Features
 =================
@@ -193,6 +190,15 @@ Enable chain-of-thought reasoning for more explainable evaluations:
         judge_instruction="Evaluate the quality of this {answer}",
         strategy=ReasoningStrategy.COT,  # Enable chain-of-thought
         n_trials=1,
+    )
+
+    results = df.pairwise_judge(
+        col1="model_a",
+        col2="model_b",
+        judge_instruction=judge_instruction,
+        n_trials=4,  # Must be even when permute_cols=True
+        permute_cols=True,
+        strategy=ReasoningStrategy.COT,
     )
 
 Few-Shot Learning

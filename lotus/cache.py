@@ -51,7 +51,7 @@ def operator_cache(func: Callable) -> Callable:
                     return value.to_json(orient="split")
                 elif isinstance(value, BaseModel):
                     return serialize(value.model_dump())
-                elif issubclass(value, BaseModel):  # in case of response_format
+                elif isinstance(value, type) and issubclass(value, BaseModel):  # in case of response_format
                     return serialize(value.model_json_schema())
                 elif isinstance(value, (list, tuple)):
                     return [serialize(item) for item in value]

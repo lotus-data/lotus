@@ -128,8 +128,15 @@ class PairwiseJudgeDataframe:
                 output = output.drop(columns=self._obj.columns)
                 outputs.append(output)
             new_df = self._obj.copy()
+
+            suffix_offset = 0
             for output in outputs:
+                output.rename(
+                    columns={col: suffix + "_" + str(suffix_offset + i) for i, col in enumerate(output.columns)},
+                    inplace=True,
+                )
                 new_df = pd.concat([new_df, output], axis=1)
+                suffix_offset += len(output.columns)
             return new_df
 
         return self._obj.llm_as_judge(
