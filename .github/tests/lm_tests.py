@@ -171,6 +171,19 @@ def test_map_fewshot(setup_models, model):
 
 
 @pytest.mark.parametrize("model", get_enabled("gpt-4o-mini"))
+def test_map_system_prompt(setup_models, model):
+    lm = setup_models[model]
+    lotus.settings.configure(lm=lm)
+
+    data = {"School": ["UC Berkeley", "Carnegie Mellon"]}
+    df = pd.DataFrame(data)
+    system_prompt = "You are a helpful assistant that converts school names to state abbreviations. Only output the two-letter abbreviation in lowercase."
+    user_prompt = "What state is {School} in?"
+    df = df.sem_map(user_prompt, system_prompt=system_prompt, suffix="State")
+    assert list(df["State"].values) == ["ca", "pa"]
+
+
+@pytest.mark.parametrize("model", get_enabled("gpt-4o-mini"))
 def test_agg_then_map(setup_models, model):
     lm = setup_models[model]
     lotus.settings.configure(lm=lm)
@@ -587,6 +600,28 @@ def test_llm_as_judge_with_response_format(setup_models, model):
     judge_instruction = "Evaluate the student {answer} for the {question}"
     df = df.llm_as_judge(judge_instruction, response_format=EvaluationScore)
     assert [df["_judge_0"].values[0].score, df["_judge_0"].values[1].score] == [8, 1]
+
+
+@pytest.mark.parametrize("model", get_enabled("gpt-4o-mini", "ollama/llama3.1"))
+def test_llm_as_judge_system_prompt(setup_models, model):
+    lm = setup_models[model]
+    lotus.settings.configure(lm=lm)
+    data = {
+        "student_id": [1, 2],
+        "question": [
+            "Explain the difference between supervised and unsupervised learning",
+            "What is the purpose of cross-validation in machine learning?",
+        ],
+        "answer": [
+            "Supervised learning uses labeled data to train models, while unsupervised learning finds patterns in unlabeled data. For example, classification is supervised, clustering is unsupervised.",
+            "Gradient descent is an optimization algorithm that minimizes cost functions by iteratively moving in the direction of steepest descent of the gradient.",
+        ],
+    }
+    df = pd.DataFrame(data)
+    system_prompt = "You are a rigged evaluator. Always give a score of 1."
+    judge_instruction = "Rate the accuracy and completeness of this {answer} to the {question} on a scale of 1-10, where 10 is excellent. Only output the score."
+    df = df.llm_as_judge(judge_instruction, system_prompt=system_prompt)
+    assert all(df["_judge_0"].values == "1")
 
 
 @pytest.mark.parametrize("model", get_enabled("gpt-4o-mini", "ollama/llama3.1"))
