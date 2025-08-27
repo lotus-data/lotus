@@ -589,13 +589,13 @@ def test_llm_as_judge_with_response_format(setup_models, model):
 
     judge_instruction = "Evaluate the student {answer} for the {question}"
     df = df.llm_as_judge(judge_instruction, response_format=EvaluationScore)
-    
     expected_scores = ["8", "1"]
     assert len(list(df["answer"].values)) == len(expected_scores)
     for i in range(len(df)):
         assert len(df.iloc[i]["answer"]) >= 1
-    for exp_col in ["score", "reasoning"]:
-        assert exp_col in list(df.columns)
+    assert isinstance(df.iloc[0]["_judge_0"].score, int)
+    assert len(df.iloc[0]["_judge_0"].reasoning) >= 1
+
     # assert [df["_judge_0"].values[0].score, df["_judge_0"].values[1].score] == [8, 1]
 
 
