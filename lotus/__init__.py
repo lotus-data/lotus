@@ -20,6 +20,7 @@ from lotus.sem_ops import (
     sem_dedup,
     sem_topk,
 )
+from lotus.evals import llm_as_judge, pairwise_judge
 from lotus.web_search import web_search, WebSearchCorpus
 from lotus.settings import settings  # type: ignore[attr-defined]
 from lotus.types import PromptStrategy
@@ -53,4 +54,6 @@ __all__ = [
     "web_search",
     "WebSearchCorpus",
     "PromptStrategy",
+    "llm_as_judge",
+    "pairwise_judge",
 ]

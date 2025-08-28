@@ -164,8 +164,9 @@ def map_formatter_cot(
     examples_multimodal_data: list[dict[str, Any]],
     examples_answer: list[str],
     cot_reasoning: list[str],
+    system_prompt: str | None = None,
 ) -> list[dict[str, str]]:
-    sys_instruction = (
+    sys_instruction = system_prompt or (
         "The user will provide an instruction and some relevant context.\n"
         "Your job is to answer the user's instruction given the context."
         "You must give your reasoning and then your final answer"
@@ -195,8 +196,9 @@ def map_formatter_cot(
 def map_formatter_zs_cot(
     multimodal_data: dict[str, Any],
     user_instruction: str,
+    system_prompt: str | None = None,
 ) -> list[dict[str, str]]:
-    sys_instruction = (
+    sys_instruction = system_prompt or (
         "The user will provide an instruction and some relevant context.\n"
         "Your job is to answer the user's instruction given the context."
         'First give your reasoning. Then you MUST end your output with "Answer: your answer"'
@@ -217,18 +219,19 @@ def map_formatter(
     examples_answer: list[str] | None = None,
     cot_reasoning: list[str] | None = None,
     prompt_strategy: PromptStrategy | None = None,
+    system_prompt: str | None = None,
 ) -> list[dict[str, str]]:
-    sys_instruction = (
+    sys_instruction = system_prompt or (
         "The user will provide an instruction and some relevant context.\n"
         "Your job is to answer the user's instruction given the context."
     )
     if cot_reasoning:
         assert examples_multimodal_data is not None and examples_answer is not None
         return map_formatter_cot(
-            multimodal_data, user_instruction, examples_multimodal_data, examples_answer, cot_reasoning
+            multimodal_data, user_instruction, examples_multimodal_data, examples_answer, cot_reasoning, system_prompt
         )
-    elif prompt_strategy is not None and prompt_strategy.cot and not examples_multimodal_data:
-        return map_formatter_zs_cot(multimodal_data, user_instruction)
+    elif prompt_strategy is not None and prompt_strategy.cot:
+        return map_formatter_zs_cot(multimodal_data, user_instruction, system_prompt)
 
     messages = [
         {"role": "system", "content": sys_instruction},

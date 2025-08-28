@@ -2,6 +2,7 @@ import os
 
 import pandas as pd
 import pytest
+from pydantic import BaseModel, Field
 from tokenizers import Tokenizer
 
 import lotus
@@ -167,6 +168,19 @@ def test_map_fewshot(setup_models, model):
     pairs = set(zip(df["School"], df["State"]))
     expected_pairs = set([("UC Berkeley", "ca"), ("Carnegie Mellon", "pa")])
     assert pairs == expected_pairs
+
+
+@pytest.mark.parametrize("model", get_enabled("gpt-4o-mini"))
+def test_map_system_prompt(setup_models, model):
+    lm = setup_models[model]
+    lotus.settings.configure(lm=lm)
+
+    data = {"School": ["UC Berkeley", "Carnegie Mellon"]}
+    df = pd.DataFrame(data)
+    system_prompt = "You are a helpful assistant that converts school names to state abbreviations. Only output the two-letter abbreviation in lowercase."
+    user_prompt = "What state is {School} in?"
+    df = df.sem_map(user_prompt, system_prompt=system_prompt, suffix="State")
+    assert list(df["State"].values) == ["ca", "pa"]
 
 
 @pytest.mark.parametrize("model", get_enabled("gpt-4o-mini"))
@@ -628,3 +642,113 @@ def test_auto_bootstrapping_with_teacher_model(setup_models, model):
     # Should identify positive emotions
     positive_texts = result[result["filter_label"]]["Text"].tolist()
     assert any(text in ["I am happy", "I am excited"] for text in positive_texts)
+
+
+################################################################################
+# Eval tests
+################################################################################
+@pytest.mark.parametrize("model", get_enabled("gpt-4o-mini", "ollama/llama3.1"))
+def test_llm_as_judge(setup_models, model):
+    lm = setup_models[model]
+    lotus.settings.configure(lm=lm)
+
+    data = {
+        "student_id": [1, 2],
+        "question": [
+            "Explain the difference between supervised and unsupervised learning",
+            "What is the purpose of cross-validation in machine learning?",
+        ],
+        "answer": [
+            "Supervised learning uses labeled data to train models, while unsupervised learning finds patterns in unlabeled data. For example, classification is supervised, clustering is unsupervised.",
+            "Gradient descent is an optimization algorithm that minimizes cost functions by iteratively moving in the direction of steepest descent of the gradient.",
+        ],
+    }
+    df = pd.DataFrame(data)
+    judge_instruction = "Rate the accuracy and completeness of this {answer} to the {question} on a scale of 1-10, where 10 is excellent. Only output the score."
+    expected_scores = ["8", "1"]
+    df = df.llm_as_judge(judge_instruction)
+    assert len(list(df["_judge_0"].values)) == len(expected_scores)
+    for i in range(len(df)):
+        assert len(df.iloc[i]["_judge_0"]) >= 1
+        assert df.iloc[i]["_judge_0"] == expected_scores[i]
+
+
+@pytest.mark.parametrize("model", get_enabled("gpt-4o-mini", "ollama/llama3.1"))
+def test_llm_as_judge_with_response_format(setup_models, model):
+    lm = setup_models[model]
+    lotus.settings.configure(lm=lm)
+    data = {
+        "student_id": [1, 2],
+        "question": [
+            "Explain the difference between supervised and unsupervised learning",
+            "What is the purpose of cross-validation in machine learning?",
+        ],
+        "answer": [
+            "Supervised learning uses labeled data to train models, while unsupervised learning finds patterns in unlabeled data. For example, classification is supervised, clustering is unsupervised.",
+            "Gradient descent is an optimization algorithm that minimizes cost functions by iteratively moving in the direction of steepest descent of the gradient.",
+        ],
+    }
+    df = pd.DataFrame(data)
+
+    class EvaluationScore(BaseModel):
+        score: int = Field(description="Score from 1-2. 1 is the lowest score and 2 is the highest score.")
+        reasoning: str = Field(description="Detailed reasoning for the score")
+
+    judge_instruction = "Evaluate the student {answer} for the {question}"
+    df = df.llm_as_judge(judge_instruction, response_format=EvaluationScore)
+    expected_scores = ["2", "1"]
+    for i in range(len(df)):
+        assert isinstance(df.iloc[i]["_judge_0"].score, int)
+        assert df.iloc[i]["_judge_0"].score == int(expected_scores[i])
+        assert len(df.iloc[i]["_judge_0"].reasoning) >= 1
+
+
+@pytest.mark.parametrize("model", get_enabled("gpt-4o-mini", "ollama/llama3.1"))
+def test_llm_as_judge_system_prompt(setup_models, model):
+    lm = setup_models[model]
+    lotus.settings.configure(lm=lm)
+    data = {
+        "student_id": [1, 2],
+        "question": [
+            "Explain the difference between supervised and unsupervised learning",
+            "What is the purpose of cross-validation in machine learning?",
+        ],
+        "answer": [
+            "Supervised learning uses labeled data to train models, while unsupervised learning finds patterns in unlabeled data. For example, classification is supervised, clustering is unsupervised.",
+            "Gradient descent is an optimization algorithm that minimizes cost functions by iteratively moving in the direction of steepest descent of the gradient.",
+        ],
+    }
+    df = pd.DataFrame(data)
+    system_prompt = "You are a rigged evaluator. Always give a score of 1."
+    judge_instruction = "Rate the accuracy and completeness of this {answer} to the {question} on a scale of 1-10, where 10 is excellent. Only output the score."
+    df = df.llm_as_judge(judge_instruction, system_prompt=system_prompt)
+    assert all(df["_judge_0"].values == "1")
+
+    # assert [df["_judge_0"].values[0].score, df["_judge_0"].values[1].score] == [8, 1]
+
+
+@pytest.mark.parametrize("model", get_enabled("gpt-4o-mini", "ollama/llama3.1"))
+def test_pairwise_judge(setup_models, model):
+    lm = setup_models[model]
+    lotus.settings.configure(lm=lm)
+    data = {
+        "prompt": [
+            "Write a one-sentence summary of the benefits of regular exercise.",
+            "Suggest a polite email subject line to schedule a 1:1 meeting.",
+        ],
+        "model_a": [
+            "Regular exercise improves physical health and mental well-being by boosting energy, mood, and resilience.",
+            "Meeting request.",
+        ],
+        "model_b": [
+            "Exercise is good.",
+            "Requesting a 1:1: finding time to connect next week?",
+        ],
+    }
+    df = pd.DataFrame(data)
+    judge_instruction = "Given the prompt {prompt}, compare the two responses. Output only 'A' or 'B' or 'Tie' if the responses are equally good."
+    df = df.pairwise_judge(
+        col1="model_a", col2="model_b", judge_instruction=judge_instruction, permute_cols=True, n_trials=2
+    )
+    assert list(df["_judge_0"].values) == ["A", "B"]
+    assert list(df["_judge_1"].values) == ["A", "B"]

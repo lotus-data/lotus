@@ -21,6 +21,7 @@ def sem_map(
     docs: list[dict[str, Any]],
     model: lotus.models.LM,
     user_instruction: str,
+    system_prompt: str | None = None,
     postprocessor: Callable[[list[str], lotus.models.LM, bool], SemanticMapPostprocessOutput] = map_postprocess,
     examples_multimodal_data: list[dict[str, Any]] | None = None,
     examples_answers: list[str] | None = None,
@@ -28,6 +29,7 @@ def sem_map(
     prompt_strategy: PromptStrategy | None = None,
     safe_mode: bool = False,
     progress_bar_desc: str = "Mapping",
+    **model_kwargs: Any,
 ) -> SemanticMapOutput:
     """
     Maps a list of documents to a list of outputs using a language model.
@@ -44,6 +46,7 @@ def sem_map(
         user_instruction (str): The natural language instruction that guides the
             mapping process. This instruction tells the model how to transform
             each input document.
+        system_prompt (str | None, optional): The system prompt to use.
         postprocessor (Callable, optional): A function to post-process the model
             outputs. Should take (outputs, model, use_cot) and return
             SemanticMapPostprocessOutput. Defaults to map_postprocess.
@@ -62,7 +65,7 @@ def sem_map(
             Defaults to False.
         progress_bar_desc (str, optional): Description for the progress bar.
             Defaults to "Mapping".
-
+        **model_kwargs: Any: Additional keyword arguments to pass to the model.
     Returns:
         SemanticMapOutput: An object containing the processed outputs, raw outputs,
             and explanations (if applicable).
@@ -81,7 +84,7 @@ def sem_map(
     # prepare model inputs
     inputs = []
     for doc in docs:
-        prompt = lotus.templates.task_instructions.map_formatter(
+        prompt = task_instructions.map_formatter(
             model,
             doc,
             user_instruction,
@@ -89,6 +92,7 @@ def sem_map(
             examples_answers,
             cot_reasoning,
             prompt_strategy=prompt_strategy,
+            system_prompt=system_prompt,
         )
         lotus.logger.debug(f"input to model: {prompt}")
         lotus.logger.debug(f"inputs content to model: {[x.get('content') for x in prompt]}")
@@ -101,7 +105,7 @@ def sem_map(
         show_safe_mode(estimated_cost, estimated_LM_calls)
 
     # call model
-    lm_output: LMOutput = model(inputs, progress_bar_desc=progress_bar_desc)
+    lm_output: LMOutput = model(inputs, progress_bar_desc=progress_bar_desc, **model_kwargs)
 
     # post process results
     postprocess_output = postprocessor(lm_output.outputs, model, prompt_strategy is not None and prompt_strategy.cot)
@@ -130,6 +134,7 @@ class SemMapDataframe:
     Args:
         user_instruction (str): The natural language instruction that guides
             the mapping process. Should describe how to transform each row.
+        system_prompt (str | None, optional): The system prompt to use.
         postprocessor (Callable, optional): A function to post-process the model
             outputs. Should take (outputs, model, use_cot) and return
             SemanticMapPostprocessOutput. Defaults to map_postprocess.
@@ -150,6 +155,7 @@ class SemMapDataframe:
             estimation. Defaults to False.
         progress_bar_desc (str, optional): Description for the progress bar.
             Defaults to "Mapping".
+        **model_kwargs: Any: Additional keyword arguments to pass to the model.
 
     Returns:
         pd.DataFrame: A DataFrame containing the original data plus the mapped
@@ -213,6 +219,7 @@ class SemMapDataframe:
     def __call__(
         self,
         user_instruction: str,
+        system_prompt: str | None = None,
         postprocessor: Callable[[list[str], lotus.models.LM, bool], SemanticMapPostprocessOutput] = map_postprocess,
         return_explanations: bool = False,
         return_raw_outputs: bool = False,
@@ -221,6 +228,7 @@ class SemMapDataframe:
         prompt_strategy: PromptStrategy | None = None,
         safe_mode: bool = False,
         progress_bar_desc: str = "Mapping",
+        **model_kwargs: Any,
     ) -> pd.DataFrame:
         if lotus.settings.lm is None:
             raise ValueError(
@@ -293,6 +301,7 @@ class SemMapDataframe:
             multimodal_data,
             lotus.settings.lm,
             formatted_usr_instr,
+            system_prompt=system_prompt,
             postprocessor=postprocessor,
             examples_multimodal_data=examples_multimodal_data,
             examples_answers=examples_answers,
@@ -300,6 +309,7 @@ class SemMapDataframe:
             prompt_strategy=prompt_strategy,
             safe_mode=safe_mode,
             progress_bar_desc=progress_bar_desc,
+            **model_kwargs,
         )
 
         new_df = self._obj.copy()

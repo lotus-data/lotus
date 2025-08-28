@@ -1,7 +1,7 @@
-# LOTUS:  A Query Engine For Processing Data with LLMs
+# LOTUS: LLM-Powered Data Processing Made Fast and Easy
 <!--- BADGES: START --->
 <!--[![Colab Demo](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1OzoJXH13aOwNOIEemClxzNCNYnqSGxVl?usp=sharing)-->
-[![Colab Demo](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1qtmklXD_J1SSJLR86ws4GsYcLln6FZqY?usp=sharing#scrollTo=p5YByUTZqUqN)
+[![Colab Demo](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1mP65YHHdD6mnZmC5-Uqm2uCXJ4-Kbkhu?usp=sharing)
 [![Arxiv](https://img.shields.io/badge/arXiv-2407.11418-B31B1B.svg)][#arxiv-paper-package]
 [![Slack](https://img.shields.io/badge/slack-lotus-purple.svg?logo=slack)][#slack]
 [![Documentation Status](https://readthedocs.org/projects/lotus-ai/badge/?version=latest)](https://lotus-ai.readthedocs.io/en/latest/?badge=latest)
