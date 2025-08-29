@@ -22,6 +22,9 @@ def sem_map(
     strategy: ReasoningStrategy | None = None,
     safe_mode: bool = False,
     progress_bar_desc: str = "Mapping",
+    n_sample: int = 1,
+    ensemble: str | None = None,
+    temperature: float | None = None,
 ) -> SemanticMapOutput:
     """
     Maps a list of documents to a list of outputs using a language model.
@@ -85,17 +88,48 @@ def sem_map(
     # check if safe_mode is enabled
     if safe_mode:
         estimated_cost = sum(model.count_tokens(input) for input in inputs)
-        estimated_LM_calls = len(docs)
+        estimated_LM_calls = len(docs) * n_sample
         show_safe_mode(estimated_cost, estimated_LM_calls)
 
+    # run model multiple times if n_sample is greater than 1
+    all_outputs: list[list[str]] = []
+    lm_output: LMOutput | None = None
+
+    model_kwargs: dict[str, Any] = {"progress_bar_desc": progress_bar_desc}
+    if temperature is not None:
+        model_kwargs["temperature"] = temperature
+
     # call model
-    lm_output: LMOutput = model(inputs, progress_bar_desc=progress_bar_desc)
+    for _ in range(n_sample):
+        lm_output = model(inputs, **model_kwargs)
+        if lm_output is None:
+            continue
+        all_outputs.append(lm_output.outputs)
+
+    if not all_outputs:  # safeguard if lm_output was None every time
+        return SemanticMapOutput(raw_outputs=[], outputs=[], explanations=[])
+
+    # ensemble results
+    if n_sample == 1:
+        final_outputs = all_outputs[0]
+    elif ensemble == "majority_vote":
+        # pick most frequent answer per document
+        final_outputs = [max(set(sample_outputs), key=sample_outputs.count) for sample_outputs in zip(*all_outputs)]
+    elif ensemble == "concat":
+        # join all samples into one string
+        final_outputs = [" | ".join(sample_outputs) for sample_outputs in zip(*all_outputs)]
+
+    elif ensemble == "first":
+        final_outputs = all_outputs[0]
+    else:
+        final_outputs = all_outputs[0]
 
     # post process results
     postprocess_output = postprocessor(
-        lm_output.outputs, model, strategy in [ReasoningStrategy.COT, ReasoningStrategy.ZS_COT]
+        final_outputs, model, strategy in [ReasoningStrategy.COT, ReasoningStrategy.ZS_COT]
     )
-    lotus.logger.debug(f"raw_outputs: {lm_output.outputs}")
+    if lm_output is not None:
+        lotus.logger.debug(f"raw_outputs: {lm_output.outputs}")
     lotus.logger.debug(f"outputs: {postprocess_output.outputs}")
     lotus.logger.debug(f"explanations: {postprocess_output.explanations}")
     if safe_mode:
@@ -211,6 +245,9 @@ class SemMapDataframe:
         strategy: ReasoningStrategy | None = None,
         safe_mode: bool = False,
         progress_bar_desc: str = "Mapping",
+        n_sample: int = 1,
+        ensemble: str | None = None,
+        temperature: float | None = None,
     ) -> pd.DataFrame:
         if lotus.settings.lm is None:
             raise ValueError(
@@ -251,6 +288,9 @@ class SemMapDataframe:
             strategy=strategy,
             safe_mode=safe_mode,
             progress_bar_desc=progress_bar_desc,
+            n_sample=n_sample,
+            ensemble=ensemble,
+            temperature=temperature,
         )
 
         new_df = self._obj.copy()

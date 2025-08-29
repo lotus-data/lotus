@@ -258,6 +258,10 @@ class LM:
             required_time_for_batch = len(sub_batch) * min_interval_per_request
 
             # Only sleep if the batch was faster than the required time
+            # Each request should be spaced by min_interval_per_request
+            required_time_for_batch = len(sub_batch) * min_interval_per_request
+
+            # Only sleep if the batch was faster than the required time
             if i < num_batches - 1:  # Don't sleep after the last batch
                 to_sleep = required_time_for_batch - elapsed
                 if to_sleep > 0:
@@ -357,7 +361,10 @@ class LM:
 
         choice = response.choices[0]
         assert isinstance(choice, Choices)
-        logprobs = choice.logprobs["content"]
+        if choice.logprobs and isinstance(choice.logprobs, dict) and "content" in choice.logprobs:
+            logprobs = choice.logprobs["content"]
+        else:
+            logprobs = []
         return logprobs
 
     def format_logprobs_for_cascade(self, logprobs: list[list[ChatCompletionTokenLogprob]]) -> LogprobsForCascade:
