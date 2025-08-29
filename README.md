@@ -1,4 +1,4 @@
-# LOTUS: LLM-Powered Data Processing Made Fast and Easy
+# LOTUS: LLM-Powered Data Processing Made Fast, Easy, and Robust
 <!--- BADGES: START --->
 <!--[![Colab Demo](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1OzoJXH13aOwNOIEemClxzNCNYnqSGxVl?usp=sharing)-->
 [![Colab Demo](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1mP65YHHdD6mnZmC5-Uqm2uCXJ4-Kbkhu?usp=sharing)
@@ -14,9 +14,9 @@
 [#slack]: https://join.slack.com/t/lotus-fnm8919/shared_invite/zt-319k232lx-nEcLF~5w274dcQLmw2Wqyg
 <!--- BADGES: END --->
 
-LOTUS makes LLM-powered data processing fast and easy. 
+LOTUS is the framework that allows you to easily process your datasets, including unstructured and structured data, with LLMs. It provides an **intuitive Pandas-like API**, offers algorithms for **optimizing your programs for up to 1000x speedups**, and makes LLM-based data processing **robust with accuracy guarantees** with respect to high-quality reference algorithms.
 
-LOTUS (**L**LMs **O**ver **T**ables of **U**nstructured and **S**tructured Data) provides a declarative programming model and an optimized query engine for serving powerful reasoning-based query pipelines over structured and unstructured data! We provide a simple and intuitive Pandas-like API, that implements **semantic operators**. 
+LOTUS stands for **L**LMs **O**ver **T**ext, **U**nstructured and **S**tructured Data, and it implements [**semantic operators**](https://arxiv.org/abs/2407.11418), which extend the core philosophy of relational operators—designed for declarative and robust _structured-data_ processing—to _unstructured-data_ processing with AI. Semantic operators are expressive, allowing you to easily capture all of your data-intensive AI programs, from simple RAG, to document extraction, image classification, LLM-judge evals, unstructured data analysis, and more.
 
 For trouble-shooting or feature requests, please raise an issue and we'll get to it promptly. To share feedback and applications you're working on, you can send us a message on our [community slack](https://join.slack.com/t/lotus-fnm8919/shared_invite/zt-319k232lx-nEcLF~5w274dcQLmw2Wqyg), or send an email (lianapat@stanford.edu).
 
@@ -85,22 +85,23 @@ lm.print_total_usage()
 ```
 ### Tutorials
 
-Below are some short tutorials in Google Colab, to help you get started.
+Below are some short tutorials in Google Colab, to help you get started. We recommend starting with `[1] Introduction to Semantic Operators and LOTUS`, which will provide a broad overview of useful functionality to help you get started.
 
 <div align="center">
 
 | Tutorial                                           | Difficulty                                                      | Colab Link                                                                                                                                                                                                    |
 |----------------------------------------------------|-----------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | 1. Introduction to Semantic Operators and LOTUS             | ![](https://img.shields.io/badge/Level-Beginner-green.svg)      | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1mP65YHHdD6mnZmC5-Uqm2uCXJ4-Kbkhu?usp=sharing)              |
-| 2. Analyzing Agent Traces                           | ![](https://img.shields.io/badge/Level-Intermediate-yellow.svg)      | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1EJm9A8r_ShYxR0s218J70XhsopOgeT6k?usp=sharing)   |
+| 2. Failure Analysis Over Agent Traces                           | ![](https://img.shields.io/badge/Level-Intermediate-yellow.svg)      | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1EJm9A8r_ShYxR0s218J70XhsopOgeT6k?usp=sharing)   |
 | 3. System Prompt Analysis with LOTUS | ![](https://img.shields.io/badge/Level-Intermediate-yellow.svg)      | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1NSVQYOMp2GCre5ZRgvgs6BPGOa20ySMc?usp=sharing) |
 | 4. Processing Multimodal Datasets                             | ![](https://img.shields.io/badge/Level-Intermediate-yellow.svg) | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/18oaa12T6PrhHIYGw-L01gw1bDmTYaE_e)   |
 </div>
 
 ## Key Concept: The Semantic Operator Model
-LOTUS introduces the semantic operator programming model. Semantic operators are declarative transformations over one or more datasets, parameterized by a natural language expression, that can be implemented by a variety of AI-based algorithms. Semantic operators seamlessly extend the relational model, operating over tables that may contain traditional structured data as well as unstructured fields, such as free-form text. These composable, modular language- based operators allow you to write AI-based pipelines with high-level logic, leaving the rest of the work to the query engine! Each operator can be implemented and optimized in multiple ways, opening a rich space for execution plans, similar to relational operators. To learn more about the semantic operator model, read the full [research paper](https://arxiv.org/abs/2407.11418).
+LOTUS introduces the semantic operator programming model. Semantic operators are declarative transformations over one or more datasets, parameterized by a natural language expression, that can be implemented by a variety of AI-based algorithms. Semantic operators seamlessly extend the relational model, operating over tables that may contain traditional structured data as well as unstructured fields, such as free-form text. These modular language-based operators allow you to write AI-based pipelines with high-level logic, leaving optimizations to the query engine. Each operator can be implemented and optimized in multiple ways, opening a rich space for execution plans, similar to relational operators. To learn more about the semantic operator model, read the full [research paper](https://arxiv.org/abs/2407.11418).
 
-LOTUS offers a number of semantic operators in a Pandas-like API, some of which are described below. To learn more about semantic operators provided in LOTUS, check out the full [documentation](https://lotus-ai.readthedocs.io/en/latest/), run the [colab tutorial](https://colab.research.google.com/drive/1OzoJXH13aOwNOIEemClxzNCNYnqSGxVl?usp=sharing), or you can also refer to these [examples](https://github.com/TAG-Research/lotus/tree/main/examples/op_examples).
+LOTUS offers a number of semantic operators in a Pandas-like API, some of which are described below. To learn more about semantic operators provided in LOTUS, check out the full [documentation](https://lotus-ai.readthedocs.io/en/latest/), run the [colab tutorial](https://colab.research.google.com/drive/1mP65YHHdD6mnZmC5-Uqm2uCXJ4-Kbkhu?usp=sharing), or you can also refer to these [examples](https://github.com/TAG-Research/lotus/tree/main/examples/op_examples).
+
 
 | Operator   | Description                                     |
 |------------|-------------------------------------------------|

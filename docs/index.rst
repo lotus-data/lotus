@@ -8,7 +8,7 @@
    :height: 170px
    :align: center
 
-LOTUS Makes LLM-Powerd Data Processing Fast and Easy
+LOTUS Makes LLM-Powerd Data Processing Fast, Easy and Robust
 =================================================================================
 
 LOTUS implements the semantic operator programming model and provides an optimized query engine for serving AI-based query pipelines over your data.

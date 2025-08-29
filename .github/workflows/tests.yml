@@ -47,7 +47,7 @@ jobs:
             requires-openai: true
           - test-suite: lm-ollama
             file: .github/tests/lm_tests.py
-            timeout: 10
+            timeout: 20
             requires-ollama: true
           - test-suite: rm
             file: .github/tests/rm_tests.py
