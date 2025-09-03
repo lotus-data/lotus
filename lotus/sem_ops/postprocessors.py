@@ -9,7 +9,7 @@ from lotus.types import (
 )
 
 
-def cot_postprocessor(llm_answers: list[str]):
+def cot_postprocessor(llm_answers: list[str], for_extract: bool = False):
     outputs: list[str | None] = []
     explanations: list[str | None] = []
     for llm_answer in llm_answers:
@@ -20,11 +20,25 @@ def cot_postprocessor(llm_answers: list[str]):
             reasoning_idx += len("Reasoning:\n")
 
         answer_idx = llm_answer.find("Answer:")
-        reasoning = llm_answer[reasoning_idx:answer_idx].rstrip("\n").lstrip("\n")
-        answer = llm_answer[answer_idx + len("Answer:") :]
+        if answer_idx == -1:
+            reasoning = ""
+            answer = llm_answer.strip()
+        else:
+            reasoning = llm_answer[reasoning_idx:answer_idx].rstrip("\n").lstrip("\n")
+            answer = llm_answer[answer_idx + len("Answer:") :].strip()
 
         explanations.append(reasoning)
-        outputs.append(answer)
+
+        if for_extract:
+            try:
+                json_obj = json.loads(answer)
+            except json.JSONDecodeError:
+                lotus.logger.info(f"\t Failed to parse: {answer}")
+                json_obj = {}
+            json_obj = {key: str(value) for key, value in json_obj.items()}
+            outputs.append(json_obj)
+        else:
+            outputs.append(answer)
 
     return outputs, explanations
 
@@ -67,9 +81,9 @@ def deepseek_cot_postprocessor(llm_answers: list[str], for_extract: bool = False
 
         if for_extract:
             try:
-                json_obj = json.loads(llm_answer)
+                json_obj = json.loads(answer)
             except json.JSONDecodeError:
-                lotus.logger.info(f"\t Failed to parse: {llm_answer}")
+                lotus.logger.info(f"\t Failed to parse: {answer}")
                 json_obj = {}
             json_obj = {key: str(value) for key, value in json_obj.items()}
             outputs.append(json_obj)
@@ -103,7 +117,7 @@ def get_cot_postprocessor(model: lotus.models.LM, for_extract: bool = False) -> 
             base_processor = COT_POSTPROCESSORS[processor_key]
             return lambda llm_answers: base_processor(llm_answers, for_extract=for_extract)
 
-    return cot_postprocessor
+    return lambda llm_answers: cot_postprocessor(llm_answers, for_extract=for_extract)
 
 
 def map_postprocess(
@@ -152,15 +166,15 @@ def extract_postprocess(
         extract_data = []
         explanations = [None] * len(llm_answers)
 
-    for llm_answer in llm_answers:
-        try:
-            output = json.loads(llm_answer)
-        except json.JSONDecodeError:
-            lotus.logger.info(f"\t Failed to parse: {llm_answer}")
-            output = {}
+        for llm_answer in llm_answers:
+            try:
+                output = json.loads(llm_answer)
+            except json.JSONDecodeError:
+                lotus.logger.info(f"\t Failed to parse: {llm_answer}")
+                output = {}
 
-        output = {key: str(value) for key, value in output.items()}
-        extract_data.append(output)
+            output = {key: str(value) for key, value in output.items()}
+            extract_data.append(output)
 
     return SemanticExtractPostprocessOutput(raw_outputs=llm_answers, outputs=extract_data, explanations=explanations)
 
