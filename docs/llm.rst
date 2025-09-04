@@ -144,3 +144,61 @@ You can monitor your usage with the ``print_total_usage`` method:
 
     # Reset stats if needed
     lm.reset_stats()
+
+get_completion Method
+---------------------
+The ``get_completion`` method provides a convenient way to get a single completion from the LLM using a system prompt and user prompt. This is useful for simple, one-off queries that don't require the full complexity of the batch processing interface.
+
+.. code-block:: python
+
+    from lotus.models import LM
+    
+    lm = LM(model="gpt-4o")
+    
+    # Basic usage
+    system_prompt = "You are a helpful assistant."
+    user_prompt = "What is the capital of France?"
+    
+    response = lm.get_completion(
+        system_prompt=system_prompt,
+        user_prompt=user_prompt
+    )
+    print(response)  # "The capital of France is Paris."
+
+The method also supports structured output using Pydantic models:
+
+.. code-block:: python
+
+    from pydantic import BaseModel
+    from lotus.models import LM
+    
+    class CityInfo(BaseModel):
+        name: str
+        country: str
+        population: int
+        
+    lm = LM(model="gpt-4o")
+    
+    response = lm.get_completion(
+        system_prompt="You are a geography expert.",
+        user_prompt="Tell me about Paris, France",
+        response_format=CityInfo
+    )
+    print(response.name)  # "Paris"
+    print(response.country)  # "France"
+
+**Parameters:**
+
+- ``system_prompt`` (str): The system message that sets the context and behavior for the LLM
+- ``user_prompt`` (str): The user's query or instruction
+- ``show_progress_bar`` (bool, optional): Whether to show a progress bar during processing. Defaults to True.
+- ``progress_bar_desc`` (str, optional): Description for the progress bar. Defaults to "Processing uncached messages".
+- ``response_format`` (BaseModel | None, optional): Pydantic model class for structured output. When provided, the response will be parsed and validated according to the model schema.
+- ``**kwargs``: Additional arguments passed to the underlying LLM API (e.g., temperature, max_tokens)
+
+**Returns:**
+
+- When ``response_format`` is None: Returns a string containing the LLM's response
+- When ``response_format`` is provided: Returns an instance of the specified Pydantic model
+
+**Note:** This method is a convenience wrapper around the main ``__call__`` method and supports all the same features including caching, rate limiting, and usage tracking.

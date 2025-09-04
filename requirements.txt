@@ -6,3 +6,4 @@ pandas==2.2.2
 sentence-transformers==3.0.1
 tiktoken==0.7.0
 tqdm==4.66.4
+pydantic==2.11.7
