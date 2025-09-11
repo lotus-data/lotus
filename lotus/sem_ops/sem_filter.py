@@ -9,7 +9,6 @@ from lotus.cache import operator_cache
 from lotus.templates import task_instructions
 from lotus.types import (
     CascadeArgs,
-    LMOutput,
     LogprobsForFilterCascade,
     ProxyModel,
     ReasoningStrategy,
@@ -35,6 +34,9 @@ def sem_filter(
     show_progress_bar: bool = True,
     progress_bar_desc: str = "Filtering",
     additional_cot_instructions: str = "",
+    n_sample: int = 1,  # new
+    ensemble: str | None = None,  # new
+    temperature: float | None = None,  # new
 ) -> SemanticFilterOutput:
     """
     Filters a list of documents based on a natural language instruction using a language model.
@@ -102,30 +104,93 @@ def sem_filter(
         )
         lotus.logger.debug(f"input to model: {prompt}")
         inputs.append(prompt)
-    kwargs: dict[str, Any] = {"logprobs": logprobs}
+
+    # kwargs (only include logprobs if requested)
+    kwargs: dict[str, Any] = {}
+    if logprobs:
+        kwargs["logprobs"] = True
+    if temperature is not None:
+        kwargs["temperature"] = temperature
 
     if safe_mode:
         estimated_total_calls = len(docs)
         estimated_total_cost = sum(model.count_tokens(input) for input in inputs)
         show_safe_mode(estimated_total_cost, estimated_total_calls)
 
-    lm_output: LMOutput = model(
-        inputs, show_progress_bar=show_progress_bar, progress_bar_desc=progress_bar_desc, **kwargs
-    )
+    # If ensemble is True, repeat the calls n_sample times
+    outputs_to_postprocess: list[list[str]]
+    final_logprobs: list[list[Any]] | None = None
 
-    postprocess_output = filter_postprocess(lm_output.outputs, model, default)
-    lotus.logger.debug(f"outputs: {postprocess_output.outputs}")
-    lotus.logger.debug(f"raw_outputs: {postprocess_output.raw_outputs}")
-    lotus.logger.debug(f"explanations: {postprocess_output.explanations}")
+    if ensemble and n_sample > 1:
+        all_outputs: list[list[str]] = []
+        all_logprobs: list[list[Any]] = []
 
-    if safe_mode:
-        model.print_total_usage()
+        for _ in range(n_sample):
+            lm_out = model(inputs, show_progress_bar=show_progress_bar, progress_bar_desc=progress_bar_desc, **kwargs)
+            all_outputs.append(lm_out.outputs)
+            if logprobs and lm_out.logprobs is not None and isinstance(lm_out.logprobs, list):
+                all_logprobs.append(lm_out.logprobs)
+
+        # Transpose so each input aligns with its ensemble outputs
+        outputs_to_postprocess = list(map(list, zip(*all_outputs)))
+
+        # For ensemble, we'll use the logprobs from the first run
+        if logprobs and all_logprobs:
+            final_logprobs = all_logprobs[0]
+    else:
+        lm_out = model(inputs, show_progress_bar=show_progress_bar, progress_bar_desc=progress_bar_desc, **kwargs)
+        outputs_to_postprocess = [lm_out.outputs]
+        if logprobs and lm_out.logprobs is not None and isinstance(lm_out.logprobs, list):
+            final_logprobs = lm_out.logprobs
+
+    # For ensemble, average predictions or take majority vote
+    if ensemble and n_sample > 1:
+        ensembled_outputs: list[str] = []
+        for i in range(len(docs)):
+            votes = [all_outputs[j][i] for j in range(n_sample)]
+
+            # Convert string votes to boolean for calculations
+            bool_votes: list[bool] = []
+            for vote in votes:
+                if isinstance(vote, str):
+                    bool_votes.append(vote.lower() in ("true", "yes", "1"))
+                elif isinstance(vote, bool):
+                    bool_votes.append(vote)
+                else:
+                    # Handle other cases, assume falsy means False
+                    bool_votes.append(bool(vote))
+
+            if ensemble == "majority_vote":
+                true_count = sum(bool_votes)  # Now summing booleans (True=1, False=0)
+                if true_count > n_sample / 2:
+                    ensembled_outputs.append("True")
+                elif true_count < n_sample / 2:
+                    ensembled_outputs.append("False")
+                else:
+                    ensembled_outputs.append("True" if default else "False")  # tie fallback
+            elif ensemble == "average_prob":
+                avg = sum(bool_votes) / n_sample  # Average of booleans
+                ensembled_outputs.append("True" if avg >= 0.5 else "False")
+            else:
+                raise ValueError(f"Unknown ensemble strategy: {ensemble}")
+
+        postprocess_output = filter_postprocess(ensembled_outputs, model, default)
+    else:
+        flat_outputs = [str(x) for sublist in outputs_to_postprocess for x in sublist]
+        postprocess_output = filter_postprocess(flat_outputs, model, default)
+
+        lotus.logger.debug(f"outputs: {postprocess_output.outputs}")
+        lotus.logger.debug(f"raw_outputs: {postprocess_output.raw_outputs}")
+        lotus.logger.debug(f"explanations: {postprocess_output.explanations}")
+
+        if safe_mode:
+            model.print_total_usage()
 
     return SemanticFilterOutput(
         raw_outputs=postprocess_output.raw_outputs,
         outputs=postprocess_output.outputs,
         explanations=postprocess_output.explanations,
-        logprobs=lm_output.logprobs if logprobs else None,
+        logprobs=final_logprobs,
     )
 
 
@@ -265,6 +330,10 @@ class SemFilterDataframe:
             Defaults to "Filtering".
         additional_cot_instructions (str, optional): Additional instructions
             for chain-of-thought reasoning. Defaults to "".
+        n_sample (int): Number of LM calls for ensembling.
+        ensemble (str | None): Ensembling strategy. Options: 'majority_vote', 'average_prob', or None.
+        temperature (float | None): Test-time temperature scaling for the LM.
+
 
     Returns:
         pd.DataFrame | tuple[pd.DataFrame, dict[str, Any]]: A DataFrame
@@ -347,6 +416,9 @@ class SemFilterDataframe:
         safe_mode: bool = False,
         progress_bar_desc: str = "Filtering",
         additional_cot_instructions: str = "",
+        n_sample: int = 1,
+        ensemble: str | None = None,
+        temperature: float | None = None,
     ) -> pd.DataFrame | tuple[pd.DataFrame, dict[str, Any]]:
         if lotus.settings.lm is None:
             raise ValueError(
@@ -425,9 +497,12 @@ class SemFilterDataframe:
                     safe_mode=safe_mode,
                     show_progress_bar=True,
                     progress_bar_desc="Running helper LM",
+                    n_sample=n_sample,
+                    ensemble=ensemble,
+                    temperature=temperature,
                 )
                 _, helper_logprobs = helper_output.outputs, helper_output.logprobs
-                assert helper_logprobs is not None
+                assert helper_logprobs is not None and isinstance(helper_logprobs, list)
                 formatted_helper_logprobs: LogprobsForFilterCascade = (
                     lotus.settings.helper_lm.format_logprobs_for_filter_cascade(helper_logprobs)
                 )
@@ -543,6 +618,9 @@ class SemFilterDataframe:
                 show_progress_bar=True,
                 progress_bar_desc=progress_bar_desc,
                 additional_cot_instructions=additional_cot_instructions,
+                n_sample=n_sample,
+                ensemble=ensemble,
+                temperature=temperature,
             )
             outputs = output.outputs
             raw_outputs = output.raw_outputs
