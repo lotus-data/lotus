@@ -62,7 +62,7 @@ jobs:
             requires-openai: true
           - test-suite: utility_operators
             file: .github/tests/utility_operators_tests.py
-            timeout: 10
+            timeout: 25
             extra-deps: pymupdf llama-index docx2txt python-pptx python-magic
           - test-suite: cache
             file: .github/tests/cache_tests.py
@@ -81,8 +81,9 @@ jobs:
       - uses: actions/cache@v3
         with:
           path: ~/.cache/uv
-          key: ${{ runner.os }}-uv-${{ hashFiles('uv.lock') }}
+          key: ${{ runner.os }}-uv-${{ hashFiles('uv.lock') }}-${{ matrix.extra-deps }}
           restore-keys: |
+            ${{ runner.os }}-uv-${{ hashFiles('uv.lock') }}
             ${{ runner.os }}-uv-
 
       - name: Install uv
@@ -94,6 +95,7 @@ jobs:
         run: |
           uv pip install --system -e '.[dev]'
           if [ "${{ matrix.extra-deps }}" != "" ]; then
+            echo "Installing extra dependencies: ${{ matrix.extra-deps }}"
             uv pip install --system ${{ matrix.extra-deps }}
           fi
 
