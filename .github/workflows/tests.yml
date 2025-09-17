@@ -27,13 +27,14 @@ jobs:
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
       - name: Install dependencies
-        run: uv sync --dev
+        run: |
+          uv pip install -e .[dev]
 
       - name: Run ruff
-        run: uv run ruff check lotus/
+        run: ruff check lotus/
 
       - name: Run mypy
-        run: uv run mypy lotus/
+        run: mypy lotus/
 
   tests:
     name: Run Tests
@@ -91,9 +92,9 @@ jobs:
 
       - name: Install dependencies
         run: |
-          uv sync --dev
+          uv pip install -e .[dev]
           if [ "${{ matrix.extra-deps }}" != "" ]; then
-            uv add --dev ${{ matrix.extra-deps }}
+            uv pip install ${{ matrix.extra-deps }}
           fi
 
       - name: Setup Ollama
@@ -122,4 +123,4 @@ jobs:
           ENABLE_OLLAMA_TESTS: ${{ matrix.requires-ollama }}
           ENABLE_OPENAI_TESTS: ${{ matrix.requires-openai }}
           ENABLE_LOCAL_TESTS: ${{ matrix.test-suite == 'rm' }}
-        run: uv run pytest ${{ matrix.file }}
+        run: pytest ${{ matrix.file }}
