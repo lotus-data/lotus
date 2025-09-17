@@ -1,7 +1,0 @@
--r requirements.txt
-
-# Additional development dependencies
-ruff==0.7.2
-mypy==1.13.0
-pytest==8.3.3
-pre-commit==4.0.1

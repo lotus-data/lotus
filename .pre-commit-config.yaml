@@ -13,6 +13,7 @@ repos:
         args: ["--config-file", "mypy.ini"]
         additional_dependencies:
           - types-setuptools
+          - pydantic>=2.11.7
           - litellm>=1.51.0
           - numpy>=1.25.0
           - pandas>=2.0.0
