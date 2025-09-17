@@ -28,7 +28,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          uv pip install -e .[dev]
+          uv pip install --system -e '.[dev]'
 
       - name: Run ruff
         run: ruff check lotus/
@@ -92,9 +92,9 @@ jobs:
 
       - name: Install dependencies
         run: |
-          uv pip install -e .[dev]
+          uv pip install --system -e '.[dev]'
           if [ "${{ matrix.extra-deps }}" != "" ]; then
-            uv pip install ${{ matrix.extra-deps }}
+            uv pip install --system ${{ matrix.extra-deps }}
           fi
 
       - name: Setup Ollama
