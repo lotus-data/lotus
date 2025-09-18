@@ -7,7 +7,7 @@ import lotus
 import lotus.models
 from lotus.cache import operator_cache
 from lotus.sem_ops.postprocessors import map_postprocess
-from lotus.types import ReasoningStrategy, SemanticMapPostprocessOutput
+from lotus.types import PromptStrategy, SemanticMapPostprocessOutput
 
 
 @pd.api.extensions.register_dataframe_accessor("pairwise_judge")
@@ -38,7 +38,7 @@ class PairwiseJudgeDataframe:
         examples (pd.DataFrame | None, optional): Example DataFrame for
             few-shot learning. Should have the same column structure as the
             input DataFrame plus an "Answer" column. Defaults to None.
-        strategy (ReasoningStrategy | None, optional): The reasoning strategy
+        prompt_strategy (PromptStrategy | None, optional): The reasoning strategy
             to use. Can be None, COT, or ZS_COT. Defaults to None.
         safe_mode (bool, optional): Whether to enable safe mode with cost
             estimation. Defaults to False.
@@ -82,7 +82,7 @@ class PairwiseJudgeDataframe:
         suffix: str = "_judge",
         examples: pd.DataFrame | None = None,
         cot_reasoning: list[str] | None = None,
-        strategy: ReasoningStrategy | None = None,
+        prompt_strategy: PromptStrategy | None = None,
         safe_mode: bool = False,
         progress_bar_desc: str = "Evaluating",
         **model_kwargs: Any,
@@ -92,7 +92,7 @@ class PairwiseJudgeDataframe:
                 "The language model must be an instance of LM. Please configure a valid language model using lotus.settings.configure()"
             )
 
-        if response_format is not None and strategy in [ReasoningStrategy.COT, ReasoningStrategy.ZS_COT]:
+        if response_format is not None and prompt_strategy is not None and prompt_strategy.cot:
             raise ValueError(
                 "Response format is not supported for COT or ZS_COT strategies. Use a non-COT strategy instead with reasoning field in the response format."
             )
@@ -120,7 +120,7 @@ class PairwiseJudgeDataframe:
                     suffix=suffix + "_" + c1 + "_" + c2,
                     examples=examples,
                     cot_reasoning=cot_reasoning,
-                    strategy=strategy,
+                    prompt_strategy=prompt_strategy,
                     safe_mode=safe_mode,
                     progress_bar_desc=progress_bar_desc,
                     **model_kwargs,
@@ -150,7 +150,7 @@ class PairwiseJudgeDataframe:
             suffix=suffix,
             examples=examples,
             cot_reasoning=cot_reasoning,
-            strategy=strategy,
+            prompt_strategy=prompt_strategy,
             extra_cols_to_include=[col1, col2],
             safe_mode=safe_mode,
             progress_bar_desc=progress_bar_desc,
