@@ -1,6 +1,8 @@
 import base64
+import hashlib
 import time
 from io import BytesIO
+from pathlib import Path
 from typing import Callable
 
 import numpy as np
@@ -132,3 +134,35 @@ def show_safe_mode(estimated_cost, estimated_LM_calls):
     except KeyboardInterrupt:
         print("\nExecution cancelled by user")
         exit(0)
+
+
+def get_index_cache(col_name: str, data: list, model_name: str | None = None) -> str:
+    """
+    Get cache path for semantic index. Reuses existing index if the data has not changed.
+
+    Args:
+        col_name: Name of the column being indexed
+        data: Data to index
+        model_name: Name of embedding model (different models = different embeddings)
+
+    Returns:
+        Path a string of the cache directory in ~/.cache/lotus/indices/{col_name}_{hash}
+
+    Example:
+        >>> data = ['Tech', 'Food', 'Sports']
+        >>> path = get_index_cache('category', data, 'text-embedding-3-small')
+        >>> # Returns: "~/.cache/lotus/indices/category_298bba13f072bd92cb40396e87cb2aaa"
+    """
+    content = str(sorted(data))
+
+    if model_name:
+        content += f"__{model_name}"
+
+    # compute hash
+    data_hash = hashlib.sha256(content.encode()).hexdigest()[:32]
+
+    # build cache location at ~/.cache/lotus/
+    cache_path = Path("~/.cache/lotus/indices").expanduser() / f"{col_name}_{data_hash}"
+    cache_path.mkdir(parents=True, exist_ok=True)
+
+    return str(cache_path)

@@ -355,7 +355,7 @@ def run_sem_sim_join(l1: pd.Series, l2: pd.Series, col1_label: str, col2_label: 
         lotus.logger.error("l1 must be a pandas Series or DataFrame")
 
     l2_df = l2.to_frame(name=col2_label)
-    l2_df = l2_df.sem_index(col2_label, f"{col2_label}_index")
+    l2_df = l2_df.sem_index(col2_label)  # create cache
 
     K = len(l2)
     # Run sem_sim_join as helper on the sampled data

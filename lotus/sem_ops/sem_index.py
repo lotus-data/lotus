@@ -1,9 +1,11 @@
+from pathlib import Path
 from typing import Any
 
 import pandas as pd
 
 import lotus
 from lotus.cache import operator_cache
+from lotus.utils import get_index_cache
 
 
 @pd.api.extensions.register_dataframe_accessor("sem_index")
@@ -59,7 +61,7 @@ class SemIndexDataframe:
             raise AttributeError("Must be a DataFrame")
 
     @operator_cache
-    def __call__(self, col_name: str, index_dir: str) -> pd.DataFrame:
+    def __call__(self, col_name: str, index_dir: str | None = None) -> pd.DataFrame:
         lotus.logger.warning(
             "Do not reset the dataframe index to ensure proper functionality of get_vectors_from_index"
         )
@@ -71,7 +73,27 @@ class SemIndexDataframe:
                 "The retrieval model must be an instance of RM, and the vector store must be an instance of VS. Please configure a valid retrieval model using lotus.settings.configure()"
             )
 
-        embeddings = rm(self._obj[col_name].tolist())
-        vs.index(self._obj[col_name], embeddings, index_dir)
-        self._obj.attrs["index_dirs"][col_name] = index_dir
+        # Get data from column
+        data = self._obj[col_name].tolist()
+        cache_directory = None
+
+        # If user provides explicit index_dir, use it, otherwise use new logic to create ~/.cache/lotus/indices/
+        if index_dir is not None:
+            cache_directory = index_dir
+        else:
+            model_name = getattr(rm, "model", None)
+            cache_directory = get_index_cache(col_name, data, model_name)
+
+        # Check if index already exists (verify the index FILE exists, not just directory)
+        cache_path = Path(cache_directory)
+        if cache_path.exists() and (cache_path / "index").exists():  # currently only works for FAISS
+            vs.load_index(cache_directory)
+            lotus.logger.info(f"cache hit at {cache_directory}")
+        else:
+            # previous code
+            embeddings = rm(data)
+            vs.index(self._obj[col_name], embeddings, cache_directory)
+            lotus.logger.info(f"created index at {cache_directory}")
+
+        self._obj.attrs["index_dirs"][col_name] = cache_directory
         return self._obj
