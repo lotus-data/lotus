@@ -4,8 +4,9 @@ import pandas as pd
 
 import lotus
 from lotus.cache import operator_cache
+from lotus.sampling_utils import apply_ensemble, resample_batch
 from lotus.templates import task_instructions
-from lotus.types import LMOutput, ReasoningStrategy, SemanticMapOutput, SemanticMapPostprocessOutput
+from lotus.types import ReasoningStrategy, SemanticMapOutput, SemanticMapPostprocessOutput
 from lotus.utils import show_safe_mode
 
 from .postprocessors import map_postprocess
@@ -23,6 +24,9 @@ def sem_map(
     strategy: ReasoningStrategy | None = None,
     safe_mode: bool = False,
     progress_bar_desc: str = "Mapping",
+    n_sample: int = 1,  # NEW
+    ensemble: str | None = None,  # NEW
+    temperature: float | None = None,  # NEW
     **model_kwargs: Any,
 ) -> SemanticMapOutput:
     """
@@ -59,6 +63,13 @@ def sem_map(
             Defaults to False.
         progress_bar_desc (str, optional): Description for the progress bar.
             Defaults to "Mapping".
+        n_sample (int): number of repeated LM calls per item. If >1, outputs are combined
+            using the specified ensemble strategy.
+        ensemble (str|None): "majority_vote", "average_prob"/"mean_prob"/"avg_prob", or None.
+            Strategy to combine multiple samples per item. If None, no ensembling is done.
+            Only used if n_sample > 1.
+        temperature (float|None): test-time temperature; None uses model default.
+            Defaults to None.
         **model_kwargs: Any: Additional keyword arguments to pass to the model.
     Returns:
         SemanticMapOutput: An object containing the processed outputs, raw outputs,
@@ -94,18 +105,38 @@ def sem_map(
 
     # check if safe_mode is enabled
     if safe_mode:
-        estimated_cost = sum(model.count_tokens(input) for input in inputs)
-        estimated_LM_calls = len(docs)
+        estimated_cost = sum(model.count_tokens(input) for input in inputs) * max(1, n_sample)
+        estimated_LM_calls = len(docs) * max(1, n_sample)
         show_safe_mode(estimated_cost, estimated_LM_calls)
 
     # call model
-    lm_output: LMOutput = model(inputs, progress_bar_desc=progress_bar_desc, **model_kwargs)
+    def _call_once(_want_logprobs, temp, spb, desc):
+        # sem_map doesn’t use logprobs, so _want_logprobs is ignored
+        return model(
+            inputs,
+            temperature=temp,
+            show_progress_bar=spb,
+            progress_bar_desc=desc if n_sample == 1 else f"{desc} (x{n_sample})",
+            **model_kwargs,
+        )
+
+    all_runs, _ = resample_batch(
+        _call_once,
+        n_sample=n_sample,
+        want_logprobs=False,
+        temperature=temperature,
+        show_progress_bar=True,
+        progress_bar_desc=progress_bar_desc,
+    )
+
+    # Collapse [n_sample][batch] -> [batch] using the chosen ensemble strategy
+    final_texts = apply_ensemble(ensemble, all_runs, default_yes=True)  # default_yes only matters for ties
 
     # post process results
     postprocess_output = postprocessor(
-        lm_output.outputs, model, strategy in [ReasoningStrategy.COT, ReasoningStrategy.ZS_COT]
+        final_texts, model, strategy in [ReasoningStrategy.COT, ReasoningStrategy.ZS_COT]
     )
-    lotus.logger.debug(f"raw_outputs: {lm_output.outputs}")
+    lotus.logger.debug(f"raw_outputs: {final_texts}")
     lotus.logger.debug(f"outputs: {postprocess_output.outputs}")
     lotus.logger.debug(f"explanations: {postprocess_output.explanations}")
     if safe_mode:
@@ -224,6 +255,9 @@ class SemMapDataframe:
         strategy: ReasoningStrategy | None = None,
         safe_mode: bool = False,
         progress_bar_desc: str = "Mapping",
+        n_sample: int = 1,  # NEW
+        ensemble: str | None = None,  # NEW
+        temperature: float | None = None,  # NEW
         **model_kwargs: Any,
     ) -> pd.DataFrame:
         if lotus.settings.lm is None:
@@ -266,6 +300,9 @@ class SemMapDataframe:
             strategy=strategy,
             safe_mode=safe_mode,
             progress_bar_desc=progress_bar_desc,
+            n_sample=n_sample,  # NEW
+            ensemble=ensemble,  # NEW
+            temperature=temperature,  # NEW
             **model_kwargs,
         )
 

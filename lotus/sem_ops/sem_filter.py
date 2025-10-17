@@ -6,10 +6,10 @@ from numpy.typing import NDArray
 
 import lotus
 from lotus.cache import operator_cache
+from lotus.sampling_utils import apply_ensemble, resample_batch
 from lotus.templates import task_instructions
 from lotus.types import (
     CascadeArgs,
-    LMOutput,
     LogprobsForFilterCascade,
     ProxyModel,
     ReasoningStrategy,
@@ -35,6 +35,9 @@ def sem_filter(
     show_progress_bar: bool = True,
     progress_bar_desc: str = "Filtering",
     additional_cot_instructions: str = "",
+    n_sample: int = 1,  # number of samples per item
+    ensemble: str | None = None,  # "majority_vote", "mean_prob", None
+    temperature: float | None = None,  # if None, use model default
 ) -> SemanticFilterOutput:
     """
     Filters a list of documents based on a natural language instruction using a language model.
@@ -102,18 +105,34 @@ def sem_filter(
         )
         lotus.logger.debug(f"input to model: {prompt}")
         inputs.append(prompt)
-    kwargs: dict[str, Any] = {"logprobs": logprobs}
 
     if safe_mode:
-        estimated_total_calls = len(docs)
-        estimated_total_cost = sum(model.count_tokens(input) for input in inputs)
+        estimated_total_calls = len(docs) * max(1, n_sample)
+        estimated_total_cost = sum(model.count_tokens(input) for input in inputs) * max(1, n_sample)
         show_safe_mode(estimated_total_cost, estimated_total_calls)
 
-    lm_output: LMOutput = model(
-        inputs, show_progress_bar=show_progress_bar, progress_bar_desc=progress_bar_desc, **kwargs
+    def _call_once(want_logprobs, temp, spb, desc):
+        return model(
+            inputs,
+            logprobs=want_logprobs,
+            temperature=temp,
+            show_progress_bar=spb,
+            progress_bar_desc=desc if n_sample == 1 else f"{desc} (x{n_sample})",
+        )
+
+    all_runs, chosen_logprobs = resample_batch(
+        _call_once,
+        n_sample=n_sample,
+        want_logprobs=logprobs,
+        temperature=temperature,
+        show_progress_bar=show_progress_bar,
+        progress_bar_desc=progress_bar_desc,
     )
 
-    postprocess_output = filter_postprocess(lm_output.outputs, model, default)
+    # Collapse [n_sample][batch] -> [batch]
+    final_texts = apply_ensemble(ensemble, all_runs, default_yes=default)
+
+    postprocess_output = filter_postprocess(final_texts, model, default)
     lotus.logger.debug(f"outputs: {postprocess_output.outputs}")
     lotus.logger.debug(f"raw_outputs: {postprocess_output.raw_outputs}")
     lotus.logger.debug(f"explanations: {postprocess_output.explanations}")
@@ -125,7 +144,7 @@ def sem_filter(
         raw_outputs=postprocess_output.raw_outputs,
         outputs=postprocess_output.outputs,
         explanations=postprocess_output.explanations,
-        logprobs=lm_output.logprobs if logprobs else None,
+        logprobs=chosen_logprobs if logprobs else None,
     )
 
 
@@ -347,6 +366,9 @@ class SemFilterDataframe:
         safe_mode: bool = False,
         progress_bar_desc: str = "Filtering",
         additional_cot_instructions: str = "",
+        n_sample: int = 1,  # number of samples per item
+        ensemble: str | None = None,  # "majority_vote", "mean_prob", None
+        temperature: float | None = None,  # if None, use model default
     ) -> pd.DataFrame | tuple[pd.DataFrame, dict[str, Any]]:
         if lotus.settings.lm is None:
             raise ValueError(
@@ -425,6 +447,9 @@ class SemFilterDataframe:
                     safe_mode=safe_mode,
                     show_progress_bar=True,
                     progress_bar_desc="Running helper LM",
+                    n_sample=n_sample,  # NEW
+                    ensemble=ensemble,  # NEW
+                    temperature=temperature,  # NEW
                 )
                 _, helper_logprobs = helper_output.outputs, helper_output.logprobs
                 assert helper_logprobs is not None
@@ -519,6 +544,9 @@ class SemFilterDataframe:
                     safe_mode=safe_mode,
                     progress_bar_desc="Running predicate evals with oracle LM",
                     additional_cot_instructions=additional_cot_instructions,
+                    n_sample=n_sample,  # NEW
+                    ensemble=ensemble,  # NEW
+                    temperature=temperature,  # NEW
                 )
 
                 for idx, large_idx in enumerate(low_conf_idxs):
@@ -543,6 +571,9 @@ class SemFilterDataframe:
                 show_progress_bar=True,
                 progress_bar_desc=progress_bar_desc,
                 additional_cot_instructions=additional_cot_instructions,
+                n_sample=n_sample,  # NEW
+                ensemble=ensemble,  # NEW
+                temperature=temperature,  # NEW
             )
             outputs = output.outputs
             raw_outputs = output.raw_outputs
