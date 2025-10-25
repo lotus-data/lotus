@@ -119,7 +119,7 @@ class SemIndexDataframe:
             embeddings = rm(data)
             vs.index(self._obj[col_name], embeddings, index_dir)
 
-            # Store metadata for data consistency checking (FAISS-specific)
+            # Store metadata for data consistency checking (FAISS only).
             if hasattr(vs, "_store_metadata"):
                 vs._store_metadata(index_dir, data_hash)
             lotus.logger.info(f"Created new index at {index_dir}")

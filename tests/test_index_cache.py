@@ -48,9 +48,27 @@ class TestIndexCache(BaseTest):
     def setup_vs(self, rm, vs):
         lotus.settings.configure(rm=rm, vs=vs)
 
-    def test_backwards_compatibility(self, sample_df, sample_df_2):
+    def test_required_index_dir_parameter(self, sample_df):
         """
-        Test backward compatibility where the index directory is passed
+        Test that index_dir parameter is required to prevent column name collisions
+        """
+        df = sample_df.copy()
+
+        # explicit index_dir provided
+        df_indexed = df.sem_index("category", "explicit_index_dir")
+
+        # Should use the explicit directory
+        cache_dir = df_indexed.attrs["index_dirs"]["category"]
+        assert cache_dir == "explicit_index_dir"
+        assert Path(cache_dir).exists()
+
+        # cleanup
+        if Path("explicit_index_dir").exists():
+            shutil.rmtree("explicit_index_dir")
+
+    def test_user_specified_index_directories(self, sample_df, sample_df_2):
+        """
+        Test that user-specified index directories work correctly
         """
         df1 = sample_df.copy()
         df2 = sample_df_2.copy()
