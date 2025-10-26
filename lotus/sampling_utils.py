@@ -1,161 +1,188 @@
 # lotus/sampling_utils.py
 
 from collections import Counter
-from typing import Any, Callable, List, Optional, Sequence, Tuple
+from typing import Any, Callable, List, Optional, Sequence, Tuple, TypeVar, Union, cast
+
+from litellm.types.utils import ChatCompletionTokenLogprob
+
+from lotus.types import EnsembleStrategy
+
+T = TypeVar("T")  # item type for ensembling, e.g., bool for filter, str for map
 
 
-def _norm(x: Any) -> str:
+def _majority_vote_one(samples: Sequence[T], *, default_yes: Optional[bool]) -> T:
     """
-    Normalize assorted truthy/falsy strings to 'yes'/'no' when possible;
-    otherwise return the lowercased string.
+    Generic majority vote over hashable samples.
+    - If there is a tie and samples are booleans {True, False}, use default_yes when provided.
+    - Otherwise, break ties deterministically by string order of the label.
 
-    Examples:
-      " YES " -> "yes"
-      "False" -> "no"
-      "maybe" -> "maybe"
+    Assumes samples are already canonical (e.g., booleans for filter).
     """
-    t = str(x).strip().lower()
-    if t in {"yes", "y", "true", "t", "1"}:
-        return "yes"
-    if t in {"no", "n", "false", "f", "0"}:
-        return "no"
-    return t
+    if not samples:
+        raise ValueError("majority vote received an empty sample list")
 
-
-def ensemble_majority_vote(samples_for_one_item: Sequence[str], *, default_yes: bool) -> str:
-    """
-    Majority vote over arbitrary label strings (after normalization).
-    If the vote is tied:
-      - If it's exactly 'yes' == 'no', fall back to default_yes.
-      - Otherwise, deterministically break ties by lexicographic order.
-    """
-    c = Counter(_norm(s) for s in samples_for_one_item)
-    if not c:
-        return "yes" if default_yes else "no"
-
+    c = Counter(samples)
     top = c.most_common()
 
-    # single unique label
+    # Single unique label
     if len(top) == 1:
         return top[0][0]
 
-    # tie on counts
-    if top[0][1] == top[1][1]:
-        # special case: exactly yes==no
-        if "yes" in c and "no" in c and c["yes"] == c["no"]:
-            return "yes" if default_yes else "no"
-        # otherwise deterministic tie-break among the tied labels
-        tied_labels = sorted([lab for lab, cnt in top if cnt == top[0][1]])
+    # Tie in counts
+    if len(top) >= 2 and top[0][1] == top[1][1]:
+        # If exactly boolean tie, allow default_yes to decide
+        if set(c.keys()) == {True, False} and default_yes is not None:
+            return bool(default_yes)  # type: ignore[return-value]
+
+        # Otherwise, deterministic tie-break among tied labels by string representation
+        tied_labels = sorted([lab for lab, cnt in top if cnt == top[0][1]], key=lambda x: str(x))
         return tied_labels[0]
 
-    # clear winner
+    # Clear winner
     return top[0][0]
 
 
-def ensemble_mean_bool(samples_for_one_item: Sequence[str]) -> str:
+def _mean_bool_one(samples: Sequence[bool]) -> bool:
     """
-    Average yes/no votes; returns 'yes' if mean >= 0.5 else 'no'.
-    Only meaningful when outputs semantically map to yes/no.
+    Average a list of booleans; True if mean >= 0.5 else False.
     """
-    vals = [1 if _norm(s) == "yes" else 0 for s in samples_for_one_item]
-    mean = sum(vals) / max(1, len(vals))
-    return "yes" if mean >= 0.5 else "no"
+    if not samples:
+        raise ValueError("mean_bool received an empty sample list")
+    s = sum(1 for x in samples if x)
+    return (s / len(samples)) >= 0.5
 
 
-def apply_ensemble(strategy: Optional[str], all_outputs: List[List[str]], *, default_yes: bool) -> List[str]:
+def apply_ensemble(
+    strategy: EnsembleStrategy,
+    all_outputs: List[List[T]],  # shape: [n_sample][batch]
+    *,
+    default_yes: Optional[bool] = None,
+    return_indices: bool = False,
+) -> Union[List[T], Tuple[List[T], List[int]]]:
     """
-    Collapse shape [n_sample][batch] -> [batch].
+    Collapse shape [n_sample][batch] -> [batch] according to strategy.
 
-    Behavior:
-      - If strategy is None or n_sample==1, return the first run unchanged.
-      - 'majority_vote' / 'majority': mode over strings (works for general labels).
-      - 'mean_prob' / 'average_prob' / 'avg_prob': treat strings as yes/no and average.
-
-    Args:
-      strategy: name of ensemble rule (or None).
-      all_outputs: list of runs, each run is list[str] of length 'batch'.
-      default_yes: used to break exact yes/no ties in majority voting.
+    Assumptions:
+    - Inputs in `all_outputs` are already canonical (e.g., booleans for filter).
+    - MAJORITY is generic for any hashable type; MEAN_BOOL requires boolean labels.
 
     Returns:
-      List[str]: one output per batch item.
+      - If return_indices=False: List[T]        (chosen output per item)
+      - If return_indices=True:  (List[T], List[int])  (plus chosen run index per item)
     """
     if not all_outputs:
-        return []
-    if not strategy or len(all_outputs) == 1:
-        return list(all_outputs[0])
+        return [] if not return_indices else ([], [])  # type: ignore[return-value]
 
-    # Sanity check: all runs must have same batch size
     batch = len(all_outputs[0])
-    for run in all_outputs[1:]:
+    for run in all_outputs:
         if len(run) != batch:
-            raise ValueError(f"Inconsistent batch sizes across runs: expected {batch}, got {len(run)}")
+            raise ValueError("Inconsistent batch sizes across runs")
 
     n_sample = len(all_outputs)
-    per_item = [[all_outputs[k][i] for k in range(n_sample)] for i in range(batch)]
-    s = strategy.lower()
 
-    out: List[str] = []
-    for samples in per_item:
-        if s in {"majority_vote", "majority"}:
-            out.append(ensemble_majority_vote(samples, default_yes=default_yes))
-        elif s in {"mean_prob", "average_prob", "avg_prob"}:
-            out.append(ensemble_mean_bool(samples))
-        else:
-            raise ValueError(
-                f"Unknown ensemble strategy: {strategy}. "
-                "Use 'majority_vote' for general strings; 'average_prob' only for yes/no."
-            )
-    return out
+    if strategy == EnsembleStrategy.PICK_FIRST or n_sample == 1:
+        chosen_labels: List[T] = list(all_outputs[0])
+        return chosen_labels if not return_indices else (chosen_labels, [0] * batch)
+
+    per_item: List[List[T]] = [[all_outputs[k][i] for k in range(n_sample)] for i in range(batch)]
+
+    final_labels: List[T] = []
+    chosen_indices: List[int] = []
+
+    if strategy == EnsembleStrategy.MAJORITY:
+        for samples in per_item:
+            label = _majority_vote_one(samples, default_yes=default_yes)
+            final_labels.append(label)
+            winner_idx = next(idx for idx, v in enumerate(samples) if v == label)
+            chosen_indices.append(winner_idx)
+
+    elif strategy == EnsembleStrategy.MEAN_BOOL:
+        if not all(isinstance(x, bool) for run in all_outputs for x in run):
+            raise ValueError("MEAN_BOOL can only be applied to boolean outputs.")
+        for samples in per_item:
+            label_bool = _mean_bool_one(cast(Sequence[bool], samples))
+            # cast back to T to satisfy the generic return type
+            final_labels.append(cast(T, label_bool))
+            # compare as bools to find the first matching run
+            winner_idx = next(idx for idx, v in enumerate(samples) if bool(v) == label_bool)
+            chosen_indices.append(winner_idx)
+    else:
+        raise ValueError(f"Unknown EnsembleStrategy: {strategy}")
+
+    return final_labels if not return_indices else (final_labels, chosen_indices)
+
+
+def pick_logprobs_for_choices(
+    all_logprobs: Optional[List[Optional[List[List[ChatCompletionTokenLogprob]]]]],  # [n_sample][batch][tokens]
+    chosen_indices: List[int],  # [batch]
+) -> Optional[List[List[ChatCompletionTokenLogprob]]]:
+    """
+    Given logprobs for each run and the chosen run index per item,
+    return the per-item logprobs of the finally chosen outputs.
+
+    all_logprobs is provider-specific; we only route to the chosen run/item.
+    """
+    if all_logprobs is None or not all_logprobs:
+        return None
+
+    # Determine batch size from first non-None run and validate all runs
+    batch = None
+    for run_logs in all_logprobs:
+        if run_logs is not None:
+            batch = len(run_logs)
+            break
+    if batch is None:
+        return None
+    for run_logs in all_logprobs:
+        if run_logs is not None and len(run_logs) != batch:
+            raise ValueError("Inconsistent batch sizes in all_logprobs runs")
+
+    if len(chosen_indices) != batch:
+        raise ValueError("chosen_indices length does not match batch size")
+
+    chosen_per_item: List[List[ChatCompletionTokenLogprob]] = []
+    for i, winner_run in enumerate(chosen_indices):
+        run_logs = all_logprobs[winner_run] if winner_run < len(all_logprobs) else None
+        chosen_per_item.append(run_logs[i] if (run_logs is not None) else [])
+    return chosen_per_item
 
 
 def resample_batch(
-    call_once: Callable[[bool, Optional[float], bool, str], Any],
-    *,
+    call_once: Callable[..., Any],
     n_sample: int,
-    want_logprobs: bool,
-    show_progress_bar: bool,
-    progress_bar_desc: str,
-    temperature: Optional[float],
-) -> Tuple[List[List[str]], Optional[List[Any]]]:
+    *args: Any,
+    **kwargs: Any,
+) -> Tuple[List[List[str]], Optional[List[Optional[List[List[ChatCompletionTokenLogprob]]]]]]:
     """
-    Run the same batch through the model multiple times and collect outputs.
+    Run the same batch multiple times and collect outputs (+logprobs if produced).
 
-    Expected signature for `call_once`:
-      call_once(want_logprobs, temperature, show_progress_bar, progress_bar_desc) -> lm_out
-    where lm_out must have:
-      - lm_out.outputs: List[str]  # batch-sized list of strings
-      - lm_out.logprobs: Optional[Any]  # present if want_logprobs=True (provider-specific shape)
-
-    Returns:
-      (all_outputs, chosen_logprobs)
-        - all_outputs: List of runs; each run is outputs[List[str]] of length 'batch'
-        - chosen_logprobs: logprobs from the FIRST run if requested, else None.
-
-    Notes:
-      - We validate consistent batch sizes across runs.
-      - We intentionally return ONLY one set of logprobs to keep the API simple.
+    We do not prescribe call_once signature; we pass through *args/**kwargs.
+    Expected from call_once:
+      - returns an object with `.outputs: List[str]`
+      - may have `.logprobs` (provider-specific shape), or None/absent.
     """
+    if n_sample <= 0:
+        raise ValueError("n_sample must be >= 1")
+
     all_outputs: List[List[str]] = []
-    logs: List[Any] = []  # non-optional; we append only if available
+    all_logs: List[Optional[List[List[ChatCompletionTokenLogprob]]]] = []
 
-    for _ in range(max(1, n_sample)):
-        lm_out = call_once(want_logprobs, temperature, show_progress_bar, progress_bar_desc)
+    for _ in range(n_sample):
+        lm_out = call_once(*args, **kwargs)
 
-        if not hasattr(lm_out, "outputs"):
-            raise ValueError("LM call did not return an object with an 'outputs' attribute.")
-        if not isinstance(lm_out.outputs, list):
-            raise ValueError("LM call returned outputs that are not a list.")
+        if not hasattr(lm_out, "outputs") or not isinstance(lm_out.outputs, list):
+            raise ValueError("LM call did not return a list-like 'outputs'.")
 
         all_outputs.append(lm_out.outputs)
 
-        if want_logprobs and hasattr(lm_out, "logprobs") and lm_out.logprobs is not None:
-            logs.append(lm_out.logprobs)
+        logs = getattr(lm_out, "logprobs", None)
+        # Accept None for runs with no logprobs
+        all_logs.append(logs if logs is not None else None)
 
-    # Ensure consistent batch size
+    # Validate consistent batch
     batch = len(all_outputs[0])
     for run in all_outputs[1:]:
         if len(run) != batch:
-            raise ValueError(f"Inconsistent batch sizes across runs: expected {batch}, got {len(run)}")
+            raise ValueError("Inconsistent batch sizes across runs")
 
-    chosen: Optional[List[Any]] = logs[0] if (want_logprobs and len(logs) > 0) else None
-    return all_outputs, chosen
+    return all_outputs, all_logs

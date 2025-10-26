@@ -220,3 +220,12 @@ class ReasoningStrategy(Enum):
     COT = auto()
     ZS_COT = auto()
     FEW_SHOT = auto()
+
+
+################################################################################
+# Ensemble strategy
+################################################################################
+class EnsembleStrategy(Enum):
+    PICK_FIRST = "pick_first"  # Always choose run 0
+    MAJORITY = "majority"  # For canonical boolean labels
+    MEAN_BOOL = "mean_bool"  # Average booleans >= .5 -> True

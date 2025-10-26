@@ -154,13 +154,18 @@ For recent updates related to LOTUS, follow [@lianapatel_](https://x.com/lianapa
 
 If you find LOTUS or semantic operators useful, we'd appreciate if you can please cite this work as follows:
 ```bibtex
-@misc{patel2024semanticoperators,
+@article{patel2025semanticoptimization,
+    title = {Semantic Operators and Their Optimization: Enabling LLM-Based Data Processing with Accuracy Guarantees in LOTUS},
+    author = {Patel, Liana and Jha, Siddharth and Pan, Melissa and Gupta, Harshit and Asawa, Parth and Guestrin, Carlos and Zaharia, Matei},
+    year = {2025},
+    journal = {Proc. VLDB Endow.},
+    url = {https://doi.org/10.14778/3749646.3749685},
+}
+@article{patel2024semanticoperators,
       title={Semantic Operators: A Declarative Model for Rich, AI-based Analytics Over Text Data},
       author={Liana Patel and Siddharth Jha and Parth Asawa and Melissa Pan and Carlos Guestrin and Matei Zaharia},
       year={2024},
       eprint={2407.11418},
-      archivePrefix={arXiv},
-      primaryClass={cs.DB},
       url={https://arxiv.org/abs/2407.11418},
 }
 ```
