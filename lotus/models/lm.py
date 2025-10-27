@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 import logging
 import math
@@ -7,6 +8,8 @@ from typing import Any
 
 import litellm
 import numpy as np
+from crewai import LLM, Agent, Crew, Task
+from crewai.tools.base_tool import BaseTool
 from litellm import batch_completion, completion_cost
 from litellm.exceptions import AuthenticationError
 from litellm.types.utils import ChatCompletionTokenLogprob, ChoiceLogprobs, Choices, ModelResponse
@@ -21,6 +24,7 @@ from lotus.cache import CacheFactory
 from lotus.types import (
     LMOutput,
     LMStats,
+    LMWithToolsOutput,
     LogprobsForCascade,
     LogprobsForFilterCascade,
     LotusUsageLimitException,
@@ -29,6 +33,86 @@ from lotus.types import (
 
 logging.getLogger("LiteLLM").setLevel(logging.CRITICAL)
 logging.getLogger("httpx").setLevel(logging.CRITICAL)
+
+
+class LMWithTools:
+    def __init__(
+        self,
+        model: str = "gpt-4o-mini",
+        temperature: float = 0.0,
+        max_tokens: int = 512,
+        physical_usage_limit: UsageLimit = UsageLimit(),
+        **kwargs: dict[str, Any],
+    ):
+        self.llm = LLM(
+            model=model,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            **kwargs,  # type: ignore[arg-type]
+        )
+
+        self.physical_usage_limit = physical_usage_limit
+        self.stats: LMStats = LMStats()
+
+    def __call__(
+        self,
+        agent_task_description: dict[str, str],
+        inputs: list[dict],
+        tools: list[BaseTool] | None = None,
+        show_progress_bar: bool = True,
+        progress_bar_desc: str = "Mapping",
+        output_json: type[BaseModel] | None = None,
+    ) -> LMWithToolsOutput:
+        pbar = tqdm(
+            total=len(inputs),
+            desc=progress_bar_desc,
+            disable=not show_progress_bar,
+            bar_format="{l_bar}{bar} {n}/{total} Rows processed [{elapsed}<{remaining}, {rate_fmt}{postfix}]",
+        )
+
+        def update_progress(task_output):
+            pbar.update(1)
+
+        agent = Agent(
+            role=agent_task_description["role"],
+            goal=agent_task_description["goal"],
+            backstory=agent_task_description["backstory"],
+            tools=tools,
+            llm=self.llm,
+        )
+
+        task = Task(
+            description=agent_task_description["task_description"],
+            expected_output=agent_task_description["expected_output"],
+            output_json=output_json,
+            agent=agent,
+            callback=update_progress,
+        )
+        crew = Crew(
+            agents=[agent],
+            tasks=[task],
+        )
+
+        results = []
+
+        results = asyncio.run(crew.kickoff_for_each_async(inputs=inputs))
+
+        for result in results:
+            # Just recording metrics for now, not enforcing limits here.
+            # CrewAIs LLM already enforces limits internally based on total_tokens passed during initialization.
+            self.stats.physical_usage.total_tokens += result.token_usage.total_tokens
+            self.stats.physical_usage.prompt_tokens += result.token_usage.prompt_tokens
+            self.stats.physical_usage.completion_tokens += result.token_usage.completion_tokens
+
+        pbar.close()
+        outputs = []
+        for result in results:
+            if output_json is not None and result.json is not None:
+                outputs.append(result.json)
+            else:
+                outputs.append(result.raw)
+
+        return LMWithToolsOutput(outputs=outputs)
 
 
 class LM:

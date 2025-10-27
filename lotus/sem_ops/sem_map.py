@@ -1,14 +1,70 @@
 from typing import Any, Callable
 
 import pandas as pd
+from crewai.tools.base_tool import BaseTool
 
 import lotus
 from lotus.cache import operator_cache
+from lotus.models import LMWithTools
 from lotus.templates import task_instructions
 from lotus.types import LMOutput, ReasoningStrategy, SemanticMapOutput, SemanticMapPostprocessOutput
 from lotus.utils import show_safe_mode
 
 from .postprocessors import map_postprocess
+
+
+def sem_map_with_tools(
+    docs: list[dict[str, Any]],
+    model: LMWithTools,
+    user_instruction: str,
+    tools: list[BaseTool] | None = None,
+    progress_bar_desc: str = "Mapping",
+) -> SemanticMapOutput:
+    """
+    Maps a list of documents to a list of outputs using a language model with tools.
+
+    This function applies a natural language instruction to each document in the
+    input list, transforming them into new outputs. The language model can utilize
+    external tools to assist in the mapping process.
+
+    Args:
+        docs (list[dict[str, Any]]): The list of documents to map. Each document
+            should be a dictionary containing multimodal information (text, images, etc.).
+        model (LMWithTools): The language model instance with tools to use for mapping.
+            Must be properly configured with appropriate API keys and settings.
+        user_instruction (str): The natural language instruction that guides the
+            mapping process. This instruction tells the model how to transform
+            each input document.
+        tools (list[BaseTool] | None, optional): A list of tools that the language
+            model can use to assist in the mapping process. Defaults to None.
+        progress_bar_desc (str, optional): Description for the progress bar.
+            Defaults to "Mapping".
+    Returns:
+        SemanticMapOutput: An object containing the processed outputs.
+
+    Example:
+
+        >>> from crewai.tools import WebSearchTool
+        >>> docs = [{"book": "1984"}, {"book": "Book Thief"}]
+        >>> model = LM(model="gpt-4o")
+        >>> result = sem_map(docs, model, "find me a free online pdf of each {book}", tools=[WebSearchTool()])
+        >>> print(result.outputs)
+    """
+
+    agent_and_task_descriptions, inputs = task_instructions.map_with_tools_formatter(
+        docs,
+        user_instruction,
+    )
+
+    lotus.logger.debug(f"agent_and_task_descriptions: {agent_and_task_descriptions}")
+    for input in inputs:
+        lotus.logger.debug(f"input to task: {input}")
+
+    outputs = model(agent_and_task_descriptions, inputs, tools, progress_bar_desc=progress_bar_desc)
+
+    return SemanticMapOutput(
+        raw_outputs=outputs.outputs, outputs=outputs.outputs, explanations=[None] * len(outputs.outputs)
+    )
 
 
 def sem_map(
@@ -130,6 +186,8 @@ class SemMapDataframe:
     Args:
         user_instruction (str): The natural language instruction that guides
             the mapping process. Should describe how to transform each row.
+        tools (list[BaseTool] | None, optional): A list of tools that the language
+            model can use to assist in the mapping process. Defaults to None.
         system_prompt (str | None, optional): The system prompt to use.
         postprocessor (Callable, optional): A function to post-process the model
             outputs. Should take (outputs, model, use_cot) and return
@@ -185,6 +243,15 @@ class SemMapDataframe:
         document       _map                                    explanation_map
         0  Harry is happy and love cats   positive  Reasoning: The document states that "Harry is ...
         1  Harry is feeling nauseous   negative  Reasoning: The phrase "Harry is feeling nauseo...
+
+        # Example 3: with tools
+        >>> from crewai.tools import WebSearchTool
+        >>> from lotus.models import LMWithTools
+        >>> lotus.settings.configure(lm_with_tools=LMWithTools(model="gpt-4o-mini"))
+        >>> df = pd.DataFrame({
+        ...     'country': ['USA', 'Canada', 'Mexico']
+        ... })
+        >>> df.sem_map("What is the largest city in each {country}?", tools=[WebSearchTool()])
     """
 
     def __init__(self, pandas_obj: pd.DataFrame):
@@ -215,6 +282,7 @@ class SemMapDataframe:
     def __call__(
         self,
         user_instruction: str,
+        tools: list[BaseTool] | None = None,
         system_prompt: str | None = None,
         postprocessor: Callable[[list[str], lotus.models.LM, bool], SemanticMapPostprocessOutput] = map_postprocess,
         return_explanations: bool = False,
@@ -226,11 +294,6 @@ class SemMapDataframe:
         progress_bar_desc: str = "Mapping",
         **model_kwargs: Any,
     ) -> pd.DataFrame:
-        if lotus.settings.lm is None:
-            raise ValueError(
-                "The language model must be an instance of LM. Please configure a valid language model using lotus.settings.configure()"
-            )
-
         col_li = lotus.nl_expression.parse_cols(user_instruction)
 
         # check that column exists
@@ -241,33 +304,53 @@ class SemMapDataframe:
         multimodal_data = task_instructions.df2multimodal_info(self._obj, col_li)
         formatted_usr_instr = lotus.nl_expression.nle2str(user_instruction, col_li)
 
-        examples_multimodal_data = None
-        examples_answers = None
-        cot_reasoning = None
+        if tools is not None:
+            if lotus.settings.lm_with_tools is None:
+                raise ValueError(
+                    "To use tools the language model with tools must be an instance of LMWithTools. Please configure a valid language model with tools through lm_with_tools using lotus.settings.configure()"
+                )
 
-        if examples is not None:
-            assert "Answer" in examples.columns, "Answer must be a column in examples dataframe"
-            examples_multimodal_data = task_instructions.df2multimodal_info(examples, col_li)
-            examples_answers = examples["Answer"].tolist()
+            output = sem_map_with_tools(
+                multimodal_data,
+                lotus.settings.lm_with_tools,
+                formatted_usr_instr,
+                tools,
+                progress_bar_desc=progress_bar_desc,
+            )
 
-            if strategy == ReasoningStrategy.COT or strategy == ReasoningStrategy.ZS_COT:
-                return_explanations = True
-                cot_reasoning = examples["Reasoning"].tolist()
+        else:
+            if lotus.settings.lm is None:
+                raise ValueError(
+                    "The language model must be an instance of LM. Please configure a valid language model using lotus.settings.configure()"
+                )
 
-        output = sem_map(
-            multimodal_data,
-            lotus.settings.lm,
-            formatted_usr_instr,
-            system_prompt=system_prompt,
-            postprocessor=postprocessor,
-            examples_multimodal_data=examples_multimodal_data,
-            examples_answers=examples_answers,
-            cot_reasoning=cot_reasoning,
-            strategy=strategy,
-            safe_mode=safe_mode,
-            progress_bar_desc=progress_bar_desc,
-            **model_kwargs,
-        )
+            examples_multimodal_data = None
+            examples_answers = None
+            cot_reasoning = None
+
+            if examples is not None:
+                assert "Answer" in examples.columns, "Answer must be a column in examples dataframe"
+                examples_multimodal_data = task_instructions.df2multimodal_info(examples, col_li)
+                examples_answers = examples["Answer"].tolist()
+
+                if strategy == ReasoningStrategy.COT or strategy == ReasoningStrategy.ZS_COT:
+                    return_explanations = True
+                    cot_reasoning = examples["Reasoning"].tolist()
+
+            output = sem_map(
+                multimodal_data,
+                lotus.settings.lm,
+                formatted_usr_instr,
+                system_prompt=system_prompt,
+                postprocessor=postprocessor,
+                examples_multimodal_data=examples_multimodal_data,
+                examples_answers=examples_answers,
+                cot_reasoning=cot_reasoning,
+                strategy=strategy,
+                safe_mode=safe_mode,
+                progress_bar_desc=progress_bar_desc,
+                **model_kwargs,
+            )
 
         new_df = self._obj.copy()
         new_df[suffix] = output.outputs

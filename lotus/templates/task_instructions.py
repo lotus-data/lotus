@@ -254,6 +254,27 @@ def map_formatter(
     return messages
 
 
+def map_with_tools_formatter(
+    multimodal_data: list[dict[str, Any]],
+    user_instruction: str,
+) -> tuple[dict[str, str], list[dict[str, str]]]:
+    agent_description = {
+        "role": "Contextual Answering Agent",
+        "goal": "Answer user's instruction on the user provided context.",
+        "backstory": "You are an AI agent specialized in answering users instructions on the provided context.",
+        "task_description": "Answer the instruction based on the provided context. \n {context_with_instruction}",
+        "expected_output": "The answer to the instruction.",
+    }
+
+    inputs = []
+    for data in multimodal_data:
+        inputs.append(
+            {"context_with_instruction": user_message_formatter(data, f"Instruction: {user_instruction}")["content"]}
+        )
+
+    return agent_description, inputs
+
+
 def extract_formatter(
     model: lotus.models.LM,
     multimodal_data: dict[str, Any],
