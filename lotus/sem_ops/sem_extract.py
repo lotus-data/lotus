@@ -85,10 +85,16 @@ def sem_extract(
         show_safe_mode(estimated_cost, estimated_LM_calls)
 
     # call model
-    lm_output: LMOutput = model(inputs, response_format={"type": "json_object"}, progress_bar_desc=progress_bar_desc)
+    # Don't use JSON response format when CoT reasoning is enabled, as it prevents reasoning text
+    if strategy in [ReasoningStrategy.COT, ReasoningStrategy.ZS_COT]:
+        lm_output: LMOutput = model(inputs, progress_bar_desc=progress_bar_desc)
+    else:
+        lm_output = model(inputs, response_format={"type": "json_object"}, progress_bar_desc=progress_bar_desc)
 
     # post process results
-    postprocess_output = postprocessor(lm_output.outputs, model, return_explanations)
+    # Check if CoT reasoning is being used
+    cot_reasoning = strategy in [ReasoningStrategy.COT, ReasoningStrategy.ZS_COT]
+    postprocess_output = postprocessor(lm_output.outputs, model, cot_reasoning)
     lotus.logger.debug(f"raw_outputs: {lm_output.outputs}")
     lotus.logger.debug(f"outputs: {postprocess_output.outputs}")
     lotus.logger.debug(f"explanations: {postprocess_output.explanations}")
