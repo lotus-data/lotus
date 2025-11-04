@@ -7,7 +7,7 @@ import lotus
 from lotus.cache import operator_cache
 from lotus.templates import task_instructions
 from lotus.types import CascadeArgs, ReasoningStrategy, SemanticJoinOutput
-from lotus.utils import show_safe_mode
+from lotus.utils import get_index_cache, show_safe_mode
 
 from .cascade_utils import calibrate_sem_sim_join, importance_sampling, learn_cascade_thresholds
 from .sem_filter import sem_filter
@@ -355,7 +355,14 @@ def run_sem_sim_join(l1: pd.Series, l2: pd.Series, col1_label: str, col2_label: 
         lotus.logger.error("l1 must be a pandas Series or DataFrame")
 
     l2_df = l2.to_frame(name=col2_label)
-    l2_df = l2_df.sem_index(col2_label, f"{col2_label}_index")
+
+    # Use get_index_cache to create deterministic cache directory for l2 data
+    rm = lotus.settings.rm
+    model_name = getattr(rm, "model", None)
+    cache_dir = get_index_cache(col2_label, l2.tolist(), model_name)
+
+    # This will reuse existing index if data is consistent, preventing duplicate creation
+    l2_df = l2_df.sem_index(col2_label, cache_dir)
 
     K = len(l2)
     # Run sem_sim_join as helper on the sampled data

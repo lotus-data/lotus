@@ -1,3 +1,4 @@
+import json
 import os
 import pickle
 from typing import Any
@@ -19,7 +20,13 @@ class FaissVS(VS):
         self.faiss_index: faiss.Index | None = None
         self.vecs: NDArray[np.float64] | None = None
 
-    def index(self, docs: list[str], embeddings: NDArray[np.float64], index_dir: str, **kwargs: dict[str, Any]) -> None:
+    def index(
+        self,
+        docs: list[str],
+        embeddings: NDArray[np.float64],
+        index_dir: str,
+        **kwargs: dict[str, Any],
+    ) -> None:
         self.faiss_index = faiss.index_factory(embeddings.shape[1], self.factory_string, self.metric)
         self.faiss_index.add(embeddings)
         self.index_dir = index_dir
@@ -28,6 +35,12 @@ class FaissVS(VS):
         with open(f"{index_dir}/vecs", "wb") as fp:
             pickle.dump(embeddings, fp)
         faiss.write_index(self.faiss_index, f"{index_dir}/index")
+
+    def _store_metadata(self, index_dir: str, data_hash: str):
+        """Store metadata for data consistency checking (FAISS-specific)"""
+        metadata = {"data_hash": data_hash}
+        with open(f"{index_dir}/metadata.json", "w") as fp:
+            json.dump(metadata, fp)
 
     def load_index(self, index_dir: str) -> None:
         self.index_dir = index_dir
