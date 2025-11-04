@@ -1,5 +1,5 @@
 import json
-from typing import Callable
+from typing import Any, Callable, Dict, Union
 
 import lotus
 from lotus.types import (
@@ -10,7 +10,7 @@ from lotus.types import (
 
 
 def cot_postprocessor(llm_answers: list[str], for_extract: bool = False):
-    outputs: list[str | None] = []
+    outputs: list[Union[str, Dict[str, Any], None]] = []
     explanations: list[str | None] = []
     for llm_answer in llm_answers:
         reasoning_idx = llm_answer.find("Reasoning:\n")
@@ -53,7 +53,7 @@ def deepseek_cot_postprocessor(llm_answers: list[str], for_extract: bool = False
     Returns:
         Tuple: (outputs, explanations)
     """
-    outputs: list[str | None] = []
+    outputs: list[Union[str, Dict[str, Any], None]] = []
     explanations: list[str | None] = []
 
     for llm_answer in llm_answers:
