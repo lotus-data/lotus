@@ -1,18 +1,15 @@
-
-import os
-import time
 import ast
+import time
 
-import numpy as np
 import pandas as pd
 from datasets import load_dataset
-from metrics import  compute_rank_precision
+from metrics import compute_rank_precision
 from pipeline_tester import Pipeline, PipelineTester
 
 import lotus
-from lotus.models import LM, SentenceTransformersRM, LiteLLMRM
-from lotus.vector_store import FaissVS
+from lotus.models import LM, LiteLLMRM
 from lotus.types import CascadeArgs
+from lotus.vector_store import FaissVS
 
 
 class BiodexTester(PipelineTester):
@@ -35,24 +32,20 @@ class BiodexTester(PipelineTester):
         #     temperature=0.0,
         #     max_tokens=256,
         # )
-        lm = LM(model="gpt-4o-mini-2024-07-18",
-                max_batch_size=64,
-                temperature=0.0,
-                max_tokens=256,)
-        
+        lm = LM(
+            model="gpt-4o-mini-2024-07-18",
+            max_batch_size=64,
+            temperature=0.0,
+            max_tokens=256,
+        )
+
         vs = FaissVS()
 
-        lotus.settings.configure(
-            lm=lm,
-            rm=rm,
-            vs=vs
-        )
-        
+        lotus.settings.configure(lm=lm, rm=rm, vs=vs)
+
         print(f"lotus.settings.lm.max_batch_size = {lotus.settings.lm.max_batch_size}")
         print(f"lotus.settings.lm.max_tokens = {lotus.settings.lm.max_tokens}")
         print(f"lotus.settings.lm.temperature = {lotus.settings.lm.kwargs['temperature']}")
-
-
 
     def load_queries(self, n_samples):
         df = load_dataset("BioDEX/BioDEX-Reactions", split="test").to_pandas()
@@ -67,7 +60,6 @@ class BiodexTester(PipelineTester):
 
         return df[:n_samples]
 
-
     def load_corpus(self):
         reactions_df = pd.read_csv("biodex-reactions.csv")
         return reactions_df
@@ -81,12 +73,11 @@ class BiodexTester(PipelineTester):
             lambda x: compute_rank_precision(x[gt_col_name], x[pred_col_name], cutoff=10),
             axis=1,
         )
-        
+
         res_df["rank-precision@25"] = res_df.apply(
             lambda x: compute_rank_precision(x[gt_col_name], x[pred_col_name], cutoff=25),
             axis=1,
         )
-
 
         res_df["num_ids"] = res_df.apply(lambda x: len(x[pred_col_name]), axis=1)
 
@@ -94,7 +85,6 @@ class BiodexTester(PipelineTester):
         df = res_df[[col for col in res_df.columns if "@" in col or "latency" in col or "num_ids" in col]]
 
         return df
-
 
 
 class JoinAndRerank(Pipeline):
@@ -115,7 +105,7 @@ class JoinAndRerank(Pipeline):
             Safely convert val (which could be a list or a string representing a list)
             into a comma-separated string.
             """
-            
+
             if isinstance(val, list):
                 return ", ".join(val)
             elif isinstance(val, str):
@@ -135,28 +125,24 @@ class JoinAndRerank(Pipeline):
 
         # 3) Group by and aggregate
         grouped_df = (
-            answers_df
-            .groupby(["title", "abstract", "reactions", "reactions_list", "patient_description"], dropna=False)
+            answers_df.groupby(
+                ["title", "abstract", "reactions", "reactions_list", "patient_description"], dropna=False
+            )
             .apply(lambda grp: grp["reaction"].tolist())
             .reset_index(name="pred_reaction")
         )
 
         # 4) Convert that comma-separated string (in grouped_df) back to a list
-        grouped_df["reactions_list"] = grouped_df["reactions_list"].apply(
-            lambda s: s.split(", ")
-        )
-        
+        grouped_df["reactions_list"] = grouped_df["reactions_list"].apply(lambda s: s.split(", "))
+
         rerank_prompt = (
-            f"Given the following {{patient_description}} of a medical article, rank the predicted drug reactions {{pred_reaction}} in order of most confident to least confident that the medical article is describing the drug reaction\n"
+            "Given the following {patient_description} of a medical article, rank the predicted drug reactions {pred_reaction} in order of most confident to least confident that the medical article is describing the drug reaction\n"
             "\n\n"
-            f"There may be conditions described in the medical article that are not in the list of predicted drug reactions, pred_reaction. Do not include them in the ranked list. Only focus on the conditions in the list."
+            "There may be conditions described in the medical article that are not in the list of predicted drug reactions, pred_reaction. Do not include them in the ranked list. Only focus on the conditions in the list."
             "Always write your answer as a list of comma-separated drug reactions only and nothing else."
         )
 
-        grouped_df = grouped_df.sem_map(
-            rerank_prompt
-        )
-        
+        grouped_df = grouped_df.sem_map(rerank_prompt)
 
         end_t = time.time()
 
@@ -164,16 +150,17 @@ class JoinAndRerank(Pipeline):
 
         # Parse output
         known_prefixes = [
-    f"Based on the patient description, the most applicable adverse drug reactions are:\n\n",
-    f"Based on the Patient_description, the most applicable adverse drug reactions from the Combined_reaction_list are:\n\n",
-    f"Based on the Patient_description, the most applicable adverse drug reactions are:\n\n",
-    f"Based on the provided Patient_description, the most applicable adverse drug reactions from the Combined_reaction_list are:\n\n",
-    f"Here is the list of most applicable adverse drug reactions:\n\n",
-    "Here is the answer:\n\n",
-    f"Here is the list of the most applicable adverse drug reactions:\n\n",
-    f"Here is the list of most applicable adverse drug reactions:\n\n",
-    f"Here is the list of most applicable adverse drug reactions from the options, ranked from most applicable to least applicable:"
-]
+            "Based on the patient description, the most applicable adverse drug reactions are:\n\n",
+            "Based on the Patient_description, the most applicable adverse drug reactions from the Combined_reaction_list are:\n\n",
+            "Based on the Patient_description, the most applicable adverse drug reactions are:\n\n",
+            "Based on the provided Patient_description, the most applicable adverse drug reactions from the Combined_reaction_list are:\n\n",
+            "Here is the list of most applicable adverse drug reactions:\n\n",
+            "Here is the answer:\n\n",
+            "Here is the list of the most applicable adverse drug reactions:\n\n",
+            "Here is the list of most applicable adverse drug reactions:\n\n",
+            "Here is the list of most applicable adverse drug reactions from the options, ranked from most applicable to least applicable:",
+        ]
+
         def remove_known_prefixes(text: str, prefixes: list) -> str:
             """
             Removes the first matching prefix from 'text' if found in 'prefixes',
@@ -181,19 +168,16 @@ class JoinAndRerank(Pipeline):
             """
             for prefix in prefixes:
                 if text.startswith(prefix):
-                    return text[len(prefix):]
+                    return text[len(prefix) :]
             return text
 
-        grouped_df["_map"] = grouped_df["_map"].fillna("").apply(
-            lambda x: remove_known_prefixes(x, known_prefixes)
-        )
+        grouped_df["_map"] = grouped_df["_map"].fillna("").apply(lambda x: remove_known_prefixes(x, known_prefixes))
         grouped_df.rename(columns={"pred_reaction": "pred_reaction_norank"}, inplace=True)
         grouped_df["pred_reaction"] = grouped_df["_map"].apply(
             lambda x: [reaction.strip() for reaction in x.split(",") if reaction.strip()]
         )
 
         return grouped_df, (end_t - start_t)
-
 
 
 class Join(Pipeline):
@@ -218,55 +202,49 @@ class Join(Pipeline):
             recall_target=recall_target,
             precision_target=precision_target,
             failure_probability=0.2,
-            sampling_percentage=0.00008218, #len = 500 samples
+            sampling_percentage=0.00008218,  # len = 500 samples
             map_instruction=map_instruction,
-            cascade_IS_random_seed=42, # fixed random seed for sampling
+            cascade_IS_random_seed=42,  # fixed random seed for sampling
         )
-        
-        answers_df, stats = queries_df.sem_join(corpus_df, join_instruction, cascade_args=cascade_args, return_stats=True)
+
+        answers_df, stats = queries_df.sem_join(
+            corpus_df, join_instruction, cascade_args=cascade_args, return_stats=True
+        )
 
         end_t = time.time()
 
         answers_df.to_csv(f"biodex_cascade_answers_for_lm_rerank_{name}.csv", index=True)
-        
+
         print(f"Time taken: {end_t - start_t}")
         print(f"stats = {stats}")
 
         # post process for checking answers
-        answers_df["reactions_list"] = answers_df["reactions_list"].apply(
-            lambda x: ", ".join(x)
-        )
+        answers_df["reactions_list"] = answers_df["reactions_list"].apply(lambda x: ", ".join(x))
         grouped_df = (
             answers_df.groupby(["title", "abstract", "reactions", "reactions_list"])
             .apply(lambda x: x["reaction"].tolist())
             .reset_index(name="pred_reaction")
         )
         # convert reaction list from string back to list
-        grouped_df["reactions_list"] = grouped_df["reactions_list"].apply(
-            lambda x: x.split(", ")
-        )
+        grouped_df["reactions_list"] = grouped_df["reactions_list"].apply(lambda x: x.split(", "))
 
-        return grouped_df, (end_t - start_t)  # qid    
-    
+        return grouped_df, (end_t - start_t)  # qid
+
+
 ALL_SAMPLES = 4249
-out = []
+out: list = []
 if __name__ == "__main__":
     ts = BiodexTester(n_samples=250, truncation_limit=128000)
 
-    name = f"GPT4o-mini"
+    name = "GPT4o-mini"
     ts.add_pipeline(Join(recall_target=0.95, precision_target=0.95, name=name))
     ts.add_pipeline(JoinAndRerank(name=name))
 
-
     # RUN ALL PIPELINES
     ts.test_pipelines()
-    
-    lotus.settings.lm.print_total_usage()
 
+    if lotus.settings.lm is not None:
+        lotus.settings.lm.print_total_usage()
 
     # PRINT SUMMARY OF PIPELINE RESULTS
     print(ts.summarize_pipeline_results("biodex_results", ts.n_samples, ["Join", "JoinAndRerank"]))
-
-
-
-    

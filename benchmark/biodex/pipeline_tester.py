@@ -1,7 +1,7 @@
 import json
 import os
 from abc import abstractmethod
-from typing import List, Tuple
+from typing import Any, Dict, List, Tuple
 
 import pandas as pd
 
@@ -10,20 +10,22 @@ import lotus
 
 # only use kwargs
 class Pipeline:
-    def __init__(self, **kwargs):
-        self.kwargs = kwargs
+    def __init__(self, **kwargs: Any) -> None:
+        self.kwargs: Dict[str, Any] = kwargs
 
-    def __call__(self, queries_df, corpus_df, **kwargs):
+    def __call__(self, queries_df: pd.DataFrame, corpus_df: pd.DataFrame, **kwargs: Any) -> Tuple[pd.DataFrame, float]:
         return self.run(queries_df, corpus_df, **kwargs)
 
     @abstractmethod
     # should return df of qid, ids (as a list) and a latency number
-    def run(self, query_df, corpus_df, *args, **kwargs) -> Tuple[pd.DataFrame, float]:
+    def run(
+        self, query_df: pd.DataFrame, corpus_df: pd.DataFrame, *args: Any, **kwargs: Any
+    ) -> Tuple[pd.DataFrame, float]:
         raise NotImplementedError
 
 
 class PipelineTester:
-    def __init__(self, n_samples=200):
+    def __init__(self, n_samples: int = 200) -> None:
         self.n_samples = n_samples
 
         print("Setting configs")
@@ -37,18 +39,18 @@ class PipelineTester:
 
         self.results_dir = self.set_results_dir()
 
-        self.pipelines = []
+        self.pipelines: List[Pipeline] = []
 
     @abstractmethod
-    def set_results_dir(self):
+    def set_results_dir(self) -> str:
         pass
 
     @abstractmethod
-    def set_configs(self):
+    def set_configs(self) -> None:
         pass
 
     @abstractmethod
-    def load_queries(self, n_samples) -> pd.DataFrame:
+    def load_queries(self, n_samples: int) -> pd.DataFrame:
         pass
 
     @abstractmethod
@@ -57,14 +59,14 @@ class PipelineTester:
 
     @abstractmethod
     # returns a df with a column for each metric and row for each query
-    def compute_metrics(self, res_df, gt_col_name, pred_col_name) -> pd.DataFrame:
+    def compute_metrics(self, res_df: pd.DataFrame, gt_col_name: str, pred_col_name: str) -> pd.DataFrame:
         pass
 
-    def add_pipeline(self, pipeline: Pipeline):
+    def add_pipeline(self, pipeline: Pipeline) -> None:
         self.pipelines.append(pipeline)
         print(f"Added {pipeline.__class__.__name__}" f" with kwargs: {pipeline.kwargs}")
 
-    def clear_pipelines(self):
+    def clear_pipelines(self) -> None:
         self.pipelines = []
 
     def test_pipelines(self):
@@ -77,7 +79,6 @@ class PipelineTester:
 
             # save results to file
             self.write_results(pipeline, res_df, latency)
-
 
     def get_configs(self):
         configs_dict = dict()
@@ -141,4 +142,3 @@ class PipelineTester:
                     means[f"{pipeline_dir}_{i}"] = pipeline_df["0"]
 
         return means
-
