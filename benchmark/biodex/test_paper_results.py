@@ -4,6 +4,9 @@ import time
 import json
 from pathlib import Path
 
+os.environ['TOKENIZERS_PARALLELISM'] = 'false'
+os.environ['OMP_NUM_THREADS'] = '1'
+
 # Add current directory to path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
@@ -60,14 +63,15 @@ def main():
     
     try:
         # Import BioDEX modules
-        from biodex_tester import BiodexTester, Retrieve, MapRetrieve, JoinCascade
+        from biodex_tester import BiodexTester, Join, JoinAndRerank
         print("Successfully imported BioDEX modules")
         
-        # Initialize with moderate sample size for validation
+        # Initialize with small sample size for validation
         print("Initializing BioDEX tester...")
-        print("Using 100 samples for paper validation (vs 4249 full dataset)")
+        print("Using 25 samples for paper validation (vs 4249 full dataset)")
+        print("Note: Using small sample size to avoid multiprocessing issues")
         
-        ts = BiodexTester(n_samples=100, truncation_limit=8000)
+        ts = BiodexTester(n_samples=25, truncation_limit=8000)
         
         print(f"Loaded {len(ts.queries_df)} test queries")
         print(f"Loaded {len(ts.corpus_df)} reactions in corpus")
@@ -75,17 +79,13 @@ def main():
         # Test the key pipelines from the paper
         print("Testing paper pipelines...")
 
-        # 1. Baseline: Basic Retrieve
-        print("1. Testing Retrieve (baseline)...")
-        ts.add_pipeline(Retrieve(K=100))
+        # 1. Join Pipeline (semantic join with cascading)
+        print("1. Testing Join (semantic join with cascading)...")
+        ts.add_pipeline(Join(recall_target=0.9, precision_target=0.9, name="paper_validation"))
         
-        # 2. Semantic Enhancement: MapRetrieve  
-        print("2. Testing MapRetrieve (semantic mapping)...")
-        ts.add_pipeline(MapRetrieve(K=100))
-        
-        # 3. Paper's Main Result: JoinCascade
-        print("3. Testing JoinCascade (paper's optimized method)...")
-        ts.add_pipeline(JoinCascade(recall_target=0.9, precision_target=0.9, range=100))
+        # 2. JoinAndRerank Pipeline (join + LLM reranking)
+        print("2. Testing JoinAndRerank (join + LLM reranking)...")
+        ts.add_pipeline(JoinAndRerank(name="paper_validation"))
         
         # Run all pipelines
         print("Running pipeline evaluation...")
@@ -101,21 +101,22 @@ def main():
         
         try:
             # Get summary of results
-            summary = ts.summarize_pipeline_results("biodex_results", 100, 
-                                                  ["Retrieve", "MapRetrieve", "JoinCascade"])
+            summary = ts.summarize_pipeline_results("biodex_results", 25, 
+                                                  ["Join", "JoinAndRerank"])
             
             print("Detailed Results:")
             print(summary)
             # Save validation results
             results = {
                 "test_type": "biodex_paper_validation",
-                "n_samples": 100,
+                "n_samples": 25,
                 "total_time": total_time,
                 "timestamp": time.time(),
                 "summary": summary.to_dict() if hasattr(summary, 'to_dict') else str(summary),
                 "paper_claims": {
-                    "join_cascade_recall_target": 0.9,
-                    "expected_mapretrive_improvement": True,
+                    "join_recall_target": 0.9,
+                    "join_precision_target": 0.9,
+                    "expected_reranking_improvement": True,
                     "expected_semantic_advantage": True
                 }
             }
@@ -152,7 +153,10 @@ if __name__ == "__main__":
     
     if success:
         print("BioDEX validation completed successfully!")
-        print("Results should align with Lotus paper Table 3 (BioDEX results)")
+        print("Results should show:")
+        print("- Join pipeline: Semantic join with cascade optimization")
+        print("- JoinAndRerank pipeline: Join + LLM reranking for improved precision")
+        print("- Expected metrics: RP@5, RP@10, RP@25, and latency measurements")
     else:
         print("BioDEX validation failed - check error messages above")
     

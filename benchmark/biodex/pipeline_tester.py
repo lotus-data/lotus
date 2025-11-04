@@ -72,29 +72,18 @@ class PipelineTester:
             print(f"Testing {pipeline.__class__.__name__} with kwargs: {pipeline.kwargs}")
             res_df, latency = pipeline(self.queries_df, self.corpus_df, **pipeline.kwargs)
             # print(res_df)
-            print(f"Time taken: {latency}")
+            print(f"Latency: {latency}")
             print("\n\n")
 
             # save results to file
             self.write_results(pipeline, res_df, latency)
 
-    # def get_configs(self):
-    #     configs_dict = dict()
-    #     configs_dict["lm"] = lotus.settings.lm.__class__.__name__
-    #     # configs_dict["lm_model"] = vars(lotus.settings.lm)["kwargs"]
-    #     configs_dict["rm"] = lotus.settings.rm.__class__.__name__
-    #     configs_dict["max_batch_size"] = lotus.settings.max_batch_size
-    #     configs_dict["model_max_tokens"] = lotus.settings.model_params["max_tokens"]
-    #     configs_dict["model_temperature"] = lotus.settings.model_params["temperature"]
-    #     return configs_dict
 
     def get_configs(self):
         configs_dict = dict()
         configs_dict["lm"] = lotus.settings.lm.__class__.__name__
-        # configs_dict["lm_model"] = vars(lotus.settings.lm)["kwargs"]
         configs_dict["rm"] = lotus.settings.rm.__class__.__name__
         configs_dict["max_batch_size"] = lotus.settings.lm.max_batch_size
-        configs_dict["model_max_tokens"] = lotus.settings.lm.max_tokens
         configs_dict["model_temperature"] = lotus.settings.lm.kwargs["temperature"]
         return configs_dict
 
@@ -122,8 +111,10 @@ class PipelineTester:
 
         # save mean metrics
         metrics_df = self.compute_metrics(res_df)
-        means = metrics_df.mean()
+        # means = metrics_df.mean()
+        means = metrics_df.sum() / self.n_samples
         means["avg_latency"] = latency / self.n_samples
+        means["total_latency"] = latency
         means["qps"] = self.n_samples / latency
         std = metrics_df.std()
         means.to_csv(os.path.join(self.results_dir, pipeline_dir, param_dir, "metrics.csv"))
@@ -131,7 +122,6 @@ class PipelineTester:
 
         print(f"Results saved to {os.path.join(self.results_dir, pipeline_dir, param_dir)}")
         print(means)
-        print(std)
 
     @classmethod
     def summarize_pipeline_results(self, save_dir: str, n_samples: int, pipeline_names: List[str]):
@@ -152,4 +142,3 @@ class PipelineTester:
 
         return means
 
-    save_dir = "hover_results"
