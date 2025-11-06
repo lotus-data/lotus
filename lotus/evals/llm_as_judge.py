@@ -24,7 +24,7 @@ def llm_as_judge(
     examples_multimodal_data: list[dict[str, Any]] | None = None,
     examples_answers: list[str] | None = None,
     cot_reasoning: list[str] | None = None,
-    prompt_strategy: PromptStrategy | None = None,
+    prompt_strategy: PromptStrategy = PromptStrategy(),
     safe_mode: bool = False,
     progress_bar_desc: str = "Evaluating",
     **model_kwargs: Any,
@@ -73,7 +73,7 @@ def llm_as_judge(
         "Your job is to judge the output given the criteria, context and grading scale."
     )
 
-    if response_format is not None and prompt_strategy is not None and prompt_strategy.cot:
+    if response_format is not None and prompt_strategy.cot:
         raise ValueError(
             "Response format is not supported for COT or ZS_COT strategies. Use a non-COT strategy instead with reasoning field in the response format."
         )
@@ -253,7 +253,7 @@ class LLMAsJudgeDataframe:
             examples_multimodal_data=examples_multimodal_data,
             examples_answers=examples_answers,
             cot_reasoning=cot_reasoning,
-            prompt_strategy=prompt_strategy,
+            prompt_strategy=PromptStrategy(),
             safe_mode=safe_mode,
             progress_bar_desc=progress_bar_desc,
             **model_kwargs,

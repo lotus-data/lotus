@@ -26,7 +26,7 @@ def sem_map(
     examples_multimodal_data: list[dict[str, Any]] | None = None,
     examples_answers: list[str] | None = None,
     cot_reasoning: list[str] | None = None,
-    prompt_strategy: PromptStrategy | None = None,
+    prompt_strategy: PromptStrategy = PromptStrategy(),
     safe_mode: bool = False,
     progress_bar_desc: str = "Mapping",
     **model_kwargs: Any,
@@ -59,8 +59,8 @@ def sem_map(
         cot_reasoning (list[str] | None, optional): Chain-of-thought reasoning
             for the example documents. Used when strategy includes COT reasoning.
             Defaults to None.
-        prompt_strategy (PromptStrategy | None, optional): The prompt strategy to use.
-            Configures chain-of-thought, demonstrations, and bootstrapping. Defaults to None.
+        prompt_strategy (PromptStrategy, optional): The prompt strategy to use.
+            Configures chain-of-thought, demonstrations, and bootstrapping. Defaults to PromptStrategy().
         safe_mode (bool, optional): Whether to enable safe mode with cost estimation.
             Defaults to False.
         progress_bar_desc (str, optional): Description for the progress bar.
@@ -108,7 +108,7 @@ def sem_map(
     lm_output: LMOutput = model(inputs, progress_bar_desc=progress_bar_desc, **model_kwargs)
 
     # post process results
-    postprocess_output = postprocessor(lm_output.outputs, model, prompt_strategy is not None and prompt_strategy.cot)
+    postprocess_output = postprocessor(lm_output.outputs, model, prompt_strategy.cot)
     lotus.logger.debug(f"raw_outputs: {lm_output.outputs}")
     lotus.logger.debug(f"outputs: {postprocess_output.outputs}")
     lotus.logger.debug(f"explanations: {postprocess_output.explanations}")
@@ -225,7 +225,7 @@ class SemMapDataframe:
         return_raw_outputs: bool = False,
         suffix: str = "_map",
         examples: pd.DataFrame | None = None,
-        prompt_strategy: PromptStrategy | None = None,
+        prompt_strategy: PromptStrategy = PromptStrategy(),
         safe_mode: bool = False,
         progress_bar_desc: str = "Mapping",
         **model_kwargs: Any,
@@ -251,7 +251,7 @@ class SemMapDataframe:
         cot_reasoning = None
 
         # Handle examples from PromptStrategy.dems first, then fall back to examples parameter for backward compatibility
-        if prompt_strategy is not None and prompt_strategy.dems is not None:
+        if prompt_strategy.dems is not None:
             if isinstance(prompt_strategy.dems, pd.DataFrame):
                 # User-provided examples
                 examples_source = prompt_strategy.dems
@@ -290,7 +290,7 @@ class SemMapDataframe:
             examples_multimodal_data = task_instructions.df2multimodal_info(examples, col_li)
             examples_answers = examples["Answer"].tolist()
 
-            if prompt_strategy is not None and prompt_strategy.cot:
+            if prompt_strategy.cot:
                 return_explanations = True
                 if "Reasoning" in examples.columns:
                     cot_reasoning = examples["Reasoning"].tolist()

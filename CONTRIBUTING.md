@@ -30,26 +30,23 @@ Before contributing, please:
 - Python 3.10
 - Git
 - Conda (recommended) or virtual environment
+- uv (for dependency management)
 
 ### Setup Instructions
 
 ```bash
-# Create and activate conda environment
-conda create -n lotus python=3.10 -y
-conda activate lotus
+# Install uv if you haven't already
+curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Clone the repository
 git clone git@github.com:lotus-data/lotus.git
 cd lotus
 
-# Install lotus in development mode
-pip install -e .
-
-# Install development dependencies
-pip install -r requirements-dev.txt
+# Install lotus and all dependencies (including dev dependencies)
+uv sync --dev
 
 # Install pre-commit hooks
-pre-commit install
+uv run pre-commit install
 ```
 
 ## Contribution Workflow
@@ -80,13 +77,13 @@ git checkout -b feature/your-feature-name
 
 ```bash
 # Run the test suite
-pytest
+uv run pytest
 
 # Run linting
-pre-commit run --all-files
+uv run pre-commit run --all-files
 
 # Run type checking
-mypy lotus/
+uv run mypy lotus/
 ```
 
 ### 5. Commit Your Changes
@@ -156,24 +153,19 @@ We use pre-commit hooks to maintain code quality:
 - **mypy**: Type checking
 
 ### Running Code Quality Checks
-```
-bash
-# Install pre-commit if you haven't already
-pip install pre-commit
-
-# Install the pre-commit hooks defined in .pre-commit-config.yaml
-pre-commit install
+```bash
+# Install pre-commit hooks (uv handles the installation)
+uv run pre-commit install
 
 # Run all pre-commit hooks on all files
-pre-commit run --all-files
+uv run pre-commit run --all-files
 
 # To run a specific hook (e.g., ruff)
-pre-commit run ruff --all-files
+uv run pre-commit run ruff --all-files
 
 # To run pre-commit checks before every commit (recommended), just commit as usual:
 git commit -m "Your commit message"
 # The hooks will run automatically
-
 ```
 
 ## Testing Guidelines
@@ -209,13 +201,13 @@ export OPENAI_API_KEY="<your key>"
 
 ```bash
 # Run all tests
-pytest
+uv run pytest
 
 # Run specific test file
-pytest tests/test_models.py
+uv run pytest tests/test_models.py
 
 # Run tests in parallel
-pytest -n auto
+uv run pytest -n auto
 ```
 
 ## Documentation
@@ -287,10 +279,6 @@ lm = LM(
 - **Repository**: https://github.com/lotus-data/lotus
 - **Discussions**: https://github.com/lotus-data/lotus/discussions
 - **Issues**: https://github.com/lotus-data/lotus/issues
-
-## Code of Conduct
-
-We are committed to providing a welcoming and inclusive environment for all contributors. Please be respectful and constructive in all interactions.
 
 
 ---

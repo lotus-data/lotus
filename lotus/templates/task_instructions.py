@@ -261,26 +261,51 @@ def extract_formatter(
     multimodal_data: dict[str, Any],
     output_cols: dict[str, str | None],
     extract_quotes: bool = True,
-    prompt_strategy: PromptStrategy | None = None,
+    prompt_strategy: PromptStrategy = PromptStrategy(),
 ) -> list[dict[str, str]]:
     output_col_names = list(output_cols.keys())
     # Set the description to be the key if no value is provided
     output_cols_with_desc: dict[str, str] = {col: col if desc is None else desc for col, desc in output_cols.items()}
 
     all_fields = output_col_names
+    quote_fields = []
     if extract_quotes:
         quote_fields = [f"{col}_quote" for col in output_col_names]
         all_fields += quote_fields
 
     fields_str = ", ".join(all_fields)
 
-    sys_instruction = (
-        "The user will provide the columns that need to be extracted and some relevant context.\n"
-        f"Your job is to extract these columns and provide only a concise value for each field "
-        f"and the corresponding full quote for each field in the '{', '.join([f'{col}_quote' for col in output_col_names])}' fields.\n"
-        f"Here is a description of each field: {output_cols_with_desc}\n"
-        f"The response should be valid JSON format with the following fields: {fields_str}.\n"
-    )
+    # Add CoT reasoning instructions to the system prompt if needed
+    if prompt_strategy.cot:
+        reasoning_instructions = "Think through each extraction step by step."
+        if prompt_strategy.additional_cot_instructions:
+            reasoning_instructions += f" {prompt_strategy.additional_cot_instructions}"
+        answer_instructions = f"Provide the JSON response with fields: {fields_str}"
+        cot_instruction = cot_prompt_formatter(
+            reasoning_instructions=reasoning_instructions, answer_instructions=answer_instructions
+        )
+    else:
+        cot_instruction = ""
+
+    if extract_quotes:
+        sys_instruction = (
+            "The user will provide the columns that need to be extracted and some relevant context.\n"
+            f"Your job is to extract these columns and provide only a concise value for each field "
+            f"and the corresponding full quote for each field in the '{', '.join(quote_fields)}' fields.\n"
+            f"Here is a description of each field: {output_cols_with_desc}\n"
+            f"The response should be valid JSON format with the following fields: {fields_str}.\n"
+        )
+    else:
+        sys_instruction = (
+            "The user will provide the columns that need to be extracted and some relevant context.\n"
+            f"Your job is to extract these columns and provide only a concise value for each field.\n"
+            f"Here is a description of each field: {output_cols_with_desc}\n"
+            f"The response should be valid JSON format with the following fields: {fields_str}.\n"
+        )
+
+    # Add CoT instruction to system prompt if applicable
+    if cot_instruction:
+        sys_instruction += "\n" + cot_instruction
 
     # Add CoT instructions for CoT strategy
     if prompt_strategy is not None and prompt_strategy.cot:

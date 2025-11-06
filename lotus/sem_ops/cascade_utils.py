@@ -156,14 +156,14 @@ def bootstrap_demonstrations(
     data: pd.DataFrame,
     col_li: list[str],
     user_instruction: str,
-    prompt_strategy: PromptStrategy,
+    prompt_strategy: PromptStrategy = PromptStrategy(),
     operation_type: str = "filter",
 ) -> tuple[list[dict[str, Any]], list[Any], list[str] | None]:
     """
-    Bootstrap demonstrations automatically using a teacher model.
+    Bootstrap demonstrations automatically using a teacher model and sem_ops.
 
     This function samples diverse examples from the input data and uses a teacher
-    model to generate high-quality answers and reasoning for these examples.
+    model with the appropriate sem_op to generate high-quality answers and reasoning.
 
     Args:
         data (pd.DataFrame): The input DataFrame to sample from
@@ -193,194 +193,70 @@ def bootstrap_demonstrations(
     sample_indices = np.random.choice(len(data), size=max_dems, replace=False)
     sample_data = data.iloc[sample_indices]
 
-    lotus.logger.info(f"Bootstrapping {max_dems} demonstrations using teacher model")
+    lotus.logger.info(f"Bootstrapping {max_dems} demonstrations using teacher model with sem_ops")
 
     # Convert sampled data to multimodal format
     from lotus.templates import task_instructions
 
     examples_multimodal_data = task_instructions.df2multimodal_info(sample_data, col_li)
 
-    # Generate answers using teacher model
-    successful_examples_multimodal_data = []
+    # Create teacher prompt strategy for bootstrapping (without auto-demos to avoid recursion)
+    teacher_prompt_strategy = PromptStrategy(
+        cot=prompt_strategy.cot, dems=None, additional_cot_instructions=prompt_strategy.additional_cot_instructions
+    )
+
     examples_answers: list[Any] = []
-    cot_reasoning: list[str] | None = [] if prompt_strategy.cot else None
+    cot_reasoning: list[str] | None = None
 
-    for i, doc in enumerate(examples_multimodal_data):
-        try:
-            if operation_type == "filter":
-                # For filter operations, generate boolean answers
-                filter_answer, reasoning = _bootstrap_filter_example(
-                    doc, user_instruction, teacher_lm, prompt_strategy.cot
-                )
-                successful_examples_multimodal_data.append(doc)
-                examples_answers.append(filter_answer)
-                if cot_reasoning is not None:
-                    cot_reasoning.append(reasoning)
+    try:
+        if operation_type == "filter":
+            # Use sem_filter with teacher model
+            from lotus.sem_ops.sem_filter import sem_filter
 
-            elif operation_type == "map":
-                # For map operations, generate string answers
-                map_answer, reasoning = _bootstrap_map_example(doc, user_instruction, teacher_lm, prompt_strategy.cot)
-                successful_examples_multimodal_data.append(doc)
-                examples_answers.append(map_answer)
-                if cot_reasoning is not None:
-                    cot_reasoning.append(reasoning)
-
+            # For filter, we need to call the function directly since DataFrame method has different signature
+            filter_result = sem_filter(
+                docs=examples_multimodal_data,
+                model=teacher_lm,
+                user_instruction=user_instruction,
+                prompt_strategy=teacher_prompt_strategy,
+                show_progress_bar=False,
+            )
+            examples_answers = filter_result.outputs
+            if prompt_strategy.cot and filter_result.explanations is not None:
+                filtered_explanations = [exp for exp in filter_result.explanations if exp is not None]
+                cot_reasoning = filtered_explanations if filtered_explanations else None
             else:
-                lotus.logger.warning(f"Bootstrapping not yet implemented for operation type: {operation_type}")
-                # Fallback to empty examples
-                return [], [], None
+                cot_reasoning = None
 
-        except Exception as e:
-            lotus.logger.warning(f"Failed to bootstrap example {i}: {e}")
-            # Skip this example and continue with the next one
-            continue
+        elif operation_type == "map":
+            # Use sem_map with teacher model
+            from lotus.sem_ops.sem_map import sem_map
+
+            # For map, we need to call the function directly since DataFrame method has different signature
+            map_result = sem_map(
+                docs=examples_multimodal_data,
+                model=teacher_lm,
+                user_instruction=user_instruction,
+                prompt_strategy=teacher_prompt_strategy,
+            )
+            examples_answers = map_result.outputs
+            if prompt_strategy.cot and map_result.explanations is not None:
+                filtered_explanations = [exp for exp in map_result.explanations if exp is not None]
+                cot_reasoning = filtered_explanations if filtered_explanations else None
+            else:
+                cot_reasoning = None
+
+        elif operation_type == "extract":
+            lotus.logger.warning("Bootstrapping for extract operation requires output_cols parameter")
+            return [], [], None
+
+        else:
+            lotus.logger.warning(f"Bootstrapping not yet implemented for operation type: {operation_type}")
+            return [], [], None
+
+    except Exception as e:
+        lotus.logger.warning(f"Failed to bootstrap demonstrations: {e}")
+        return [], [], None
 
     lotus.logger.info(f"Successfully bootstrapped {len(examples_answers)} demonstrations")
-    return successful_examples_multimodal_data, examples_answers, cot_reasoning
-
-
-def _bootstrap_filter_example(
-    doc: dict[str, Any], user_instruction: str, teacher_lm: lotus.models.LM, use_cot: bool
-) -> tuple[bool, str]:
-    """Bootstrap a single filter example using the teacher model."""
-
-    if use_cot:
-        # Request reasoning with the answer
-        messages = [
-            {
-                "role": "system",
-                "content": "You are a helpful assistant that provides detailed reasoning for classification tasks.",
-            },
-            {
-                "role": "user",
-                "content": f"""Please evaluate whether the following claim is true for the given context.
-
-Claim: {user_instruction}
-Context: {doc.get('text', str(doc))}
-
-First provide your reasoning, then give your final answer as either "True" or "False".
-
-Format your response as:
-Reasoning: [Your detailed reasoning here]
-Answer: [True/False]""",
-            },
-        ]
-    else:
-        # Just request the answer
-        messages = [
-            {
-                "role": "system",
-                "content": "You are a helpful assistant that evaluates claims. Respond with only 'True' or 'False'.",
-            },
-            {
-                "role": "user",
-                "content": f"""Claim: {user_instruction}
-Context: {doc.get('text', str(doc))}
-
-Answer (True/False):""",
-            },
-        ]
-
-    # Get response from teacher model
-    lm_output = teacher_lm([messages])
-    response = lm_output.outputs[0]
-
-    if use_cot:
-        # Parse reasoning and answer
-        lines = response.strip().split("\n")
-        reasoning = ""
-        answer_str = ""
-
-        for line in lines:
-            if line.startswith("Reasoning:"):
-                reasoning = line[10:].strip()
-            elif line.startswith("Answer:"):
-                answer_str = line[7:].strip()
-
-        # Fallback parsing if format is not followed exactly
-        if not reasoning or not answer_str:
-            parts = response.lower().split("answer:")
-            if len(parts) >= 2:
-                reasoning = parts[0].strip()
-                answer_str = parts[1].strip()
-            else:
-                reasoning = response
-                answer_str = "true" if "true" in response.lower() else "false"
-
-        # Convert to boolean
-        answer = answer_str.lower().strip() in ["true", "yes", "1"]
-        return answer, reasoning
-    else:
-        # Simple boolean conversion
-        answer = response.lower().strip() in ["true", "yes", "1"]
-        return answer, "Reasoning omitted"
-
-
-def _bootstrap_map_example(
-    doc: dict[str, Any], user_instruction: str, teacher_lm: lotus.models.LM, use_cot: bool
-) -> tuple[str, str]:
-    """Bootstrap a single map example using the teacher model."""
-
-    if use_cot:
-        # Request reasoning with the answer
-        messages = [
-            {
-                "role": "system",
-                "content": "You are a helpful assistant that provides detailed reasoning for transformation tasks.",
-            },
-            {
-                "role": "user",
-                "content": f"""Please follow the instruction for the given context.
-
-Instruction: {user_instruction}
-Context: {doc.get('text', str(doc))}
-
-First provide your reasoning, then give your final answer.
-
-Format your response as:
-Reasoning: [Your detailed reasoning here]
-Answer: [Your answer here]""",
-            },
-        ]
-    else:
-        # Just request the answer
-        messages = [
-            {"role": "system", "content": "You are a helpful assistant that follows instructions precisely."},
-            {
-                "role": "user",
-                "content": f"""Instruction: {user_instruction}
-Context: {doc.get('text', str(doc))}
-
-Answer:""",
-            },
-        ]
-
-    # Get response from teacher model
-    lm_output = teacher_lm([messages])
-    response = lm_output.outputs[0]
-
-    if use_cot:
-        # Parse reasoning and answer
-        lines = response.strip().split("\n")
-        reasoning = ""
-        answer = ""
-
-        for line in lines:
-            if line.startswith("Reasoning:"):
-                reasoning = line[10:].strip()
-            elif line.startswith("Answer:"):
-                answer = line[7:].strip()
-
-        # Fallback parsing if format is not followed exactly
-        if not reasoning or not answer:
-            parts = response.split("Answer:")
-            if len(parts) >= 2:
-                reasoning = parts[0].strip()
-                answer = parts[1].strip()
-            else:
-                reasoning = "Reasoning omitted"
-                answer = response.strip()
-
-        return answer, reasoning
-    else:
-        return response.strip(), "Reasoning omitted"
+    return examples_multimodal_data, examples_answers, cot_reasoning

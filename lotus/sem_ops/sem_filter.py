@@ -34,7 +34,7 @@ def sem_filter(
     examples_multimodal_data: list[dict[str, Any]] | None = None,
     examples_answers: list[bool] | None = None,
     cot_reasoning: list[str] | None = None,
-    prompt_strategy: PromptStrategy | None = None,
+    prompt_strategy: PromptStrategy = PromptStrategy(),
     logprobs: bool = False,
     safe_mode: bool = False,
     show_progress_bar: bool = True,
@@ -100,7 +100,7 @@ def sem_filter(
             examples_answers,
             cot_reasoning,
             prompt_strategy,
-            reasoning_instructions=prompt_strategy.additional_cot_instructions if prompt_strategy is not None else "",
+            reasoning_instructions=prompt_strategy.additional_cot_instructions,
         )
         lotus.logger.debug(f"input to model: {prompt}")
         inputs.append(prompt)
@@ -115,9 +115,7 @@ def sem_filter(
         inputs, show_progress_bar=show_progress_bar, progress_bar_desc=progress_bar_desc, **kwargs
     )
 
-    postprocess_output = filter_postprocess(
-        lm_output.outputs, model, default, cot_reasoning=(prompt_strategy is not None and prompt_strategy.cot)
-    )
+    postprocess_output = filter_postprocess(lm_output.outputs, model, default, cot_reasoning=prompt_strategy.cot)
     lotus.logger.debug(f"outputs: {postprocess_output.outputs}")
     lotus.logger.debug(f"raw_outputs: {postprocess_output.raw_outputs}")
     lotus.logger.debug(f"explanations: {postprocess_output.explanations}")
@@ -144,7 +142,7 @@ def learn_filter_cascade_thresholds(
     examples_multimodal_data: list[dict[str, Any]] | None = None,
     examples_answers: list[bool] | None = None,
     cot_reasoning: list[str] | None = None,
-    prompt_strategy: PromptStrategy | None = None,
+    prompt_strategy: PromptStrategy = PromptStrategy(),
 ) -> tuple[float, float]:
     """
     Automatically learns optimal cascade thresholds for filter operations.
@@ -339,7 +337,7 @@ class SemFilterDataframe:
         suffix: str = "_filter",
         examples: pd.DataFrame | None = None,
         helper_examples: pd.DataFrame | None = None,
-        prompt_strategy: PromptStrategy | None = None,
+        prompt_strategy: PromptStrategy = PromptStrategy(),
         cascade_args: CascadeArgs | None = None,
         return_stats: bool = False,
         safe_mode: bool = False,
@@ -371,7 +369,7 @@ class SemFilterDataframe:
         cot_reasoning = None
 
         # Handle examples from PromptStrategy.dems first, then fall back to examples parameter for backward compatibility
-        if prompt_strategy is not None and prompt_strategy.dems is not None:
+        if prompt_strategy.dems is not None:
             if isinstance(prompt_strategy.dems, pd.DataFrame):
                 # User-provided examples
                 examples_source = prompt_strategy.dems
@@ -405,7 +403,7 @@ class SemFilterDataframe:
             examples_multimodal_data = task_instructions.df2multimodal_info(examples_source, col_li)
             examples_answers = examples_source["Answer"].tolist()
 
-            if prompt_strategy is not None and prompt_strategy.cot and "Reasoning" in examples_source.columns:
+            if prompt_strategy.cot and "Reasoning" in examples_source.columns:
                 cot_reasoning = examples_source["Reasoning"].tolist()
 
         pos_cascade_threshold, neg_cascade_threshold = None, None

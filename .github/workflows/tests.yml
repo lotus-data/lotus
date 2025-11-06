@@ -21,11 +21,14 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements-dev.txt
-          pip install -e .
+          uv pip install --system -e '.[dev]'
 
       - name: Run ruff
         run: ruff check lotus/
@@ -59,7 +62,7 @@ jobs:
             requires-openai: true
           - test-suite: utility_operators
             file: .github/tests/utility_operators_tests.py
-            timeout: 10
+            timeout: 25
             extra-deps: pymupdf llama-index docx2txt python-pptx python-magic
           - test-suite: cache
             file: .github/tests/cache_tests.py
@@ -77,18 +80,23 @@ jobs:
 
       - uses: actions/cache@v3
         with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          path: ~/.cache/uv
+          key: ${{ runner.os }}-uv-${{ hashFiles('uv.lock') }}-${{ matrix.extra-deps }}
           restore-keys: |
-            ${{ runner.os }}-pip-
+            ${{ runner.os }}-uv-${{ hashFiles('uv.lock') }}
+            ${{ runner.os }}-uv-
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
 
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements-dev.txt
-          pip install -e .
+          uv pip install --system -e '.[dev]'
           if [ "${{ matrix.extra-deps }}" != "" ]; then
-            pip install ${{ matrix.extra-deps }}
+            echo "Installing extra dependencies: ${{ matrix.extra-deps }}"
+            uv pip install --system ${{ matrix.extra-deps }}
           fi
 
       - name: Setup Ollama

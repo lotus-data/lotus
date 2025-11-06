@@ -21,15 +21,32 @@ LOTUS stands for **L**LMs **O**ver **T**ext, **U**nstructured and **S**tructured
 For trouble-shooting or feature requests, please raise an issue and we'll get to it promptly. To share feedback and applications you're working on, you can send us a message on our [community slack](https://join.slack.com/t/lotus-fnm8919/shared_invite/zt-319k232lx-nEcLF~5w274dcQLmw2Wqyg), or send an email (lianapat@stanford.edu).
 
 # Installation
+
+## Using uv (Recommended)
 For the latest stable release:
+```bash
+# Install uv if you haven't already
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Create a new project or navigate to your existing project
+uv add lotus-ai
 ```
+
+For the latest features:
+```bash
+uv add git+https://github.com/lotus-data/lotus.git@main
+```
+
+## Using pip
+For the latest stable release:
+```bash
 conda create -n lotus python=3.10 -y
 conda activate lotus
 pip install lotus-ai
 ```
 
 For the latest features, you can alternatively install as follows:
-```
+```bash
 conda create -n lotus python=3.10 -y
 conda activate lotus
 pip install git+https://github.com/lotus-data/lotus.git@main
@@ -37,17 +54,20 @@ pip install git+https://github.com/lotus-data/lotus.git@main
 
 
 ## Running on Mac
-If you are running on mac, please install Faiss via conda:
+If you are running on mac and using pip, please install Faiss via conda:
 
 ### CPU-only version
-```
+```bash
 conda install -c pytorch faiss-cpu=1.8.0
 ```
 
 ### GPU(+CPU) version
-```
+```bash
 conda install -c pytorch -c nvidia faiss-gpu=1.8.0
 ```
+
+If you're using uv, the faiss-cpu dependency will be handled automatically.
+
 For more details, see [Installing FAISS via Conda](https://github.com/facebookresearch/faiss/blob/main/INSTALL.md#installing-faiss-via-conda).
 
 # Quickstart
@@ -154,13 +174,18 @@ For recent updates related to LOTUS, follow [@lianapatel_](https://x.com/lianapa
 
 If you find LOTUS or semantic operators useful, we'd appreciate if you can please cite this work as follows:
 ```bibtex
-@misc{patel2024semanticoperators,
+@article{patel2025semanticoptimization,
+    title = {Semantic Operators and Their Optimization: Enabling LLM-Based Data Processing with Accuracy Guarantees in LOTUS},
+    author = {Patel, Liana and Jha, Siddharth and Pan, Melissa and Gupta, Harshit and Asawa, Parth and Guestrin, Carlos and Zaharia, Matei},
+    year = {2025},
+    journal = {Proc. VLDB Endow.},
+    url = {https://doi.org/10.14778/3749646.3749685},
+}
+@article{patel2024semanticoperators,
       title={Semantic Operators: A Declarative Model for Rich, AI-based Analytics Over Text Data},
       author={Liana Patel and Siddharth Jha and Parth Asawa and Melissa Pan and Carlos Guestrin and Matei Zaharia},
       year={2024},
       eprint={2407.11418},
-      archivePrefix={arXiv},
-      primaryClass={cs.DB},
       url={https://arxiv.org/abs/2407.11418},
 }
 ```

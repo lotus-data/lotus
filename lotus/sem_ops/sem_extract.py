@@ -21,7 +21,7 @@ def sem_extract(
     safe_mode: bool = False,
     progress_bar_desc: str = "Extracting",
     return_explanations: bool = False,
-    prompt_strategy: PromptStrategy | None = None,
+    prompt_strategy: PromptStrategy = PromptStrategy(),
 ) -> SemanticExtractOutput:
     """
     Extracts structured attributes and values from a list of documents using a language model.
@@ -52,8 +52,8 @@ def sem_extract(
         return_explanations (bool, optional): Whether to return explanations for
             the extraction decisions. Useful for debugging and understanding
             model reasoning. Defaults to False.
-        prompt_strategy (PromptStrategy | None, optional): The prompt strategy to use.
-            Configures chain-of-thought, demonstrations, and bootstrapping. Defaults to None.
+        prompt_strategy (PromptStrategy, optional): The prompt strategy to use.
+            Configures chain-of-thought, demonstrations, and bootstrapping. Defaults to PromptStrategy().
 
 
     Returns:
@@ -100,10 +100,14 @@ def sem_extract(
         show_safe_mode(estimated_cost, estimated_LM_calls)
 
     # call model
-    lm_output: LMOutput = model(inputs, response_format={"type": "json_object"}, progress_bar_desc=progress_bar_desc)
+    # Don't use JSON response format when CoT reasoning is enabled, as it prevents reasoning text
+    if prompt_strategy.cot:
+        lm_output: LMOutput = model(inputs, progress_bar_desc=progress_bar_desc)
+    else:
+        lm_output = model(inputs, response_format={"type": "json_object"}, progress_bar_desc=progress_bar_desc)
 
     # post process results
-    cot_reasoning = prompt_strategy is not None and prompt_strategy.cot
+    cot_reasoning = prompt_strategy.cot
     postprocess_output = postprocessor(lm_output.outputs, model, cot_reasoning)
     lotus.logger.debug(f"raw_outputs: {lm_output.outputs}")
     lotus.logger.debug(f"outputs: {postprocess_output.outputs}")
@@ -151,8 +155,8 @@ class SemExtractDataFrame:
         return_explanations (bool, optional): Whether to include explanations
             in the output DataFrame. Useful for debugging and understanding
             model reasoning. Defaults to False.
-        prompt_strategy (PromptStrategy | None, optional): The prompt strategy to use.
-            Configures chain-of-thought, demonstrations, and bootstrapping. Defaults to None.
+        prompt_strategy (PromptStrategy, optional): The prompt strategy to use.
+            Configures chain-of-thought, demonstrations, and bootstrapping. Defaults to PromptStrategy().
 
 
     Returns:
@@ -226,7 +230,7 @@ class SemExtractDataFrame:
         safe_mode: bool = False,
         progress_bar_desc: str = "Extracting",
         return_explanations: bool = False,
-        prompt_strategy: PromptStrategy | None = None,
+        prompt_strategy: PromptStrategy = PromptStrategy(),
     ) -> pd.DataFrame:
         if lotus.settings.lm is None:
             raise ValueError(
