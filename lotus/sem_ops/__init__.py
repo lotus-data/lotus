@@ -1,5 +1,6 @@
 __all__ = [
     "sem_map",
+    "sem_map_with_tools",
     "sem_filter",
     "sem_agg",
     "sem_join",
