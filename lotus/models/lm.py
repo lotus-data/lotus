@@ -18,6 +18,7 @@ from tqdm import tqdm
 
 import lotus
 from lotus.cache import CacheFactory
+from lotus.pricing import calculate_model_cost
 from lotus.types import (
     LMOutput,
     LMStats,
@@ -339,21 +340,38 @@ class LM:
         if not hasattr(response, "usage"):
             return
 
-        # Calculate cost once
-        try:
-            cost = completion_cost(completion_response=response)
-        except litellm.exceptions.NotFoundError as e:
-            # Sometimes the model's pricing information is not available
-            lotus.logger.debug(f"Error updating completion cost: {e}")
-            cost = None
-        except Exception as e:
-            # Handle any other unexpected errors when calculating cost
-            lotus.logger.debug(f"Unexpected error calculating completion cost: {e}")
-            warnings.warn(
-                "Error calculating completion cost - cost metrics will be inaccurate. Enable debug logging for details."
+        # Calculate cost using direct pricing calculation first
+        cost = None
+        if hasattr(response, "usage") and response.usage:
+            prompt_tokens = response.usage.prompt_tokens or 0
+            completion_tokens = response.usage.completion_tokens or 0
+
+            # Try direct cost calculation first
+            cost = calculate_model_cost(
+                model_name=self.model, prompt_tokens=prompt_tokens, completion_tokens=completion_tokens
             )
 
-            cost = None
+            if cost is not None:
+                lotus.logger.debug(f"Using direct cost calculation: ${cost:.6f} for model {self.model}")
+            else:
+                # Fallback to LiteLLM's completion_cost if direct calculation fails
+                lotus.logger.debug(
+                    f"Direct cost calculation not available for model {self.model}, falling back to LiteLLM"
+                )
+                try:
+                    cost = completion_cost(completion_response=response)
+                    lotus.logger.debug(f"Using LiteLLM cost calculation: ${cost:.6f}")
+                except litellm.exceptions.NotFoundError as e:
+                    # Sometimes the model's pricing information is not available
+                    lotus.logger.debug(f"Error updating completion cost with LiteLLM: {e}")
+                    cost = None
+                except Exception as e:
+                    # Handle any other unexpected errors when calculating cost
+                    lotus.logger.debug(f"Unexpected error calculating completion cost with LiteLLM: {e}")
+                    warnings.warn(
+                        "Error calculating completion cost - cost metrics will be inaccurate. Enable debug logging for details."
+                    )
+                    cost = None
 
         # Always update virtual usage
         self._update_usage_stats(self.stats.virtual_usage, response, cost)
