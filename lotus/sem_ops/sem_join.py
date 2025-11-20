@@ -20,7 +20,7 @@ def sem_join(
     ids2: list[int],
     col1_label: str,
     col2_label: str,
-    model: lotus.models.LM,
+    model: lotus.models.LMWithoutTools,
     user_instruction: str,
     examples_multimodal_data: list[dict[str, Any]] | None = None,
     examples_answers: list[bool] | None = None,
@@ -184,7 +184,7 @@ def sem_join_cascade(
     ids2: list[int],
     col1_label: str,
     col2_label: str,
-    model: lotus.models.LM,
+    model: lotus.models.LMWithoutTools,
     user_instruction: str,
     cascade_args: CascadeArgs,
     examples_multimodal_data: list[dict[str, Any]] | None = None,
@@ -419,7 +419,7 @@ def join_optimizer(
     l2: pd.Series,
     col1_label: str,
     col2_label: str,
-    model: lotus.models.LM,
+    model: lotus.models.LMWithoutTools,
     user_instruction: str,
     cascade_args: CascadeArgs,
     examples_multimodal_data: list[dict[str, Any]] | None = None,
@@ -531,7 +531,7 @@ def learn_join_cascade_threshold(
     helper_join: pd.DataFrame,
     col1_label: str,
     col2_label: str,
-    model: lotus.models.LM,
+    model: lotus.models.LMWithoutTools,
     user_instruction: str,
     cascade_args: CascadeArgs,
     examples_multimodal_data: list[dict[str, Any]] | None = None,
@@ -683,9 +683,10 @@ class SemJoinDataframe:
         progress_bar_desc: str = "Join comparisons",
     ) -> pd.DataFrame:
         model = lotus.settings.lm
-        if model is None:
+        # LMWithTools is not supported for sem_join yet
+        if model is None or not isinstance(model, lotus.models.LMWithoutTools):
             raise ValueError(
-                "The language model must be an instance of LM. Please configure a valid language model using lotus.settings.configure()"
+                "The language model must be an instance of LM (with_tools=False). Please configure a valid language model using lotus.settings.configure()"
             )
 
         if isinstance(other, pd.Series):

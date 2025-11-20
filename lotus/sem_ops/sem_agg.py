@@ -10,7 +10,7 @@ from lotus.types import LMOutput, SemanticAggOutput
 
 def sem_agg(
     docs: list[str],
-    model: lotus.models.LM,
+    model: lotus.models.LMWithoutTools,
     user_instruction: str,
     partition_ids: list[int],
     safe_mode: bool = False,
@@ -310,9 +310,10 @@ class SemAggDataframe:
         safe_mode: bool = False,
         progress_bar_desc: str = "Aggregating",
     ) -> pd.DataFrame:
-        if lotus.settings.lm is None:
+        # LMWithTools is not supported for sem_agg yet
+        if lotus.settings.lm is None or not isinstance(lotus.settings.lm, lotus.models.LMWithoutTools):
             raise ValueError(
-                "The language model must be an instance of LM. Please configure a valid language model using lotus.settings.configure()"
+                "The language model must be an instance of LM (with_tools=False). Please configure a valid language model using lotus.settings.configure()"
             )
 
         lotus.logger.debug(f"User instruction: {user_instruction}")

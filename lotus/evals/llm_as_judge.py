@@ -15,12 +15,14 @@ from lotus.types import ReasoningStrategy, SemanticMapOutput, SemanticMapPostpro
 
 def llm_as_judge(
     docs: list[dict[str, Any]],
-    model: lotus.models.LM,
+    model: lotus.models.LMWithoutTools,
     judge_instruction: str,
     response_format: BaseModel | None = None,
     n_trials: int = 1,
     system_prompt: str | None = None,
-    postprocessor: Callable[[list[str], lotus.models.LM, bool], SemanticMapPostprocessOutput] = map_postprocess,
+    postprocessor: Callable[
+        [list[str], lotus.models.LMWithoutTools, bool], SemanticMapPostprocessOutput
+    ] = map_postprocess,
     examples_multimodal_data: list[dict[str, Any]] | None = None,
     examples_answers: list[str] | None = None,
     cot_reasoning: list[str] | None = None,
@@ -191,7 +193,9 @@ class LLMAsJudgeDataframe:
         response_format: BaseModel | None = None,
         n_trials: int = 1,
         system_prompt: str | None = None,
-        postprocessor: Callable[[list[str], lotus.models.LM, bool], SemanticMapPostprocessOutput] = map_postprocess,
+        postprocessor: Callable[
+            [list[str], lotus.models.LMWithoutTools, bool], SemanticMapPostprocessOutput
+        ] = map_postprocess,
         return_raw_outputs: bool = False,
         return_explanations: bool = False,
         suffix: str = "_judge",
@@ -203,9 +207,10 @@ class LLMAsJudgeDataframe:
         progress_bar_desc: str = "Evaluating",
         **model_kwargs: Any,
     ) -> pd.DataFrame:
-        if lotus.settings.lm is None:
+        # LMWithTools is not supported for llm_as_judge yet
+        if lotus.settings.lm is None or not isinstance(lotus.settings.lm, lotus.models.LMWithoutTools):
             raise ValueError(
-                "The language model must be an instance of LM. Please configure a valid language model using lotus.settings.configure()"
+                "The language model must be an instance of LM (with_tools=False). Please configure a valid language model using lotus.settings.configure()"
             )
 
         if response_format is not None and strategy in [ReasoningStrategy.COT, ReasoningStrategy.ZS_COT]:

@@ -4,7 +4,7 @@ import pandas as pd
 
 import lotus
 from lotus.cache import operator_cache
-from lotus.models import LM
+from lotus.models import LMWithoutTools
 from lotus.templates import task_instructions
 from lotus.types import LMOutput, ReasoningStrategy, SemanticExtractOutput, SemanticExtractPostprocessOutput
 from lotus.utils import show_safe_mode
@@ -14,10 +14,12 @@ from .postprocessors import extract_postprocess
 
 def sem_extract(
     docs: list[dict[str, Any]],
-    model: LM,
+    model: LMWithoutTools,
     output_cols: dict[str, str | None],
     extract_quotes: bool = False,
-    postprocessor: Callable[[list[str], lotus.models.LM, bool], SemanticExtractPostprocessOutput] = extract_postprocess,
+    postprocessor: Callable[
+        [list[str], lotus.models.LMWithoutTools, bool], SemanticExtractPostprocessOutput
+    ] = extract_postprocess,
     safe_mode: bool = False,
     progress_bar_desc: str = "Extracting",
     return_explanations: bool = False,
@@ -205,7 +207,7 @@ class SemExtractDataFrame:
         output_cols: dict[str, str | None],
         extract_quotes: bool = False,
         postprocessor: Callable[
-            [list[str], lotus.models.LM, bool], SemanticExtractPostprocessOutput
+            [list[str], lotus.models.LMWithoutTools, bool], SemanticExtractPostprocessOutput
         ] = extract_postprocess,
         return_raw_outputs: bool = False,
         safe_mode: bool = False,
@@ -213,9 +215,10 @@ class SemExtractDataFrame:
         return_explanations: bool = False,
         strategy: ReasoningStrategy | None = None,
     ) -> pd.DataFrame:
-        if lotus.settings.lm is None:
+        # LMWithTools is not supported for sem_agg yet
+        if lotus.settings.lm is None or not isinstance(lotus.settings.lm, lotus.models.LMWithoutTools):
             raise ValueError(
-                "The language model must be an instance of LM. Please configure a valid language model using lotus.settings.configure()"
+                "The language model must be an instance of LM (with_tools=False). Please configure a valid language model using lotus.settings.configure()"
             )
 
         # check that column exists

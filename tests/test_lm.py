@@ -5,7 +5,7 @@ import pytest
 
 import lotus
 from lotus.cache import CacheConfig, CacheFactory, CacheType
-from lotus.models import LM
+from lotus.models import LM, LMWithoutTools
 from lotus.types import LotusUsageLimitException, UsageLimit
 from tests.base_test import BaseTest
 
@@ -13,7 +13,7 @@ from tests.base_test import BaseTest
 class TestLM(BaseTest):
     def test_lm_initialization(self):
         lm = LM(model="gpt-4o-mini")
-        assert isinstance(lm, LM)
+        assert isinstance(lm, LMWithoutTools)
 
     def test_lm_token_physical_usage_limit(self):
         # Test prompt token limit
@@ -58,6 +58,7 @@ class TestLM(BaseTest):
                 lm(messages)
                 lm.print_total_usage()
                 assert lm.stats.cache_hits == (idx + 1)
+        lotus.settings.enable_cache = False
 
     def test_lm_usage_with_operator_cache(self):
         cache_config = CacheConfig(
@@ -119,6 +120,8 @@ class TestLM(BaseTest):
         pd.testing.assert_frame_equal(mapped_df_first, mapped_df_second)
         pd.testing.assert_frame_equal(mapped_df_first, mapped_df_third)
         pd.testing.assert_frame_equal(mapped_df_second, mapped_df_third)
+
+        lotus.settings.configure(enable_cache=False)
 
     def test_lm_rate_limiting_initialization(self):
         """Test that rate limiting parameters are properly initialized."""
