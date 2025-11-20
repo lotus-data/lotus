@@ -85,7 +85,7 @@ def user_message_formatter(
 
 
 def filter_formatter(
-    model: lotus.models.LM,
+    model: lotus.models.LMWithoutTools,
     multimodal_data: dict[str, Any],
     user_instruction: str,
     examples_multimodal_data: list[dict[str, Any]] | None = None,
@@ -211,7 +211,7 @@ def map_formatter_zs_cot(
 
 
 def map_formatter(
-    model: lotus.models.LM,
+    model: lotus.models.LMWithoutTools,
     multimodal_data: dict[str, Any],
     user_instruction: str,
     examples_multimodal_data: list[dict[str, Any]] | None = None,
@@ -276,7 +276,7 @@ def map_with_tools_formatter(
 
 
 def extract_formatter(
-    model: lotus.models.LM,
+    model: lotus.models.LMWithoutTools,
     multimodal_data: dict[str, Any],
     output_cols: dict[str, str | None],
     extract_quotes: bool = True,

@@ -17,7 +17,7 @@ def get_match_prompt_binary(
     doc1: dict[str, Any],
     doc2: dict[str, Any],
     user_instruction: str,
-    model: lotus.models.LM,
+    model: lotus.models.LMWithoutTools,
     strategy: ReasoningStrategy | None = None,
 ) -> list[dict[str, Any]]:
     """
@@ -131,7 +131,7 @@ def parse_ans_binary(answer: str) -> tuple[bool, str]:
 
 def compare_batch_binary(
     pairs: list[tuple[dict[str, Any], dict[str, Any]]],
-    model: lotus.models.LM,
+    model: lotus.models.LMWithoutTools,
     user_instruction: str,
     strategy: ReasoningStrategy | None = None,
 ) -> tuple[list[bool], list[str], int]:
@@ -175,7 +175,7 @@ def compare_batch_binary(
 
 def compare_batch_binary_cascade(
     pairs: list[tuple[dict[str, Any], dict[str, Any]]],
-    model: lotus.models.LM,
+    model: lotus.models.LMWithoutTools,
     user_instruction: str,
     cascade_threshold: float,
     strategy: ReasoningStrategy | None = None,
@@ -275,7 +275,7 @@ def compare_batch_binary_cascade(
 
 def llm_naive_sort(
     docs: list[dict[str, Any]],
-    model: lotus.models.LM,
+    model: lotus.models.LMWithoutTools,
     user_instruction: str,
     strategy: ReasoningStrategy | None = None,
     safe_mode: bool = False,
@@ -346,7 +346,7 @@ def llm_naive_sort(
 
 def llm_quicksort(
     docs: list[dict[str, Any]],
-    model: lotus.models.LM,
+    model: lotus.models.LMWithoutTools,
     user_instruction: str,
     K: int,
     embedding: bool = False,
@@ -507,7 +507,7 @@ class HeapDoc:
     num_calls: int = 0
     total_tokens: int = 0
     strategy: ReasoningStrategy | None = None
-    model: lotus.models.LM | None = None
+    model: lotus.models.LMWithoutTools | None = None
     explanations: dict[int, list[str]] = {}
 
     def __init__(self, doc: dict[str, Any], user_instruction: str, idx: int) -> None:
@@ -559,7 +559,7 @@ class HeapDoc:
 
 def llm_heapsort(
     docs: list[dict[str, Any]],
-    model: lotus.models.LM,
+    model: lotus.models.LMWithoutTools,
     user_instruction: str,
     K: int,
     strategy: ReasoningStrategy | None = None,
@@ -745,9 +745,10 @@ class SemTopKDataframe:
         return_explanations: bool = False,
     ) -> pd.DataFrame | tuple[pd.DataFrame, dict[str, Any]]:
         model = lotus.settings.lm
-        if model is None:
+        # LMWithTools is not supported for sem_topk yet
+        if model is None or not isinstance(model, lotus.models.LMWithoutTools):
             raise ValueError(
-                "The language model must be an instance of LM. Please configure a valid language model using lotus.settings.configure()"
+                "The language model must be an instance of LM (with_tools=False). Please configure a valid language model using lotus.settings.configure()"
             )
 
         lotus.logger.debug(f"Sorting DataFrame with user instruction: {user_instruction}")

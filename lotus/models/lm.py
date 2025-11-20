@@ -4,7 +4,7 @@ import logging
 import math
 import time
 import warnings
-from typing import Any
+from typing import Any, Union
 
 import litellm
 import numpy as np
@@ -33,6 +33,14 @@ from lotus.types import (
 
 logging.getLogger("LiteLLM").setLevel(logging.CRITICAL)
 logging.getLogger("httpx").setLevel(logging.CRITICAL)
+
+
+class LM:
+    def __new__(cls, *args, with_tools: bool = False, **kwargs):
+        if with_tools:
+            return LMWithTools(*args, **kwargs)
+        else:
+            return LMWithoutTools(*args, **kwargs)
 
 
 class LMWithTools:
@@ -115,7 +123,7 @@ class LMWithTools:
         return LMWithToolsOutput(outputs=outputs)
 
 
-class LM:
+class LMWithoutTools:
     """
     Language Model class for interacting with various LLM providers.
 
@@ -564,3 +572,6 @@ class LM:
     def is_deepseek(self) -> bool:
         model_name = self.get_model_name()
         return model_name.startswith("deepseek-r1")
+
+
+LMType = Union[LMWithTools, LMWithoutTools]

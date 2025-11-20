@@ -99,7 +99,7 @@ COT_POSTPROCESSORS = {
 }
 
 
-def get_cot_postprocessor(model: lotus.models.LM, for_extract: bool = False) -> Callable:
+def get_cot_postprocessor(model: lotus.models.LMWithoutTools, for_extract: bool = False) -> Callable:
     """
     Returns the appropriate CoT postprocessor for the given model.
     Falls back to standard postprocessor if no specific one is defined.
@@ -122,7 +122,7 @@ def get_cot_postprocessor(model: lotus.models.LM, for_extract: bool = False) -> 
 
 def map_postprocess(
     llm_answers: list[str],
-    model: lotus.models.LM,
+    model: lotus.models.LMWithoutTools,
     cot_reasoning: bool = False,
 ) -> SemanticMapPostprocessOutput:
     """
@@ -147,7 +147,7 @@ def map_postprocess(
 
 
 def extract_postprocess(
-    llm_answers: list[str], model: lotus.models.LM, cot_reasoning: bool = False
+    llm_answers: list[str], model: lotus.models.LMWithoutTools, cot_reasoning: bool = False
 ) -> SemanticExtractPostprocessOutput:
     """
     Postprocess the output of the extract operator to extract the schema.
@@ -181,7 +181,7 @@ def extract_postprocess(
 
 def filter_postprocess(
     llm_answers: list[str],
-    model: lotus.models.LM,
+    model: lotus.models.LMWithoutTools,
     default: bool = True,
 ) -> SemanticFilterPostprocessOutput:
     """

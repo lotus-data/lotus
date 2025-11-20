@@ -76,7 +76,9 @@ class PairwiseJudgeDataframe:
         n_trials: int = 1,
         permute_cols: bool = False,
         system_prompt: str | None = None,
-        postprocessor: Callable[[list[str], lotus.models.LM, bool], SemanticMapPostprocessOutput] = map_postprocess,
+        postprocessor: Callable[
+            [list[str], lotus.models.LMWithoutTools, bool], SemanticMapPostprocessOutput
+        ] = map_postprocess,
         return_raw_outputs: bool = False,
         return_explanations: bool = False,
         suffix: str = "_judge",
@@ -87,9 +89,10 @@ class PairwiseJudgeDataframe:
         progress_bar_desc: str = "Evaluating",
         **model_kwargs: Any,
     ) -> pd.DataFrame:
-        if lotus.settings.lm is None:
+        # LMWithTools is not supported for pairwise_judge yet
+        if lotus.settings.lm is None or not isinstance(lotus.settings.lm, lotus.models.LMWithoutTools):
             raise ValueError(
-                "The language model must be an instance of LM. Please configure a valid language model using lotus.settings.configure()"
+                "The language model must be an instance of LM (with_tools=False). Please configure a valid language model using lotus.settings.configure()"
             )
 
         if response_format is not None and strategy in [ReasoningStrategy.COT, ReasoningStrategy.ZS_COT]:

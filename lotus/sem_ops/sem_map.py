@@ -1,4 +1,4 @@
-from typing import Any, Callable
+from typing import Any, Callable, cast
 
 import pandas as pd
 from crewai.tools.base_tool import BaseTool
@@ -69,10 +69,12 @@ def sem_map_with_tools(
 
 def sem_map(
     docs: list[dict[str, Any]],
-    model: lotus.models.LM,
+    model: lotus.models.LMWithoutTools,
     user_instruction: str,
     system_prompt: str | None = None,
-    postprocessor: Callable[[list[str], lotus.models.LM, bool], SemanticMapPostprocessOutput] = map_postprocess,
+    postprocessor: Callable[
+        [list[str], lotus.models.LMWithoutTools, bool], SemanticMapPostprocessOutput
+    ] = map_postprocess,
     examples_multimodal_data: list[dict[str, Any]] | None = None,
     examples_answers: list[str] | None = None,
     cot_reasoning: list[str] | None = None,
@@ -284,7 +286,9 @@ class SemMapDataframe:
         user_instruction: str,
         tools: list[BaseTool] | None = None,
         system_prompt: str | None = None,
-        postprocessor: Callable[[list[str], lotus.models.LM, bool], SemanticMapPostprocessOutput] = map_postprocess,
+        postprocessor: Callable[[list[str], lotus.models.LMType, bool], SemanticMapPostprocessOutput] = cast(
+            Callable[[list[str], lotus.models.LMType, bool], SemanticMapPostprocessOutput], map_postprocess
+        ),
         return_explanations: bool = False,
         return_raw_outputs: bool = False,
         suffix: str = "_map",
@@ -304,26 +308,26 @@ class SemMapDataframe:
         multimodal_data = task_instructions.df2multimodal_info(self._obj, col_li)
         formatted_usr_instr = lotus.nl_expression.nle2str(user_instruction, col_li)
 
-        if tools is not None:
-            if lotus.settings.lm_with_tools is None:
+        if lotus.settings.lm is None:
+            raise ValueError(
+                "The language model must be an instance of LM. Please configure a valid language model using lotus.settings.configure()"
+            )
+
+        if isinstance(lotus.settings.lm, LMWithTools):
+            if tools is None:
                 raise ValueError(
-                    "To use tools the language model with tools must be an instance of LMWithTools. Please configure a valid language model with tools through lm_with_tools using lotus.settings.configure()"
+                    "tools parameter is required when LM is configured with tools. Use tools=[] if no tools are needed."
                 )
 
             output = sem_map_with_tools(
                 multimodal_data,
-                lotus.settings.lm_with_tools,
+                lotus.settings.lm,
                 formatted_usr_instr,
                 tools,
                 progress_bar_desc=progress_bar_desc,
             )
 
         else:
-            if lotus.settings.lm is None:
-                raise ValueError(
-                    "The language model must be an instance of LM. Please configure a valid language model using lotus.settings.configure()"
-                )
-
             examples_multimodal_data = None
             examples_answers = None
             cot_reasoning = None

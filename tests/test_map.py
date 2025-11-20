@@ -7,7 +7,7 @@ from crewai.tools import BaseTool
 from pydantic import BaseModel, Field
 
 import lotus
-from lotus.models import LM, LMWithTools
+from lotus.models import LM, LMWithoutTools, LMWithTools
 from tests.base_test import BaseTest
 
 
@@ -39,8 +39,10 @@ class AsyncMock(MagicMock):
 class TestFilters(BaseTest):
     def test_sem_map(self):
         """Test that the default LM with tools is None"""
+        lotus.settings.configure(enable_cache=False)
         lotus.settings.configure(lm=LM(model="gpt-4o-mini"))
         assert lotus.settings.lm is not None
+        assert isinstance(lotus.settings.lm, LMWithoutTools)
         df = pd.DataFrame(
             {
                 "Course Name": [
@@ -57,8 +59,10 @@ class TestFilters(BaseTest):
     @patch("crewai.crew.Crew.kickoff_for_each_async", new_callable=AsyncMock)
     def test_sem_map_with_tools(self, mock_kickoff):
         """Test configuring the LM with tools in settings"""
-        lotus.settings.configure(lm_with_tools=LMWithTools(model="gpt-4o-mini"))
-        assert lotus.settings.lm_with_tools is not None
+        lotus.settings.configure(enable_cache=False)
+        lotus.settings.configure(lm=LMWithTools(model="gpt-4o-mini", with_tools=True))
+        assert lotus.settings.lm is not None
+        assert isinstance(lotus.settings.lm, LMWithTools)
         file_read_tool = FileReadTool()
         df = pd.DataFrame(
             {

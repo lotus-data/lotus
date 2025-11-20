@@ -23,7 +23,7 @@ from .postprocessors import filter_postprocess
 
 def sem_filter(
     docs: list[dict[str, Any]],
-    model: lotus.models.LM,
+    model: lotus.models.LMWithoutTools,
     user_instruction: str,
     default: bool = True,
     examples_multimodal_data: list[dict[str, Any]] | None = None,
@@ -131,7 +131,7 @@ def sem_filter(
 
 def learn_filter_cascade_thresholds(
     sample_multimodal_data: list[dict[str, Any]],
-    lm: lotus.models.LM,
+    lm: lotus.models.LMWithoutTools,
     formatted_usr_instr: str,
     default: bool,
     cascade_args: CascadeArgs,
@@ -348,9 +348,10 @@ class SemFilterDataframe:
         progress_bar_desc: str = "Filtering",
         additional_cot_instructions: str = "",
     ) -> pd.DataFrame | tuple[pd.DataFrame, dict[str, Any]]:
-        if lotus.settings.lm is None:
+        # LMWithTools is not supported for sem_filter yet
+        if lotus.settings.lm is None or not isinstance(lotus.settings.lm, lotus.models.LMWithoutTools):
             raise ValueError(
-                "The language model must be an instance of LM. Please configure a valid language model using lotus.settings.configure()"
+                "The language model must be an instance of LM (with_tools=False). Please configure a valid language model using lotus.settings.configure()"
             )
 
         stats: dict[str, float] = {}
