@@ -71,7 +71,7 @@ def apply_ensemble(
       - If return_indices=True:  (List[T], List[int])  (plus chosen run index per item)
     """
     if not all_outputs:
-        return [] if not return_indices else ([], [])  # type: ignore[return-value]
+        return [] if not return_indices else ([], [])
 
     batch = len(all_outputs[0])
     for run in all_outputs:

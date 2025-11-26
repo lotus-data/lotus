@@ -13,6 +13,7 @@ from lotus.types import (
     EnsembleStrategy,
     LogprobsForFilterCascade,
     ProxyModel,
+    RawOutputs,
     ReasoningStrategy,
     SemanticFilterOutput,
 )
@@ -132,6 +133,19 @@ def sem_filter(
 
     # Postprocess each run independently to get canonical booleans
     postprocessed_runs = [filter_postprocess(run_texts, model, default) for run_texts in all_runs_texts]
+
+    # NEW: package all runs into RawOutputs objects
+    all_runs_packaged = []
+    for run_idx, pp in enumerate(postprocessed_runs):
+        all_runs_packaged.append(
+            RawOutputs(
+                preds=pp.raw_outputs,
+                logprobs=all_runs_logprobs[run_idx] if all_runs_logprobs else None,
+                parsed_outputs=pp.outputs,
+                explanations=pp.explanations,
+            )
+        )
+
     canonical_runs_bool: list[list[bool]] = [pp.outputs for pp in postprocessed_runs]  # [n_sample][batch]
 
     final_labels, chosen_run_idx = apply_ensemble(
@@ -167,6 +181,7 @@ def sem_filter(
         outputs=final_labels,  # canonical booleans after ensembling
         explanations=explanations,  # from winners
         logprobs=chosen_logprobs,  # from winners (or None)
+        raw_outputs_all_runs=all_runs_packaged,  # all runs packaged
     )
 
 
@@ -542,6 +557,7 @@ class SemFilterDataframe:
 
             for idx in high_conf_idxs:
                 outputs[idx] = proxy_outputs[idx]
+            all_runs: list[RawOutputs] = []
 
             # If using helper LM, get raw outputs and explanations
             if proxy_model == ProxyModel.HELPER_LM:
@@ -602,6 +618,7 @@ class SemFilterDataframe:
             outputs = output.outputs
             raw_outputs = output.raw_outputs
             explanations = output.explanations
+            all_runs = output.raw_outputs_all_runs if output.raw_outputs_all_runs else []
 
         if not return_all:
             # find indices where output is True
@@ -632,6 +649,30 @@ class SemFilterDataframe:
             new_df[get_out_col_name(new_df, "filter_label")] = outputs
             filtered_explanations = explanations
             filtered_raw_outputs = raw_outputs
+
+        # NEW — Add per-run rollout columns if multiple runs exist
+
+        if all_runs and n_sample > 1:
+            for run_idx, run_data in enumerate(all_runs, start=1):
+                # CASE 1 — return_all=True → show all rows
+                if return_all:
+                    new_df[f"raw_output_{run_idx}{suffix}"] = run_data.preds
+                    new_df[f"parsed_output_{run_idx}{suffix}"] = run_data.parsed_outputs
+
+                    if return_explanations:
+                        new_df[f"explanation_{run_idx}{suffix}"] = run_data.explanations
+
+                # CASE 2 — return_all=False → only rows that passed the filter
+                else:
+                    new_df[f"raw_output_{run_idx}{suffix}"] = [run_data.preds[i] for i in ids]
+                    new_df[f"parsed_output_{run_idx}{suffix}"] = [run_data.parsed_outputs[i] for i in ids]
+
+                    if return_explanations:
+                        new_df[f"explanation_{run_idx}{suffix}"] = [run_data.explanations[i] for i in ids]
+
+            # Finally add the ensemble answer as a column
+            ensemble_col = [outputs[i] for i in ids] if not return_all else outputs
+            new_df[f"ensemble_answer{suffix}"] = ensemble_col
 
         # return rows where output is True
         if return_explanations and return_raw_outputs:

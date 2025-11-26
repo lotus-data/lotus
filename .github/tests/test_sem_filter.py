@@ -148,3 +148,110 @@ def test_df_sem_filter_return_stats_tuple(setup_models, model):
     out_df, stats = result
     assert isinstance(out_df, pd.DataFrame)
     assert isinstance(stats, dict)
+
+
+# NEW TESTS FOR MULTI-RUN ROLLOUT FUNCTIONALITY
+
+
+@pytest.mark.parametrize("model", [MODEL_NAME])
+def test_df_sem_filter_with_rollout_columns(setup_models, model):
+    """Test that per-run rollout columns are correctly added when n_sample > 1."""
+    lotus.settings.configure(lm=setup_models[model])
+
+    df = pd.DataFrame({"Text": ["Great product!", "Terrible service.", "It's okay."]})
+    user_instruction = "{Text} is a positive sentiment"
+
+    # Test with return_all=True to see all rollout data
+    full_df = df.sem_filter(
+        user_instruction,
+        n_sample=3,
+        ensemble=EnsembleStrategy.MAJORITY,
+        return_all=True,
+        return_explanations=True,
+        temperature=0.9,
+    )
+
+    assert isinstance(full_df, pd.DataFrame)
+
+    # Check that per-run columns exist
+    assert "raw_output_1_filter" in full_df.columns
+    assert "raw_output_2_filter" in full_df.columns
+    assert "raw_output_3_filter" in full_df.columns
+
+    assert "parsed_output_1_filter" in full_df.columns
+    assert "parsed_output_2_filter" in full_df.columns
+    assert "parsed_output_3_filter" in full_df.columns
+
+    assert "explanation_1_filter" in full_df.columns
+    assert "explanation_2_filter" in full_df.columns
+    assert "explanation_3_filter" in full_df.columns
+
+    # Check that ensemble answer column exists
+    assert "ensemble_answer_filter" in full_df.columns
+
+    # Verify that all rows are present (return_all=True)
+    assert len(full_df) == 3
+
+    # Verify data types
+    assert full_df["parsed_output_1_filter"].dtype == bool
+    assert full_df["parsed_output_2_filter"].dtype == bool
+    assert full_df["parsed_output_3_filter"].dtype == bool
+    assert full_df["ensemble_answer_filter"].dtype == bool
+
+
+@pytest.mark.parametrize("model", [MODEL_NAME])
+def test_df_sem_filter_rollout_columns_filtered_rows(setup_models, model):
+    """Test that per-run columns work correctly when return_all=False (filtered rows only)."""
+    lotus.settings.configure(lm=setup_models[model])
+
+    df = pd.DataFrame({"Text": ["Amazing experience!", "Worst ever.", "Pretty good."]})
+    user_instruction = "{Text} is a positive sentiment"
+
+    # Test with return_all=False (default) - only rows that pass the filter
+    filtered_df = df.sem_filter(
+        user_instruction,
+        n_sample=3,
+        ensemble=EnsembleStrategy.MAJORITY,
+        return_all=False,  # explicit for clarity
+        temperature=0.9,
+    )
+
+    assert isinstance(filtered_df, pd.DataFrame)
+
+    # Check that per-run columns exist
+    assert "raw_output_1_filter" in filtered_df.columns
+    assert "parsed_output_1_filter" in filtered_df.columns
+
+    # Check ensemble answer column
+    assert "ensemble_answer_filter" in filtered_df.columns
+
+    # All rows in filtered result should have ensemble_answer=True
+    assert all(filtered_df["ensemble_answer_filter"])
+
+    # Verify we got at least some positive samples
+    assert len(filtered_df) >= 1
+
+
+@pytest.mark.parametrize("model", [MODEL_NAME])
+def test_df_sem_filter_no_rollout_columns_when_n_sample_1(setup_models, model):
+    """Test that per-run columns are NOT added when n_sample=1 (default behavior)."""
+    lotus.settings.configure(lm=setup_models[model])
+
+    df = pd.DataFrame({"Text": ["Great!", "Bad."]})
+    user_instruction = "{Text} is a positive sentiment"
+
+    # Default n_sample=1, so no rollout columns should appear
+    full_df = df.sem_filter(
+        user_instruction,
+        return_all=True,
+    )
+
+    assert isinstance(full_df, pd.DataFrame)
+
+    # These columns should NOT exist when n_sample=1
+    assert "raw_output_1_filter" not in full_df.columns
+    assert "parsed_output_1_filter" not in full_df.columns
+    assert "ensemble_answer_filter" not in full_df.columns
+
+    # But the regular filter_label should exist
+    assert "filter_label" in full_df.columns

@@ -63,6 +63,15 @@ class LogprobsForFilterCascade:
     confidences: list[list[float]]
 
 
+# Raw outputs
+@dataclass
+class RawOutputs:
+    preds: list[str]
+    logprobs: list[list[ChatCompletionTokenLogprob]] | None
+    parsed_outputs: list[bool]
+    explanations: list[str | None]
+
+
 ################################################################################
 # Semantic operation outputs
 ################################################################################
@@ -108,6 +117,7 @@ class SemanticFilterOutput:
     explanations: list[str | None]
     stats: dict[str, Any] | None = None
     logprobs: list[list[ChatCompletionTokenLogprob]] | None = None
+    raw_outputs_all_runs: list[RawOutputs] | None = None
 
 
 @dataclass
