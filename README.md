@@ -123,6 +123,7 @@ LOTUS introduces the semantic operator programming model. Semantic operators are
 LOTUS offers a number of semantic operators in a Pandas-like API, some of which are described below. To learn more about semantic operators provided in LOTUS, check out the full [documentation](https://lotus-ai.readthedocs.io/en/latest/), run the [colab tutorial](https://colab.research.google.com/drive/1mP65YHHdD6mnZmC5-Uqm2uCXJ4-Kbkhu?usp=sharing), or you can also refer to these [examples](https://github.com/TAG-Research/lotus/tree/main/examples/op_examples).
 
 
+Semantic operators provide a unified API for both **LLM-based primitives**...
 | Operator   | Description                                     |
 |------------|-------------------------------------------------|
 | sem_map      |  Map each record using a natural language projection| 
@@ -131,6 +132,10 @@ LOTUS offers a number of semantic operators in a Pandas-like API, some of which 
 | sem_agg      | Aggregate across all records (e.g. for summarization)             |
 | sem_topk     | Order the records by some natural langauge sorting criteria                 |
 | sem_join     | Join two datasets based on a natural language predicate       |
+
+... and **embedding-based primitives**:
+| Operator   | Description                                     |
+|------------|-------------------------------------------------|
 | sem_sim_join | Join two DataFrames based on semantic similarity             |
 | sem_search   | Perform semantic search the over a text column                |
 
