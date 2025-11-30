@@ -10,7 +10,7 @@ from lotus.cache import operator_cache
 from lotus.sem_ops.postprocessors import map_postprocess
 from lotus.sem_ops.sem_map import sem_map
 from lotus.templates import task_instructions
-from lotus.types import ReasoningStrategy, SemanticMapOutput, SemanticMapPostprocessOutput
+from lotus.types import PromptStrategy, SemanticMapOutput, SemanticMapPostprocessOutput
 
 
 def llm_as_judge(
@@ -24,7 +24,7 @@ def llm_as_judge(
     examples_multimodal_data: list[dict[str, Any]] | None = None,
     examples_answers: list[str] | None = None,
     cot_reasoning: list[str] | None = None,
-    strategy: ReasoningStrategy | None = None,
+    prompt_strategy: PromptStrategy = PromptStrategy(),
     safe_mode: bool = False,
     progress_bar_desc: str = "Evaluating",
     **model_kwargs: Any,
@@ -56,7 +56,7 @@ def llm_as_judge(
         cot_reasoning (list[str] | None, optional): Chain-of-thought reasoning
             for the example documents. Used when strategy includes COT reasoning.
             Defaults to None.
-        strategy (ReasoningStrategy | None, optional): The reasoning strategy to use.
+        prompt_strategy (PromptStrategy | None, optional): The reasoning strategy to use.
             Can be None, COT, or ZS_COT. Defaults to None.
         safe_mode (bool, optional): Whether to enable safe mode with cost estimation.
             Defaults to False.
@@ -73,7 +73,7 @@ def llm_as_judge(
         "Your job is to judge the output given the criteria, context and grading scale."
     )
 
-    if response_format is not None and strategy in [ReasoningStrategy.COT, ReasoningStrategy.ZS_COT]:
+    if response_format is not None and prompt_strategy.cot:
         raise ValueError(
             "Response format is not supported for COT or ZS_COT strategies. Use a non-COT strategy instead with reasoning field in the response format."
         )
@@ -92,7 +92,7 @@ def llm_as_judge(
                     examples_multimodal_data,
                     examples_answers,
                     cot_reasoning,
-                    strategy,
+                    prompt_strategy,
                     safe_mode,
                     progress_bar_desc,
                     response_format=response_format,
@@ -139,7 +139,7 @@ class LLMAsJudgeDataframe:
         examples (pd.DataFrame | None, optional): Example DataFrame for
             few-shot learning. Should have the same column structure as the
             input DataFrame plus an "Answer" column. Defaults to None.
-        strategy (ReasoningStrategy | None, optional): The reasoning strategy
+        prompt_strategy (PromptStrategy | None, optional): The reasoning strategy
             to use. Can be None, COT, or ZS_COT. Defaults to None.
         extra_cols_to_include (list[str] | None, optional): Extra columns to include in the input for judge.
             Defaults to None.
@@ -197,7 +197,7 @@ class LLMAsJudgeDataframe:
         suffix: str = "_judge",
         examples: pd.DataFrame | None = None,
         cot_reasoning: list[str] | None = None,
-        strategy: ReasoningStrategy | None = None,
+        prompt_strategy: PromptStrategy | None = None,
         extra_cols_to_include: list[str] | None = None,
         safe_mode: bool = False,
         progress_bar_desc: str = "Evaluating",
@@ -208,7 +208,7 @@ class LLMAsJudgeDataframe:
                 "The language model must be an instance of LM. Please configure a valid language model using lotus.settings.configure()"
             )
 
-        if response_format is not None and strategy in [ReasoningStrategy.COT, ReasoningStrategy.ZS_COT]:
+        if response_format is not None and prompt_strategy is not None and prompt_strategy.cot:
             raise ValueError(
                 "Response format is not supported for COT or ZS_COT strategies. Use a non-COT strategy instead with reasoning field in the response format."
             )
@@ -239,7 +239,7 @@ class LLMAsJudgeDataframe:
             examples_multimodal_data = task_instructions.df2multimodal_info(examples, col_li)
             examples_answers = examples["Answer"].tolist()
 
-            if strategy == ReasoningStrategy.COT or strategy == ReasoningStrategy.ZS_COT:
+            if prompt_strategy is not None and prompt_strategy.cot:
                 cot_reasoning = examples["Reasoning"].tolist()
 
         output = llm_as_judge(
@@ -253,7 +253,7 @@ class LLMAsJudgeDataframe:
             examples_multimodal_data=examples_multimodal_data,
             examples_answers=examples_answers,
             cot_reasoning=cot_reasoning,
-            strategy=strategy,
+            prompt_strategy=PromptStrategy(),
             safe_mode=safe_mode,
             progress_bar_desc=progress_bar_desc,
             **model_kwargs,
