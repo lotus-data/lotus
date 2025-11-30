@@ -100,7 +100,12 @@ class LM:
         else:
             self.max_batch_size = max_batch_size
         self.tokenizer = tokenizer
-        self.kwargs = dict(temperature=temperature, max_tokens=max_tokens, **kwargs)
+
+        # GPT-5 models uses max_completion_tokens rather than max_tokens
+        if self._is_gpt5():
+            self.kwargs = dict(temperature=temperature, max_completion_tokens=max_tokens, **kwargs)
+        else:
+            self.kwargs = dict(temperature=temperature, max_tokens=max_tokens, **kwargs)
 
         self.stats: LMStats = LMStats()
         self.physical_usage_limit = physical_usage_limit
@@ -480,3 +485,8 @@ class LM:
     def is_deepseek(self) -> bool:
         model_name = self.get_model_name()
         return model_name.startswith("deepseek-r1")
+
+    def _is_gpt5(self) -> bool:
+        """Check if the model is a GPT-5 variant"""
+        model_name = self.get_model_name()
+        return model_name.startswith("gpt-5") or model_name.startswith("o3")

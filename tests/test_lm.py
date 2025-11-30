@@ -64,6 +64,7 @@ class TestLM(BaseTest):
             cache_type=CacheType.SQLITE, max_size=1000, cache_dir=os.path.expanduser("~/.lotus/cache")
         )
         cache = CacheFactory.create_cache(cache_config)
+        cache.reset()
 
         lm = LM(model="gpt-4o-mini", cache=cache)
         lotus.settings.configure(lm=lm, enable_cache=True)
@@ -269,3 +270,49 @@ class TestLM(BaseTest):
             # Verify second call was with 10 messages
             second_call_args = mock_batch_completion.call_args_list[1]
             assert len(second_call_args[0][1]) == 10  # Second argument is the batch
+
+    def test_gpt5_max_completion_tokens(self):
+        """Test that GPT-5 models use max_completion_tokens instead of max_tokens."""
+        # Test GPT-5 model
+        lm_gpt5 = LM(model="gpt-5", max_tokens=100)
+        assert "max_completion_tokens" in lm_gpt5.kwargs
+        assert lm_gpt5.kwargs["max_completion_tokens"] == 100
+        assert "max_tokens" not in lm_gpt5.kwargs
+
+        # Test o3 model (also uses max_completion_tokens)
+        lm_o3 = LM(model="o3-mini", max_tokens=200)
+        assert "max_completion_tokens" in lm_o3.kwargs
+        assert lm_o3.kwargs["max_completion_tokens"] == 200
+        assert "max_tokens" not in lm_o3.kwargs
+
+        # Test that non-GPT-5 models still use max_tokens
+        lm_gpt4 = LM(model="gpt-4o-mini", max_tokens=150)
+        assert "max_tokens" in lm_gpt4.kwargs
+        assert lm_gpt4.kwargs["max_tokens"] == 150
+        assert "max_completion_tokens" not in lm_gpt4.kwargs
+
+    def test_is_gpt5_method(self):
+        """Test the _is_gpt5 helper method."""
+        # GPT-5 models
+        lm_gpt5 = LM(model="gpt-5")
+        assert lm_gpt5._is_gpt5() is True
+
+        lm_gpt5_turbo = LM(model="gpt-5-turbo")
+        assert lm_gpt5_turbo._is_gpt5() is True
+
+        # o3 models
+        lm_o3 = LM(model="o3")
+        assert lm_o3._is_gpt5() is True
+
+        lm_o3_mini = LM(model="o3-mini")
+        assert lm_o3_mini._is_gpt5() is True
+
+        # Non-GPT-5 models
+        lm_gpt4 = LM(model="gpt-4o-mini")
+        assert lm_gpt4._is_gpt5() is False
+
+        lm_gpt4o = LM(model="gpt-4o")
+        assert lm_gpt4o._is_gpt5() is False
+
+        lm_claude = LM(model="claude-3-opus")
+        assert lm_claude._is_gpt5() is False
