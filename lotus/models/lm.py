@@ -100,9 +100,7 @@ class LM:
         else:
             self.max_batch_size = max_batch_size
         self.tokenizer = tokenizer
-
-        # LiteLLM's drop_params=True will automatically remove unsupported parameters for each model.
-        self.kwargs = dict(temperature=temperature, max_tokens=max_tokens, max_completion_tokens=max_tokens, **kwargs)
+        self.kwargs = dict(temperature=temperature, max_tokens=max_tokens, **kwargs)
 
         self.stats: LMStats = LMStats()
         self.physical_usage_limit = physical_usage_limit
@@ -236,9 +234,21 @@ class LM:
         if self.rate_limit is not None:
             uncached_responses = self._process_with_rate_limiting(batch, all_kwargs, pbar)
         else:
-            uncached_responses = batch_completion(
-                self.model, batch, drop_params=True, max_workers=self.max_batch_size, **all_kwargs
-            )
+            try:
+                uncached_responses = batch_completion(
+                    self.model, batch, drop_params=True, max_workers=self.max_batch_size, **all_kwargs
+                )
+            except litellm.exceptions.BadRequestError as e:
+                # If error is about max_tokens, retry with max_completion_tokens instead
+                if "max_tokens" in str(e):
+                    retry_kwargs = all_kwargs.copy()
+                    retry_kwargs.pop("max_tokens", None)
+                    retry_kwargs["max_completion_tokens"] = self.max_tokens
+                    uncached_responses = batch_completion(
+                        self.model, batch, drop_params=True, max_workers=self.max_batch_size, **retry_kwargs
+                    )
+                else:
+                    raise
             pbar.update(total_calls)
 
         pbar.close()
@@ -272,9 +282,23 @@ class LM:
             start_idx = i * self.max_batch_size
             end_idx = min((i + 1) * self.max_batch_size, len(batch))
             sub_batch = batch[start_idx:end_idx]
-            sub_responses = batch_completion(
-                self.model, sub_batch, drop_params=True, max_workers=self.max_batch_size, **all_kwargs
-            )
+
+            try:
+                sub_responses = batch_completion(
+                    self.model, sub_batch, drop_params=True, max_workers=self.max_batch_size, **all_kwargs
+                )
+            except litellm.exceptions.BadRequestError as e:
+                # If error is about max_tokens, retry with max_completion_tokens instead
+                if "max_tokens" in str(e):
+                    retry_kwargs = all_kwargs.copy()
+                    retry_kwargs.pop("max_tokens", None)
+                    retry_kwargs["max_completion_tokens"] = self.max_tokens
+                    sub_responses = batch_completion(
+                        self.model, sub_batch, drop_params=True, max_workers=self.max_batch_size, **retry_kwargs
+                    )
+                else:
+                    raise
+
             responses.extend(sub_responses)
             pbar.update(len(sub_batch))
             end_time = time.time()
