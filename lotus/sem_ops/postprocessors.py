@@ -10,7 +10,7 @@ from lotus.types import (
 
 
 def cot_postprocessor(llm_answers: list[str], for_extract: bool = False):
-    outputs: list[Union[str, Dict[str, Any], None]] = []
+    outputs: list[Union[str, Dict[Any, Any], None]] = []
     explanations: list[str | None] = []
     for llm_answer in llm_answers:
         reasoning_idx = llm_answer.find("Reasoning:\n")
@@ -53,7 +53,7 @@ def deepseek_cot_postprocessor(llm_answers: list[str], for_extract: bool = False
     Returns:
         Tuple: (outputs, explanations)
     """
-    outputs: list[Union[str, Dict[str, Any], None]] = []
+    outputs: list[Union[str, Dict[Any, Any], None]] = []
     explanations: list[str | None] = []
 
     for llm_answer in llm_answers:
@@ -65,11 +65,14 @@ def deepseek_cot_postprocessor(llm_answers: list[str], for_extract: bool = False
         if think_start != -1 and think_end != -1:
             # Extract the reasoning between the <think> tags
             reasoning = llm_answer[think_start + len("<think>") : think_end].strip()
-            answer = llm_answer[answer_start + len("Answer:") :].strip()
 
-            answer = answer.strip()
+            if answer_start != -1:
+                answer = llm_answer[answer_start + len("Answer:") :].strip()
+            else:
+                # No "Answer:" found, look for content after </think>
+                answer = llm_answer[think_end + len("</think>") :].strip()
 
-            # If ther is nothing after </think> tag, check if the answer is at the beginning
+            # If there is nothing after </think> tag, check if the answer is at the beginning
             if not answer and think_start > 0:
                 answer = llm_answer[:think_start].strip()
 
@@ -183,6 +186,7 @@ def filter_postprocess(
     llm_answers: list[str],
     model: lotus.models.LM,
     default: bool = True,
+    cot_reasoning: bool = False,
 ) -> SemanticFilterPostprocessOutput:
     """
     Postprocess the output of the filter operator.
@@ -210,8 +214,12 @@ def filter_postprocess(
             lotus.logger.info(f"\t Failed to parse {answer}: defaulting to {default}")
             return default
 
-    postprocessor = get_cot_postprocessor(model)
-    outputs, explanations = postprocessor(llm_answers)
+    if cot_reasoning:
+        postprocessor = get_cot_postprocessor(model)
+        outputs, explanations = postprocessor(llm_answers)
+    else:
+        outputs = llm_answers
+        explanations = [None] * len(llm_answers)
 
     boolean_outputs = [process_outputs(answer) for answer in outputs]
 
