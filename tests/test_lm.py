@@ -271,17 +271,16 @@ class TestLM(BaseTest):
             second_call_args = mock_batch_completion.call_args_list[1]
             assert len(second_call_args[0][1]) == 10  # Second argument is the batch
 
-    def test_max_tokens_parameter_flexibility(self):
-        """Test that the LM handles token parameters dynamically without hardcoding model names.
+    def test_max_tokens_parameter_uses_max_completion_tokens(self):
+        """Test that the LM uses max_completion_tokens for all models.
 
-        The LM class starts with max_tokens (most common) and automatically retries with
-        max_completion_tokens if the API rejects the request. This approach eliminates
-        the need to maintain model-specific parameter mappings.
+        LiteLLM automatically translates max_completion_tokens to max_tokens for older models
+        that don't support it, so we can use max_completion_tokens universally without needing
+        model-specific logic.
         """
-        # All models start with max_tokens by default
+        # All models use max_completion_tokens - LiteLLM handles translation
         for model_name in ["gpt-4o-mini", "gpt-5", "o3-mini", "claude-3-opus"]:
             lm = LM(model=model_name, max_tokens=100)
-            # Initially set to max_tokens
-            assert "max_tokens" in lm.kwargs
-            assert lm.kwargs["max_tokens"] == 100
-            # If API rejects it, the try-catch in batch_completion calls handles the retry
+            assert "max_completion_tokens" in lm.kwargs
+            assert lm.kwargs["max_completion_tokens"] == 100
+            assert "max_tokens" not in lm.kwargs
