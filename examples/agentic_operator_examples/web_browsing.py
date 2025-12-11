@@ -2,11 +2,11 @@ import pandas as pd
 from crewai_tools import SerperDevTool, WebsiteSearchTool
 
 import lotus
-from lotus.models import LMWithTools
+from lotus.models import LM
 
-lmwithtools = LMWithTools()
+lm = LM()
 
-lotus.settings.configure(lm_with_tools=lmwithtools)
+lotus.settings.configure(lm=lm)
 
 dept = {
     "University Department": [

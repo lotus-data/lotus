@@ -1,6 +1,6 @@
 import lotus.models
 import lotus.vector_store
-from lotus.models import LM, RM, LMWithTools, Reranker
+from lotus.models import LM, RM, Reranker
 from lotus.types import SerializationFormat
 
 # NOTE: Settings class is not thread-safe
@@ -13,7 +13,6 @@ class Settings:
     helper_lm: LM | None = None
     reranker: Reranker | None = None
     vs: lotus.vector_store.VS | None = None
-    lm_with_tools: LMWithTools | None = None
 
     # Cache settings
     enable_cache: bool = False

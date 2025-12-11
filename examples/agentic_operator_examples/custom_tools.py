@@ -6,7 +6,7 @@ from crewai.tools import BaseTool
 from pydantic import BaseModel, Field
 
 import lotus
-from lotus.models import LMWithTools
+from lotus.models import LM
 
 
 class FileReadArgs(BaseModel):
@@ -50,9 +50,9 @@ class AdditionTool(BaseTool):
         return str(int(num1) + int(num2))
 
 
-lmwithtools = LMWithTools()
+lm = LM()
 
-lotus.settings.configure(lm_with_tools=lmwithtools)
+lotus.settings.configure(lm=lm)
 data = {
     "File names": [
         "text1.txt",

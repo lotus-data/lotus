@@ -41,9 +41,9 @@ class LMWithTools:
         model: str = "gpt-4o-mini",
         temperature: float = 0.0,
         max_tokens: int = 512,
-        physical_usage_limit: UsageLimit = UsageLimit(),
         **kwargs: dict[str, Any],
     ):
+        self.model = model
         self.llm = LLM(
             model=model,
             temperature=temperature,
@@ -51,7 +51,6 @@ class LMWithTools:
             **kwargs,  # type: ignore[arg-type]
         )
 
-        self.physical_usage_limit = physical_usage_limit
         self.stats: LMStats = LMStats()
 
     def __call__(
@@ -62,6 +61,7 @@ class LMWithTools:
         show_progress_bar: bool = True,
         progress_bar_desc: str = "Mapping",
         output_json: type[BaseModel] | None = None,
+        **kwargs: dict[str, Any],
     ) -> LMWithToolsOutput:
         pbar = tqdm(
             total=len(inputs),
@@ -95,7 +95,7 @@ class LMWithTools:
 
         results = []
 
-        results = asyncio.run(crew.kickoff_for_each_async(inputs=inputs))
+        results = asyncio.run(crew.kickoff_for_each_async(inputs=inputs, **kwargs))
 
         for result in results:
             # Just recording metrics for now, not enforcing limits here.
@@ -103,6 +103,10 @@ class LMWithTools:
             self.stats.physical_usage.total_tokens += result.token_usage.total_tokens
             self.stats.physical_usage.prompt_tokens += result.token_usage.prompt_tokens
             self.stats.physical_usage.completion_tokens += result.token_usage.completion_tokens
+
+            self.stats.virtual_usage.total_tokens += result.token_usage.total_tokens
+            self.stats.virtual_usage.prompt_tokens += result.token_usage.prompt_tokens
+            self.stats.virtual_usage.completion_tokens += result.token_usage.completion_tokens
 
         pbar.close()
         outputs = []
@@ -114,8 +118,31 @@ class LMWithTools:
 
         return LMWithToolsOutput(outputs=outputs)
 
+    def get_model_name(self) -> str:
+        raw_model = self.model
+        if not raw_model:
+            return ""
 
-class LM:
+        # If a slash is present, assume the model name is after the last slash.
+        if "/" in raw_model:
+            candidate = raw_model.split("/")[-1]
+        else:
+            candidate = raw_model
+
+        # If a colon is present, assume the model version is appended and remove it.
+        if ":" in candidate:
+            candidate = candidate.split(":")[0]
+
+        return candidate.lower()
+
+    def get_stats(self) -> LMStats:
+        return self.stats
+
+    def reset_stats(self):
+        self.stats = LMStats()
+
+
+class LMWithoutTools:
     """
     Language Model class for interacting with various LLM providers.
 
@@ -528,15 +555,8 @@ class LM:
             messages=messages,
         )
 
-    def print_total_usage(self):
-        print("\n=== Usage Statistics ===")
-        print("Virtual  = Total usage if no caching was used")
-        print("Physical = Actual usage with caching applied\n")
-        print(f"Virtual Cost:     ${self.stats.virtual_usage.total_cost:,.6f}")
-        print(f"Physical Cost:    ${self.stats.physical_usage.total_cost:,.6f}")
-        print(f"Virtual Tokens:   {self.stats.virtual_usage.total_tokens:,}")
-        print(f"Physical Tokens:  {self.stats.physical_usage.total_tokens:,}")
-        print(f"Cache Hits:       {self.stats.cache_hits:,}\n")
+    def get_stats(self) -> LMStats:
+        return self.stats
 
     def reset_stats(self):
         self.stats = LMStats()
@@ -561,6 +581,122 @@ class LM:
 
         return candidate.lower()
 
-    def is_deepseek(self) -> bool:
-        model_name = self.get_model_name()
-        return model_name.startswith("deepseek-r1")
+
+class LM:
+    """
+    Language Model class for interacting with various LLM providers.
+    """
+
+    def __init__(
+        self,
+        model: str = "gpt-4o-mini",
+        temperature: float = 0.0,
+        max_ctx_len: int = 128000,
+        max_tokens: int = 512,
+        max_batch_size: int = 64,
+        rate_limit: int | None = None,
+        tokenizer: Tokenizer | None = None,
+        cache: Any = None,
+        physical_usage_limit: UsageLimit = UsageLimit(),
+        virtual_usage_limit: UsageLimit = UsageLimit(),
+        **kwargs: dict[str, Any],
+    ):
+        self.temperature = temperature
+        self.max_tokens = max_tokens
+        self.max_ctx_len = max_ctx_len
+        self.max_batch_size = max_batch_size
+        self.rate_limit = rate_limit
+        self.tokenizer = tokenizer
+        self.cache = cache
+        self.physical_usage_limit = physical_usage_limit
+        self.virtual_usage_limit = virtual_usage_limit
+
+        ## TODO: Implement features specific other init params for LMWithTools
+        self.lm_with_tools = LMWithTools(model=model, temperature=temperature, max_tokens=max_tokens, **kwargs)
+        self.lm_without_tools = LMWithoutTools(
+            model=model,
+            temperature=temperature,
+            max_ctx_len=max_ctx_len,
+            max_tokens=max_tokens,
+            max_batch_size=max_batch_size,
+            rate_limit=rate_limit,
+            tokenizer=tokenizer,
+            cache=cache,
+            physical_usage_limit=physical_usage_limit,
+            virtual_usage_limit=virtual_usage_limit,
+            **kwargs,
+        )
+
+    def __call__(self, *args, with_tools: bool = False, **kwargs):
+        if with_tools:
+            return self.lm_with_tools(*args, **kwargs)
+        return self.lm_without_tools(*args, **kwargs)
+
+    def get_lm_with_tools(self) -> LMWithTools:
+        return self.lm_with_tools
+
+    def get_lm_without_tools(self) -> LMWithoutTools:
+        return self.lm_without_tools
+
+    def get_completion(self, *args, with_tools: bool = False, **kwargs) -> str:
+        if with_tools:
+            raise NotImplementedError("Getting completion for LM with tools is not supported.")
+        return self.lm_without_tools.get_completion(*args, **kwargs)
+
+    def format_logprobs_for_cascade(
+        self, logprobs: list[list[ChatCompletionTokenLogprob]], with_tools: bool = False
+    ) -> LogprobsForCascade:
+        if with_tools:
+            raise NotImplementedError("Formatting logprobs for LM with tools is not supported.")
+        return self.lm_without_tools.format_logprobs_for_cascade(logprobs)
+
+    def format_logprobs_for_filter_cascade(
+        self, logprobs: list[list[ChatCompletionTokenLogprob]], with_tools: bool = False
+    ) -> LogprobsForFilterCascade:
+        if with_tools:
+            raise NotImplementedError("Formatting logprobs for LM with tools is not supported.")
+        return self.lm_without_tools.format_logprobs_for_filter_cascade(logprobs)
+
+    def count_tokens(self, messages: list[dict[str, str]] | str) -> int:
+        return self.lm_without_tools.count_tokens(messages)
+
+    def reset_stats(self) -> None:
+        self.lm_with_tools.reset_stats()
+        self.lm_without_tools.reset_stats()
+
+    def get_stats(self) -> LMStats:
+        stats1 = self.lm_with_tools.get_stats()
+        stats2 = self.lm_without_tools.get_stats()
+        return LMStats(
+            virtual_usage=stats1.virtual_usage + stats2.virtual_usage,
+            physical_usage=stats1.physical_usage + stats2.physical_usage,
+            cache_hits=stats1.cache_hits + stats2.cache_hits,
+            operator_cache_hits=stats1.operator_cache_hits + stats2.operator_cache_hits,
+        )
+
+    def print_total_usage(self) -> None:
+        stats = self.get_stats()
+
+        print("\n=== Usage Statistics ===")
+        print("Virtual  = Total usage if no caching was used")
+        print("Physical = Actual usage with caching applied\n")
+        print(f"Virtual Cost:     ${stats.virtual_usage.total_cost:,.6f}")
+        print(f"Physical Cost:    ${stats.physical_usage.total_cost:,.6f}")
+        print(f"Virtual Tokens:   {stats.virtual_usage.total_tokens:,}")
+        print(f"Physical Tokens:  {stats.physical_usage.total_tokens:,}")
+        print(f"Cache Hits:       {stats.cache_hits:,}\n")
+
+    def reset_cache(self, max_size: int | None = None, with_tools: bool = False) -> None:
+        if with_tools:
+            raise NotImplementedError("Resetting cache for LM with tools is not yet supported.")
+        else:
+            self.lm_without_tools.reset_cache(max_size)
+
+    def get_model_name(self, with_tools: bool = False) -> str:
+        if with_tools:
+            return self.lm_with_tools.get_model_name()
+        return self.lm_without_tools.get_model_name()
+
+    def is_deepseek(self, with_tools: bool = False) -> bool:
+        model = self.get_model_name(with_tools)
+        return model.startswith("deepseek-r1")

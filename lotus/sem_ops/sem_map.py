@@ -5,7 +5,6 @@ from crewai.tools.base_tool import BaseTool
 
 import lotus
 from lotus.cache import operator_cache
-from lotus.models import LMWithTools
 from lotus.templates import task_instructions
 from lotus.types import LMOutput, ReasoningStrategy, SemanticMapOutput, SemanticMapPostprocessOutput
 from lotus.utils import show_safe_mode
@@ -15,7 +14,7 @@ from .postprocessors import map_postprocess
 
 def sem_map_with_tools(
     docs: list[dict[str, Any]],
-    model: LMWithTools,
+    model: lotus.models.LM,
     user_instruction: str,
     tools: list[BaseTool] | None = None,
     progress_bar_desc: str = "Mapping",
@@ -60,7 +59,7 @@ def sem_map_with_tools(
     for input in inputs:
         lotus.logger.debug(f"input to task: {input}")
 
-    outputs = model(agent_and_task_descriptions, inputs, tools, progress_bar_desc=progress_bar_desc)
+    outputs = model(agent_and_task_descriptions, inputs, tools, progress_bar_desc=progress_bar_desc, with_tools=True)
 
     return SemanticMapOutput(
         raw_outputs=outputs.outputs, outputs=outputs.outputs, explanations=[None] * len(outputs.outputs)
@@ -304,26 +303,20 @@ class SemMapDataframe:
         multimodal_data = task_instructions.df2multimodal_info(self._obj, col_li)
         formatted_usr_instr = lotus.nl_expression.nle2str(user_instruction, col_li)
 
-        if tools is not None:
-            if lotus.settings.lm_with_tools is None:
-                raise ValueError(
-                    "To use tools the language model with tools must be an instance of LMWithTools. Please configure a valid language model with tools through lm_with_tools using lotus.settings.configure()"
-                )
+        if lotus.settings.lm is None:
+            raise ValueError(
+                "The language model must be an instance of LM. Please configure a valid language model using lotus.settings.configure()"
+            )
 
+        if tools is not None:
             output = sem_map_with_tools(
                 multimodal_data,
-                lotus.settings.lm_with_tools,
+                lotus.settings.lm,
                 formatted_usr_instr,
                 tools,
                 progress_bar_desc=progress_bar_desc,
             )
-
         else:
-            if lotus.settings.lm is None:
-                raise ValueError(
-                    "The language model must be an instance of LM. Please configure a valid language model using lotus.settings.configure()"
-                )
-
             examples_multimodal_data = None
             examples_answers = None
             cot_reasoning = None
