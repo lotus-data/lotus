@@ -1,9 +1,9 @@
-# LOTUS: LLM-Powered Data Processing Made Fast, Easy, and Robust
+# LOTUS: Fast, Easy and Accurate LLM-Powered Data Processing
 <!--- BADGES: START --->
 <!--[![Colab Demo](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1OzoJXH13aOwNOIEemClxzNCNYnqSGxVl?usp=sharing)-->
 [![Colab Demo](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1mP65YHHdD6mnZmC5-Uqm2uCXJ4-Kbkhu?usp=sharing)
 [![Arxiv](https://img.shields.io/badge/arXiv-2407.11418-B31B1B.svg)][#arxiv-paper-package]
-[![Slack](https://img.shields.io/badge/slack-lotus-purple.svg?logo=slack)][#slack]
+[![Discord](https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white)](https://discord.gg/ZWQBurm5bt)
 [![Documentation Status](https://readthedocs.org/projects/lotus-ai/badge/?version=latest)](https://lotus-ai.readthedocs.io/en/latest/?badge=latest)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/lotus-ai)][#pypi-package]
 [![PyPI](https://img.shields.io/pypi/v/lotus-ai)][#pypi-package]
@@ -12,24 +12,42 @@
 [#arxiv-paper-package]: https://arxiv.org/abs/2407.11418
 [#pypi-package]: https://pypi.org/project/lotus-ai/
 [#slack]: https://join.slack.com/t/lotus-fnm8919/shared_invite/zt-319k232lx-nEcLF~5w274dcQLmw2Wqyg
+[#discord]: https://discord.gg/ZWQBurm5bt
 <!--- BADGES: END --->
 
 LOTUS is the framework that allows you to easily process your datasets, including unstructured and structured data, with LLMs. It provides an **intuitive Pandas-like API**, offers algorithms for **optimizing your programs for up to 1000x speedups**, and makes LLM-based data processing **robust with accuracy guarantees** with respect to high-quality reference algorithms.
 
-LOTUS stands for **L**LMs **O**ver **T**ext, **U**nstructured and **S**tructured Data, and it implements [**semantic operators**](https://arxiv.org/abs/2407.11418), which extend the core philosophy of relational operators—designed for declarative and robust _structured-data_ processing—to _unstructured-data_ processing with AI. Semantic operators are expressive, allowing you to easily capture all of your data-intensive AI programs, from simple RAG, to document extraction, image classification, LLM-judge evals, unstructured data analysis, and more.
+LOTUS stands for **L**LMs **O**ver **T**ext, **U**nstructured and **S**tructured Data, and it introduces [**semantic operators**](https://arxiv.org/abs/2407.11418). Semantic operators extend the core philosophy of relational operators—designed for declarative and robust _structured-data_ processing—to _unstructured-data_ processing with AI. Semantic operators are expressive, allowing you to easily capture all of your data-intensive AI programs, from simple RAG, to document extraction, image classification, LLM-judge evals, unstructured data analysis, complex research-based synthesis and more.
 
-For trouble-shooting or feature requests, please raise an issue and we'll get to it promptly. To share feedback and applications you're working on, you can send us a message on our [community slack](https://join.slack.com/t/lotus-fnm8919/shared_invite/zt-319k232lx-nEcLF~5w274dcQLmw2Wqyg), or send an email (lianapat@stanford.edu).
+For trouble-shooting or feature requests, please raise an issue and we'll get to it promptly. To share feedback and applications you're working on, you can send us a message on our [community discord][#discord], or send an email (lianapat@stanford.edu).
 
 # Installation
+
+## Using uv (Recommended)
 For the latest stable release:
+```bash
+# Install uv if you haven't already
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Create a new project or navigate to your existing project
+uv add lotus-ai
 ```
+
+For the latest features:
+```bash
+uv add git+https://github.com/lotus-data/lotus.git@main
+```
+
+## Using pip
+For the latest stable release:
+```bash
 conda create -n lotus python=3.10 -y
 conda activate lotus
 pip install lotus-ai
 ```
 
 For the latest features, you can alternatively install as follows:
-```
+```bash
 conda create -n lotus python=3.10 -y
 conda activate lotus
 pip install git+https://github.com/lotus-data/lotus.git@main
@@ -37,17 +55,20 @@ pip install git+https://github.com/lotus-data/lotus.git@main
 
 
 ## Running on Mac
-If you are running on mac, please install Faiss via conda:
+If you are running on mac and using pip, please install Faiss via conda:
 
 ### CPU-only version
-```
+```bash
 conda install -c pytorch faiss-cpu=1.8.0
 ```
 
 ### GPU(+CPU) version
-```
+```bash
 conda install -c pytorch -c nvidia faiss-gpu=1.8.0
 ```
+
+If you're using uv, the faiss-cpu dependency will be handled automatically.
+
 For more details, see [Installing FAISS via Conda](https://github.com/facebookresearch/faiss/blob/main/INSTALL.md#installing-faiss-via-conda).
 
 # Quickstart
@@ -103,6 +124,7 @@ LOTUS introduces the semantic operator programming model. Semantic operators are
 LOTUS offers a number of semantic operators in a Pandas-like API, some of which are described below. To learn more about semantic operators provided in LOTUS, check out the full [documentation](https://lotus-ai.readthedocs.io/en/latest/), run the [colab tutorial](https://colab.research.google.com/drive/1mP65YHHdD6mnZmC5-Uqm2uCXJ4-Kbkhu?usp=sharing), or you can also refer to these [examples](https://github.com/TAG-Research/lotus/tree/main/examples/op_examples).
 
 
+Semantic operators provide a unified API for both **LLM-based primitives**...
 | Operator   | Description                                     |
 |------------|-------------------------------------------------|
 | sem_map      |  Map each record using a natural language projection| 
@@ -111,6 +133,10 @@ LOTUS offers a number of semantic operators in a Pandas-like API, some of which 
 | sem_agg      | Aggregate across all records (e.g. for summarization)             |
 | sem_topk     | Order the records by some natural langauge sorting criteria                 |
 | sem_join     | Join two datasets based on a natural language predicate       |
+
+... and **embedding-based primitives**:
+| Operator   | Description                                     |
+|------------|-------------------------------------------------|
 | sem_sim_join | Join two DataFrames based on semantic similarity             |
 | sem_search   | Perform semantic search the over a text column                |
 
@@ -134,7 +160,7 @@ Before contributing, please:
 
 1. **Read our [Contributing Guide](CONTRIBUTING.md)** - Comprehensive guidelines for contributors
 2. **Check existing issues** - Avoid duplicates by searching existing issues and pull requests
-3. **Join our community** - Connect with us on [Slack](https://join.slack.com/t/lotus-fnm8919/shared_invite/zt-319k232lx-nEcLF~5w274dcQLmw2Wqyg)
+3. **Join our community** - Connect with us on [Discord][#discord]
 
 
 ## Development Setup
@@ -143,7 +169,7 @@ For development setup and detailed contribution guidelines, see our [Contributin
 
 ## Community
 
-- **Slack**: [Join our community](https://join.slack.com/t/lotus-fnm8919/shared_invite/zt-319k232lx-nEcLF~5w274dcQLmw2Wqyg) 
+- **Discord**: [Join our community][#discord]
 - **Email**: lianapat@stanford.edu
 - **Discussions**: [GitHub Discussions](https://github.com/lotus-data/lotus/discussions)
 
