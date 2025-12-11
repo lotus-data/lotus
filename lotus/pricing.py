@@ -1,7 +1,10 @@
+import logging
 from typing import Optional
 
 import litellm
 from litellm import completion_cost
+
+logger = logging.getLogger(__name__)
 
 
 def calculate_cost_from_response(response) -> Optional[float]:
@@ -21,8 +24,11 @@ def calculate_cost_from_response(response) -> Optional[float]:
     """
     try:
         return completion_cost(completion_response=response)
-    except litellm.exceptions.NotFoundError:
+    except litellm.exceptions.NotFoundError as e:
         # Model pricing not found in LiteLLM
+        logger.debug(f"Model pricing not found in LiteLLM: {e}")
         return None
-    except Exception:
+    except Exception as e:
+        # Handle any other unexpected errors (network issues, API changes, etc.)
+        logger.debug(f"Unexpected error calculating completion cost: {e}")
         return None
