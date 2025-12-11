@@ -24,6 +24,10 @@ class LMStats:
         completion_tokens: int = 0
         total_tokens: int = 0
         total_cost: float = 0.0
+        # Cached tokens (prompt cache hits) - charged at lower rate
+        cached_prompt_tokens: int = 0
+        # Tokens used to create the cache (prompt cache writes) - one-time cost
+        cache_creation_tokens: int = 0
 
         def __sub__(self, other: "LMStats.TotalUsage") -> "LMStats.TotalUsage":
             return LMStats.TotalUsage(
@@ -31,6 +35,8 @@ class LMStats:
                 completion_tokens=self.completion_tokens - other.completion_tokens,
                 total_tokens=self.total_tokens - other.total_tokens,
                 total_cost=self.total_cost - other.total_cost,
+                cached_prompt_tokens=self.cached_prompt_tokens - other.cached_prompt_tokens,
+                cache_creation_tokens=self.cache_creation_tokens - other.cache_creation_tokens,
             )
 
         def __add__(self, other: "LMStats.TotalUsage") -> "LMStats.TotalUsage":
@@ -39,6 +45,8 @@ class LMStats:
                 completion_tokens=self.completion_tokens + other.completion_tokens,
                 total_tokens=self.total_tokens + other.total_tokens,
                 total_cost=self.total_cost + other.total_cost,
+                cached_prompt_tokens=self.cached_prompt_tokens + other.cached_prompt_tokens,
+                cache_creation_tokens=self.cache_creation_tokens + other.cache_creation_tokens,
             )
 
     # Usage stats if there was no caching
