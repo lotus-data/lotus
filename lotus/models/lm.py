@@ -4,11 +4,9 @@ import logging
 import math
 import time
 import warnings
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
-from crewai import LLM, Agent, Crew, Task
-from crewai.tools.base_tool import BaseTool
 from litellm import batch_completion
 from litellm.exceptions import AuthenticationError
 from litellm.types.utils import ChatCompletionTokenLogprob, ChoiceLogprobs, Choices, ModelResponse
@@ -31,6 +29,9 @@ from lotus.types import (
     UsageLimit,
 )
 
+if TYPE_CHECKING:
+    from crewai.tools.base_tool import BaseTool
+
 logging.getLogger("LiteLLM").setLevel(logging.CRITICAL)
 logging.getLogger("httpx").setLevel(logging.CRITICAL)
 
@@ -43,6 +44,8 @@ class LMWithTools:
         max_tokens: int = 512,
         **kwargs: dict[str, Any],
     ):
+        from crewai import LLM
+
         self.model = model
         self.llm = LLM(
             model=model,
@@ -63,15 +66,14 @@ class LMWithTools:
         output_json: type[BaseModel] | None = None,
         **kwargs: dict[str, Any],
     ) -> LMWithToolsOutput:
+        from crewai import Agent, Crew, Task
+
         pbar = tqdm(
             total=len(inputs),
             desc=progress_bar_desc,
             disable=not show_progress_bar,
             bar_format="{l_bar}{bar} {n}/{total} Rows processed [{elapsed}<{remaining}, {rate_fmt}{postfix}]",
         )
-
-        def update_progress(task_output):
-            pbar.update(1)
 
         agent = Agent(
             role=agent_task_description["role"],
@@ -86,7 +88,7 @@ class LMWithTools:
             expected_output=agent_task_description["expected_output"],
             output_json=output_json,
             agent=agent,
-            callback=update_progress,
+            callback=lambda x: pbar.update(1),
         )
         crew = Crew(
             agents=[agent],
@@ -103,10 +105,12 @@ class LMWithTools:
             self.stats.physical_usage.total_tokens += result.token_usage.total_tokens
             self.stats.physical_usage.prompt_tokens += result.token_usage.prompt_tokens
             self.stats.physical_usage.completion_tokens += result.token_usage.completion_tokens
+            self.stats.physical_usage.cached_prompt_tokens += result.token_usage.cached_prompt_tokens
 
             self.stats.virtual_usage.total_tokens += result.token_usage.total_tokens
             self.stats.virtual_usage.prompt_tokens += result.token_usage.prompt_tokens
             self.stats.virtual_usage.completion_tokens += result.token_usage.completion_tokens
+            self.stats.virtual_usage.cached_prompt_tokens += result.token_usage.cached_prompt_tokens
 
         pbar.close()
         outputs = []

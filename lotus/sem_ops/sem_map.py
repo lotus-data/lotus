@@ -1,7 +1,9 @@
-from typing import Any, Callable
+from typing import TYPE_CHECKING, Any, Callable
 
 import pandas as pd
-from crewai.tools.base_tool import BaseTool
+
+if TYPE_CHECKING:
+    from crewai.tools.base_tool import BaseTool
 
 import lotus
 from lotus.cache import operator_cache

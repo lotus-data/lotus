@@ -266,11 +266,7 @@ def map_with_tools_formatter(
         "expected_output": "The answer to the instruction.",
     }
 
-    inputs = []
-    for data in multimodal_data:
-        inputs.append(
-            {"context_with_instruction": user_message_formatter(data, f"Instruction: {user_instruction}")["content"]}
-        )
+    inputs = [user_message_formatter(data, f"Instruction: {user_instruction}")["content"] for data in multimodal_data]
 
     return agent_description, inputs
 
