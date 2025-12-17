@@ -50,7 +50,7 @@ arxiv = [
     "arxiv",
 ]
 file_extractor = [
-    "llama-index",
+    "llama-index==0.14.10",
     "pymupdf",
     "docx2txt",
     "python-pptx",
