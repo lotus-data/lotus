@@ -2,6 +2,7 @@ import hashlib
 import logging
 import math
 import time
+from collections import deque
 import warnings
 from typing import Any
 
@@ -65,6 +66,7 @@ class LM:
         max_tokens: int = 512,
         max_batch_size: int = 64,
         rate_limit: int | None = None,
+        tpm_limit: int | None = None,
         tokenizer: Tokenizer | None = None,
         cache: Any = None,
         physical_usage_limit: UsageLimit = UsageLimit(),
@@ -91,6 +93,9 @@ class LM:
         self.max_ctx_len = max_ctx_len
         self.max_tokens = max_tokens
         self.rate_limit = rate_limit
+        self.tpm_limit = tpm_limit
+        self._token_usage_history = deque()  # (timestamp, tokens)
+
         if rate_limit is not None:
             self._rate_limit_delay: float = 60 / rate_limit
             if max_batch_size is not None:
@@ -231,7 +236,9 @@ class LM:
 
         batch = [msg for msg, _ in uncached_data]
 
-        if self.rate_limit is not None:
+        if self.tpm_limit is not None:
+            uncached_responses = self._process_with_tpm_limiting(batch, all_kwargs, pbar)
+        elif self.rate_limit is not None:
             uncached_responses = self._process_with_rate_limiting(batch, all_kwargs, pbar)
         else:
             uncached_responses = batch_completion(
@@ -287,6 +294,63 @@ class LM:
                 to_sleep = required_time_for_batch - elapsed
                 if to_sleep > 0:
                     time.sleep(to_sleep)
+        return responses
+
+    def _get_tokens_used_in_last_minute(self) -> int:
+        current_time = time.time()
+        while self._token_usage_history and self._token_usage_history[0][0] < current_time - 60:
+            self._token_usage_history.popleft()
+        return sum(tokens for _, tokens in self._token_usage_history)
+
+    def _process_with_tpm_limiting(
+        self, batch: list[list[dict[str, str]]], all_kwargs: dict[str, Any], pbar: tqdm
+    ) -> list[ModelResponse]:
+        responses = []
+        token_estimates = [self.count_tokens(msg) for msg in batch]
+        
+        i = 0
+        while i < len(batch):
+            tokens_in_last_minute = self._get_tokens_used_in_last_minute()
+            available_tokens = max(0, self.tpm_limit - tokens_in_last_minute)
+
+            # Build sub-batch based on available tokens
+            sub_batch = []
+            sub_batch_estimate = 0
+            while i < len(batch):
+                est = token_estimates[i]
+                if sub_batch_estimate + est <= available_tokens or not sub_batch:
+                    # If sub_batch is empty, we must send at least one 
+                    # (even if it exceeds budget, we'll wait after)
+                    if sub_batch and sub_batch_estimate + est > available_tokens:
+                        break
+                    sub_batch.append(batch[i])
+                    sub_batch_estimate += est
+                    i += 1
+                    if len(sub_batch) >= self.max_batch_size:
+                        break
+                else:
+                    break
+
+            if sub_batch:
+                sub_responses = batch_completion(
+                    self.model, sub_batch, drop_params=True, max_workers=len(sub_batch), **all_kwargs
+                )
+                responses.extend(sub_responses)
+                
+                # Record actual usage from response
+                actual_tokens = sum(r.usage.total_tokens for r in sub_responses if hasattr(r, 'usage'))
+                self._token_usage_history.append((time.time(), actual_tokens))
+                pbar.update(len(sub_batch))
+            else:
+                # Need to wait for token window to clear
+                wait_time = 1.0
+                if self._token_usage_history:
+                    wait_time = max(0.1, self._token_usage_history[0][0] + 60.1 - time.time())
+                
+                pbar.set_postfix_str(f"TPM Limit reached, waiting {wait_time:.1f}s")
+                time.sleep(wait_time)
+                pbar.set_postfix_str("")
+
         return responses
 
     def _cache_response(self, response: ModelResponse, hash: str) -> None:
