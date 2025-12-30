@@ -311,24 +311,24 @@ class LM:
         i = 0
         while i < len(batch):
             tokens_in_last_minute = self._get_tokens_used_in_last_minute()
-            available_tokens = max(0, self.tpm_limit - tokens_in_last_minute)
+            # Use a 5% safety buffer to avoid tight boundary errors
+            available_tokens = max(0, int(self.tpm_limit * 0.95) - tokens_in_last_minute)
 
             # Build sub-batch based on available tokens
             sub_batch = []
             sub_batch_estimate = 0
             while i < len(batch):
-                est = token_estimates[i]
-                if sub_batch_estimate + est <= available_tokens or not sub_batch:
-                    # If sub_batch is empty, we must send at least one 
-                    # (even if it exceeds budget, we'll wait after)
-                    if sub_batch and sub_batch_estimate + est > available_tokens:
-                        break
+                # Include max_tokens in estimate as buffer for the completion
+                est = token_estimates[i] + self.max_tokens
+                
+                if sub_batch_estimate + est <= available_tokens:
                     sub_batch.append(batch[i])
                     sub_batch_estimate += est
                     i += 1
                     if len(sub_batch) >= self.max_batch_size:
                         break
                 else:
+                    # Row doesn't fit in current budget. Stop here.
                     break
 
             if sub_batch:
