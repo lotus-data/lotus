@@ -57,7 +57,8 @@ class TestLM(BaseTest):
             for idx in range(10):  # Multiple calls to exceed total limit
                 lm(messages)
                 lm.print_total_usage()
-                assert lm.stats.cache_hits == (idx + 1)
+                assert lm.get_stats().cache_hits == (idx + 1)
+        lotus.settings.enable_cache = False
 
     def test_lm_usage_with_operator_cache(self):
         cache_config = CacheConfig(
@@ -76,76 +77,77 @@ class TestLM(BaseTest):
         )
 
         # First call - should use physical tokens since not cached
-        initial_physical = lm.stats.physical_usage.total_tokens
-        initial_virtual = lm.stats.virtual_usage.total_tokens
+        initial_physical = lm.get_stats().physical_usage.total_tokens
+        initial_virtual = lm.get_stats().virtual_usage.total_tokens
 
         mapped_df_first = sample_df.sem_map("What is the color of {fruit}?")
 
-        physical_tokens_used = lm.stats.physical_usage.total_tokens - initial_physical
-        virtual_tokens_used = lm.stats.virtual_usage.total_tokens - initial_virtual
+        physical_tokens_used = lm.get_stats().physical_usage.total_tokens - initial_physical
+        virtual_tokens_used = lm.get_stats().virtual_usage.total_tokens - initial_virtual
 
         assert physical_tokens_used > 0
         assert virtual_tokens_used > 0
         assert physical_tokens_used == virtual_tokens_used
-        assert lm.stats.operator_cache_hits == 0
+        assert lm.get_stats().operator_cache_hits == 0
 
         # Second call - should use cache
-        initial_physical = lm.stats.physical_usage.total_tokens
-        initial_virtual = lm.stats.virtual_usage.total_tokens
+        initial_physical = lm.get_stats().physical_usage.total_tokens
+        initial_virtual = lm.get_stats().virtual_usage.total_tokens
 
         mapped_df_second = sample_df.sem_map("What is the color of {fruit}?")
 
-        physical_tokens_used = lm.stats.physical_usage.total_tokens - initial_physical
-        virtual_tokens_used = lm.stats.virtual_usage.total_tokens - initial_virtual
+        physical_tokens_used = lm.get_stats().physical_usage.total_tokens - initial_physical
+        virtual_tokens_used = lm.get_stats().virtual_usage.total_tokens - initial_virtual
 
         assert physical_tokens_used == 0  # No physical tokens used due to cache
         assert virtual_tokens_used > 0  # Virtual tokens still counted
-        assert lm.stats.operator_cache_hits == 1
+        assert lm.get_stats().operator_cache_hits == 1
 
         # With cache disabled - should use physical tokens
         lotus.settings.enable_cache = False
-        initial_physical = lm.stats.physical_usage.total_tokens
-        initial_virtual = lm.stats.virtual_usage.total_tokens
+        initial_physical = lm.get_stats().physical_usage.total_tokens
+        initial_virtual = lm.get_stats().virtual_usage.total_tokens
 
         mapped_df_third = sample_df.sem_map("What is the color of {fruit}?")
 
-        physical_tokens_used = lm.stats.physical_usage.total_tokens - initial_physical
-        virtual_tokens_used = lm.stats.virtual_usage.total_tokens - initial_virtual
+        physical_tokens_used = lm.get_stats().physical_usage.total_tokens - initial_physical
+        virtual_tokens_used = lm.get_stats().virtual_usage.total_tokens - initial_virtual
 
         assert physical_tokens_used > 0
         assert virtual_tokens_used > 0
         assert physical_tokens_used == virtual_tokens_used
-        assert lm.stats.operator_cache_hits == 1  # No additional cache hits
+        assert lm.get_stats().operator_cache_hits == 1  # No additional cache hits
 
         pd.testing.assert_frame_equal(mapped_df_first, mapped_df_second)
         pd.testing.assert_frame_equal(mapped_df_first, mapped_df_third)
         pd.testing.assert_frame_equal(mapped_df_second, mapped_df_third)
+        lotus.settings.configure(enable_cache=False)
 
     def test_lm_rate_limiting_initialization(self):
         """Test that rate limiting parameters are properly initialized."""
         # Test with rate limiting enabled
         lm = LM(model="gpt-4o-mini", rate_limit=30)
-        assert lm.rate_limit == 30
+        assert lm.get_lm_without_tools().rate_limit == 30
         # No assertion for rate_limit_delay, as it's now internal
 
         # Test without rate limiting (backward compatibility)
         lm = LM(model="gpt-4o-mini", max_batch_size=64)
-        assert lm.rate_limit is None
-        assert lm.max_batch_size == 64
+        assert lm.get_lm_without_tools().rate_limit is None
+        assert lm.get_lm_without_tools().max_batch_size == 64
 
     def test_lm_rate_limiting_batch_size_capping(self):
         """Test that rate_limit properly caps max_batch_size."""
         # Rate limit of 60 requests per minute = 1 request per second
         lm = LM(model="gpt-4o-mini", max_batch_size=100, rate_limit=60)
-        assert lm.max_batch_size == 60  # Should be capped to 60
+        assert lm.get_lm_without_tools().max_batch_size == 60  # Should be capped to 60
 
         # Rate limit of 120 requests per minute = 2 requests per second
         lm = LM(model="gpt-4o-mini", max_batch_size=10, rate_limit=120)
-        assert lm.max_batch_size == 10  # Should be capped to 10
+        assert lm.get_lm_without_tools().max_batch_size == 10  # Should be capped to 10
 
         # Rate limit higher than max_batch_size should not cap
         lm = LM(model="gpt-4o-mini", max_batch_size=10, rate_limit=600)
-        assert lm.max_batch_size == 10  # Should remain unchanged
+        assert lm.get_lm_without_tools().max_batch_size == 10  # Should remain unchanged
 
     def test_lm_dynamic_rate_limiting_delay(self):
         import time
@@ -181,7 +183,7 @@ class TestLM(BaseTest):
         lm = LM(model="gpt-4o-mini", rate_limit=rate_limit)
 
         # Verify max_batch_size is capped correctly
-        assert lm.max_batch_size == 10
+        assert lm.get_lm_without_tools().max_batch_size == 10
 
         # Test timing calculation for different batch sizes
         test_cases = [
@@ -193,7 +195,9 @@ class TestLM(BaseTest):
 
         for num_requests, expected_min_seconds in test_cases:
             # Calculate expected time based on rate limiting logic
-            num_batches = (num_requests + lm.max_batch_size - 1) // lm.max_batch_size
+            num_batches = (
+                num_requests + lm.get_lm_without_tools().max_batch_size - 1
+            ) // lm.get_lm_without_tools().max_batch_size
             min_interval_per_request = 60 / rate_limit
 
             # Each batch should take: num_requests_in_batch * min_interval_per_request
@@ -202,7 +206,7 @@ class TestLM(BaseTest):
             remaining_requests = num_requests
 
             for i in range(num_batches):
-                batch_size = min(lm.max_batch_size, remaining_requests)
+                batch_size = min(lm.get_lm_without_tools().max_batch_size, remaining_requests)
                 batch_time = batch_size * min_interval_per_request
                 total_expected_time += batch_time
                 remaining_requests -= batch_size
@@ -243,7 +247,7 @@ class TestLM(BaseTest):
             start_time = time.time()
 
             # Call the rate-limited processing method directly
-            lm._process_with_rate_limiting(
+            lm.get_lm_without_tools()._process_with_rate_limiting(
                 messages,
                 {"temperature": 0.0},
                 MagicMock(),  # Mock progress bar
