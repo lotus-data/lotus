@@ -5,9 +5,8 @@ import time
 import warnings
 from typing import Any
 
-import litellm
 import numpy as np
-from litellm import batch_completion, completion_cost
+from litellm import batch_completion
 from litellm.exceptions import AuthenticationError
 from litellm.types.utils import ChatCompletionTokenLogprob, ChoiceLogprobs, Choices, ModelResponse
 from litellm.utils import token_counter
@@ -18,6 +17,7 @@ from tqdm import tqdm
 
 import lotus
 from lotus.cache import CacheFactory
+from lotus.pricing import calculate_cost_from_response
 from lotus.types import (
     LMOutput,
     LMStats,
@@ -328,33 +328,51 @@ class LM:
             raise LotusUsageLimitException(f"Usage limit exceeded. Current {usage_type} usage: {usage}, Limit: {limit}")
 
     def _update_usage_stats(self, usage: LMStats.TotalUsage, response: ModelResponse, cost: float | None):
-        """Helper to update usage statistics"""
-        if hasattr(response, "usage"):
-            usage.prompt_tokens += response.usage.prompt_tokens
-            usage.completion_tokens += response.usage.completion_tokens
-            usage.total_tokens += response.usage.total_tokens
+        """Helper to update usage statistics including cached tokens"""
+        if hasattr(response, "usage") and response.usage:
+            usage.prompt_tokens += response.usage.prompt_tokens or 0
+            usage.completion_tokens += response.usage.completion_tokens or 0
+            usage.total_tokens += response.usage.total_tokens or 0
             if cost is not None:
                 usage.total_cost += cost
 
+            # Extract cached token information from prompt_tokens_details if available
+            if hasattr(response.usage, "prompt_tokens_details") and response.usage.prompt_tokens_details:
+                details = response.usage.prompt_tokens_details
+                if isinstance(details, dict):
+                    cached_tokens = details.get("cached_tokens", 0) or 0
+                    cache_creation_tokens = details.get("cache_creation_tokens", 0) or 0
+                else:
+                    cached_tokens = getattr(details, "cached_tokens", 0) or 0
+                    cache_creation_tokens = getattr(details, "cache_creation_tokens", 0) or 0
+
+                usage.cached_prompt_tokens += cached_tokens
+                usage.cache_creation_tokens += cache_creation_tokens
+
     def _update_stats(self, response: ModelResponse, is_cached: bool = False):
+        """
+        Update usage statistics from a model response.
+
+        Uses LiteLLM's completion_cost() function which:
+        - Maintains up-to-date pricing for 100+ models
+        - Automatically handles cached tokens and their different pricing
+        - Supports all token types (input, cached, cache creation, output, image)
+
+        Args:
+            response: The ModelResponse from LiteLLM
+            is_cached: Whether this response came from Lotus's operator cache
+        """
         if not hasattr(response, "usage"):
             return
 
-        # Calculate cost once
-        try:
-            cost = completion_cost(completion_response=response)
-        except litellm.exceptions.NotFoundError as e:
-            # Sometimes the model's pricing information is not available
-            lotus.logger.debug(f"Error updating completion cost: {e}")
-            cost = None
-        except Exception as e:
-            # Handle any other unexpected errors when calculating cost
-            lotus.logger.debug(f"Unexpected error calculating completion cost: {e}")
-            warnings.warn(
-                "Error calculating completion cost - cost metrics will be inaccurate. Enable debug logging for details."
-            )
+        # Use LiteLLM's completion_cost (handles cached tokens automatically)
+        cost = calculate_cost_from_response(response)
 
-            cost = None
+        if cost is not None:
+            lotus.logger.debug(f"Calculated cost: ${cost:.6f} for model {self.model}")
+        else:
+            lotus.logger.debug(f"No pricing information available for model {self.model}")
+            warnings.warn(f"No pricing information available for model {self.model}. ")
 
         # Always update virtual usage
         self._update_usage_stats(self.stats.virtual_usage, response, cost)
