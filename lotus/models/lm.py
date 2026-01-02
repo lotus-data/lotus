@@ -100,7 +100,8 @@ class LM:
         else:
             self.max_batch_size = max_batch_size
         self.tokenizer = tokenizer
-        self.kwargs = dict(temperature=temperature, max_tokens=max_tokens, **kwargs)
+        # Use max_completion_tokens - LiteLLM translates to max_tokens for older models automatically
+        self.kwargs = dict(temperature=temperature, max_completion_tokens=max_tokens, **kwargs)
 
         self.stats: LMStats = LMStats()
         self.physical_usage_limit = physical_usage_limit
