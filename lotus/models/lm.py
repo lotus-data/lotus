@@ -2,8 +2,8 @@ import hashlib
 import logging
 import math
 import time
-from collections import deque
 import warnings
+from collections import deque
 from typing import Any
 
 import litellm
@@ -94,7 +94,7 @@ class LM:
         self.max_tokens = max_tokens
         self.rate_limit = rate_limit
         self.tpm_limit = tpm_limit
-        self._token_usage_history = deque()  # (timestamp, tokens)
+        self._token_usage_history: deque = deque()  # (timestamp, tokens)
 
         if rate_limit is not None:
             self._rate_limit_delay: float = 60 / rate_limit
@@ -305,14 +305,15 @@ class LM:
     def _process_with_tpm_limiting(
         self, batch: list[list[dict[str, str]]], all_kwargs: dict[str, Any], pbar: tqdm
     ) -> list[ModelResponse]:
+        assert self.tpm_limit is not None
         responses = []
         token_estimates = []
         max_allowed_tpm = int(self.tpm_limit * 0.95)
-        
+
         for idx, msg in enumerate(batch):
             est = self.count_tokens(msg)
             total_est = est + self.max_tokens
-            
+
             if total_est > max_allowed_tpm:
                 raise ValueError(
                     f"Row {idx} estimated size ({total_est} tokens) exceeds your "
@@ -331,7 +332,7 @@ class LM:
             # Build sub-batch based on available tokens and optional rate (RPM) limit
             sub_batch = []
             sub_batch_estimate = 0
-            
+
             # Determine max possible requests in this specific burst
             # based on self.max_batch_size AND optional self.rate_limit
             effective_max_batch = self.max_batch_size
@@ -339,7 +340,7 @@ class LM:
             while i < len(batch):
                 # Include max_tokens in estimate as buffer for the completion
                 est = token_estimates[i] + self.max_tokens
-                
+
                 if sub_batch_estimate + est <= available_tokens:
                     sub_batch.append(batch[i])
                     sub_batch_estimate += est
@@ -356,13 +357,13 @@ class LM:
                     self.model, sub_batch, drop_params=True, max_workers=len(sub_batch), **all_kwargs
                 )
                 responses.extend(sub_responses)
-                
+
                 # Record actual usage from response
-                actual_tokens = sum(r.usage.total_tokens for r in sub_responses if hasattr(r, 'usage'))
-                self._token_usage_history.append((time.time(), actual_tokens))
+                actual_tokens = sum(r.usage.total_tokens for r in sub_responses if hasattr(r, "usage"))
+                self._token_usage_history.append((start_time, actual_tokens))
                 pbar.update(len(sub_batch))
 
-                # IF rate_limit is set, we must also enforce the RPM-based delay 
+                # IF rate_limit is set, we must also enforce the RPM-based delay
                 # to prevent hitting RPM limits with many small requests.
                 if self.rate_limit is not None:
                     elapsed = time.time() - start_time
@@ -375,7 +376,7 @@ class LM:
                 wait_time = 1.0
                 if self._token_usage_history:
                     wait_time = max(0.1, self._token_usage_history[0][0] + 60.1 - time.time())
-                
+
                 pbar.set_postfix_str(f"TPM Limit reached, waiting {wait_time:.1f}s")
                 time.sleep(wait_time)
                 pbar.set_postfix_str("")
