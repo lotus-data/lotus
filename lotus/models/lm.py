@@ -306,17 +306,36 @@ class LM:
         self, batch: list[list[dict[str, str]]], all_kwargs: dict[str, Any], pbar: tqdm
     ) -> list[ModelResponse]:
         responses = []
-        token_estimates = [self.count_tokens(msg) for msg in batch]
+        token_estimates = []
+        max_allowed_tpm = int(self.tpm_limit * 0.95)
         
+        for idx, msg in enumerate(batch):
+            est = self.count_tokens(msg)
+            total_est = est + self.max_tokens
+            
+            if total_est > max_allowed_tpm:
+                raise ValueError(
+                    f"Row {idx} estimated size ({total_est} tokens) exceeds your "
+                    f"total TPM limit with safety buffer ({max_allowed_tpm} tokens). "
+                    f"This row is too large to ever be sent on your current API tier. "
+                    f"Please trim your data or upgrade your account tier."
+                )
+            token_estimates.append(est)
+
         i = 0
         while i < len(batch):
             tokens_in_last_minute = self._get_tokens_used_in_last_minute()
             # Use a 5% safety buffer to avoid tight boundary errors
             available_tokens = max(0, int(self.tpm_limit * 0.95) - tokens_in_last_minute)
 
-            # Build sub-batch based on available tokens
+            # Build sub-batch based on available tokens and optional rate (RPM) limit
             sub_batch = []
             sub_batch_estimate = 0
+            
+            # Determine max possible requests in this specific burst
+            # based on self.max_batch_size AND optional self.rate_limit
+            effective_max_batch = self.max_batch_size
+
             while i < len(batch):
                 # Include max_tokens in estimate as buffer for the completion
                 est = token_estimates[i] + self.max_tokens
@@ -325,13 +344,14 @@ class LM:
                     sub_batch.append(batch[i])
                     sub_batch_estimate += est
                     i += 1
-                    if len(sub_batch) >= self.max_batch_size:
+                    if len(sub_batch) >= effective_max_batch:
                         break
                 else:
                     # Row doesn't fit in current budget. Stop here.
                     break
 
             if sub_batch:
+                start_time = time.time()
                 sub_responses = batch_completion(
                     self.model, sub_batch, drop_params=True, max_workers=len(sub_batch), **all_kwargs
                 )
@@ -341,6 +361,15 @@ class LM:
                 actual_tokens = sum(r.usage.total_tokens for r in sub_responses if hasattr(r, 'usage'))
                 self._token_usage_history.append((time.time(), actual_tokens))
                 pbar.update(len(sub_batch))
+
+                # IF rate_limit is set, we must also enforce the RPM-based delay 
+                # to prevent hitting RPM limits with many small requests.
+                if self.rate_limit is not None:
+                    elapsed = time.time() - start_time
+                    required_time_for_rpm = len(sub_batch) * (60 / self.rate_limit)
+                    to_sleep = required_time_for_rpm - elapsed
+                    if to_sleep > 0:
+                        time.sleep(to_sleep)
             else:
                 # Need to wait for token window to clear
                 wait_time = 1.0
