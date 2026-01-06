@@ -1,5 +1,5 @@
 from lotus.models.cross_encoder_reranker import CrossEncoderReranker
-from lotus.models.lm import LM
+from lotus.models.lm import LM, LMWithTools
 from lotus.models.reranker import Reranker
 from lotus.models.rm import RM
 from lotus.models.litellm_rm import LiteLLMRM
@@ -9,6 +9,7 @@ from lotus.models.colbertv2_rm import ColBERTv2RM
 __all__ = [
     "CrossEncoderReranker",
     "LM",
+    "LMWithTools",
     "RM",
     "Reranker",
     "LiteLLMRM",
