@@ -57,6 +57,14 @@ class LMStats:
     cache_hits: int = 0
     operator_cache_hits: int = 0
 
+    def __add__(self, other: "LMStats") -> "LMStats":
+        return LMStats(
+            virtual_usage=self.virtual_usage + other.virtual_usage,
+            physical_usage=self.physical_usage + other.physical_usage,
+            cache_hits=self.cache_hits + other.cache_hits,
+            operator_cache_hits=self.operator_cache_hits + other.operator_cache_hits,
+        )
+
 
 @dataclass
 class LogprobsForCascade:
