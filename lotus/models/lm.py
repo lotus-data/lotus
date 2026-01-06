@@ -186,7 +186,7 @@ class LM:
         progress_bar_desc: str = "Processing uncached messages",
         response_format: BaseModel | None = None,
         **kwargs: dict[str, Any],
-    ) -> str:
+    ) -> str | BaseModel:
         messages = [
             [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
         ]
@@ -198,7 +198,6 @@ class LM:
             **kwargs,
         ).outputs[0]
         if response_format:
-            assert isinstance(output, BaseModel)
             return response_format.model_validate_json(output)
         return output
 
