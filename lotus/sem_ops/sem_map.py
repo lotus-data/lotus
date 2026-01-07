@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 from typing import Any, Callable
+import time
 
 import pandas as pd
 
@@ -9,6 +12,32 @@ from lotus.types import LMOutput, ReasoningStrategy, SemanticMapOutput, Semantic
 from lotus.utils import show_safe_mode
 
 from .postprocessors import map_postprocess
+
+
+def _unique_col_name(df: pd.DataFrame, base: str) -> str:
+    if base not in df.columns:
+        return base
+    i = 1
+    while f"{base}_{i}" in df.columns:
+        i += 1
+    return f"{base}_{i}"
+
+
+def _get_lm_model_name() -> str:
+    lm = getattr(lotus.settings, "lm", None)
+    if lm is None:
+        return "unconfigured"
+    return str(getattr(lm, "model", "unknown"))
+
+
+def _append_pipeline_prov(df: pd.DataFrame, entry: dict[str, Any]) -> None:
+    prov = df.attrs.get("_prov")
+    if prov is None:
+        prov = []
+    elif not isinstance(prov, list):
+        prov = [prov]
+    prov.append(entry)
+    df.attrs["_prov"] = prov
 
 
 def sem_map(
@@ -25,58 +54,7 @@ def sem_map(
     progress_bar_desc: str = "Mapping",
     **model_kwargs: Any,
 ) -> SemanticMapOutput:
-    """
-    Maps a list of documents to a list of outputs using a language model.
-
-    This function applies a natural language instruction to each document in the
-    input list, transforming them into new outputs. It supports few-shot learning
-    through examples and various reasoning strategies including chain-of-thought.
-
-    Args:
-        docs (list[dict[str, Any]]): The list of documents to map. Each document
-            should be a dictionary containing multimodal information (text, images, etc.).
-        model (lotus.models.LM): The language model instance to use for mapping.
-            Must be properly configured with appropriate API keys and settings.
-        user_instruction (str): The natural language instruction that guides the
-            mapping process. This instruction tells the model how to transform
-            each input document.
-        system_prompt (str | None, optional): The system prompt to use.
-        postprocessor (Callable, optional): A function to post-process the model
-            outputs. Should take (outputs, model, use_cot) and return
-            SemanticMapPostprocessOutput. Defaults to map_postprocess.
-        examples_multimodal_data (list[dict[str, Any]] | None, optional): Example
-            documents for few-shot learning. Each example should have the same
-            structure as the input docs. Defaults to None.
-        examples_answers (list[str] | None, optional): Expected outputs for the
-            example documents. Should have the same length as examples_multimodal_data.
-            Defaults to None.
-        cot_reasoning (list[str] | None, optional): Chain-of-thought reasoning
-            for the example documents. Used when strategy includes COT reasoning.
-            Defaults to None.
-        strategy (ReasoningStrategy | None, optional): The reasoning strategy to use.
-            Can be None, COT, or ZS_COT. Defaults to None.
-        safe_mode (bool, optional): Whether to enable safe mode with cost estimation.
-            Defaults to False.
-        progress_bar_desc (str, optional): Description for the progress bar.
-            Defaults to "Mapping".
-        **model_kwargs: Any: Additional keyword arguments to pass to the model.
-    Returns:
-        SemanticMapOutput: An object containing the processed outputs, raw outputs,
-            and explanations (if applicable).
-
-    Raises:
-        ValueError: If the model is not properly configured or if there are
-            issues with the input parameters.
-
-    Example:
-        >>> docs = [{"text": "Document 1"}, {"text": "Document 2"}]
-        >>> model = LM(model="gpt-4o")
-        >>> result = sem_map(docs, model, "Summarize the text in one sentence")
-        >>> print(result.outputs)
-    """
-
-    # prepare model inputs
-    inputs = []
+    inputs: list[list[dict[str, Any]]] = []
     for doc in docs:
         prompt = task_instructions.map_formatter(
             model,
@@ -88,26 +66,18 @@ def sem_map(
             strategy=strategy,
             system_prompt=system_prompt,
         )
-        lotus.logger.debug(f"input to model: {prompt}")
-        lotus.logger.debug(f"inputs content to model: {[x.get('content') for x in prompt]}")
         inputs.append(prompt)
 
-    # check if safe_mode is enabled
     if safe_mode:
-        estimated_cost = sum(model.count_tokens(input) for input in inputs)
+        estimated_cost = sum(model.count_tokens(inp) for inp in inputs)
         estimated_LM_calls = len(docs)
         show_safe_mode(estimated_cost, estimated_LM_calls)
 
-    # call model
     lm_output: LMOutput = model(inputs, progress_bar_desc=progress_bar_desc, **model_kwargs)
 
-    # post process results
-    postprocess_output = postprocessor(
-        lm_output.outputs, model, strategy in [ReasoningStrategy.COT, ReasoningStrategy.ZS_COT]
-    )
-    lotus.logger.debug(f"raw_outputs: {lm_output.outputs}")
-    lotus.logger.debug(f"outputs: {postprocess_output.outputs}")
-    lotus.logger.debug(f"explanations: {postprocess_output.explanations}")
+    use_cot = strategy in (ReasoningStrategy.COT, ReasoningStrategy.ZS_COT)
+    postprocess_output = postprocessor(lm_output.outputs, model, use_cot)
+
     if safe_mode:
         model.print_total_usage()
 
@@ -120,94 +90,12 @@ def sem_map(
 
 @pd.api.extensions.register_dataframe_accessor("sem_map")
 class SemMapDataframe:
-    """
-    Apply semantic mapping over a DataFrame.
-
-    This method performs semantic mapping on the DataFrame content using
-    a natural language instruction. It can process specific columns identified
-    in the instruction and supports few-shot learning through examples.
-
-    Args:
-        user_instruction (str): The natural language instruction that guides
-            the mapping process. Should describe how to transform each row.
-        system_prompt (str | None, optional): The system prompt to use.
-        postprocessor (Callable, optional): A function to post-process the model
-            outputs. Should take (outputs, model, use_cot) and return
-            SemanticMapPostprocessOutput. Defaults to map_postprocess.
-        return_explanations (bool, optional): Whether to include explanations
-            in the output DataFrame. Useful for debugging and understanding
-            model reasoning, when strategy is COT or ZS_COT. Defaults to False.
-        return_raw_outputs (bool, optional): Whether to include raw model
-            outputs in the output DataFrame. Useful for debugging.
-            Defaults to False.
-        suffix (str, optional): The suffix for the output column names.
-            Defaults to "_map".
-        examples (pd.DataFrame | None, optional): Example DataFrame for
-            few-shot learning. Should have the same column structure as the
-            input DataFrame plus an "Answer" column. Defaults to None.
-        strategy (ReasoningStrategy | None, optional): The reasoning strategy
-            to use. Can be None, COT, or ZS_COT. Defaults to None.
-        safe_mode (bool, optional): Whether to enable safe mode with cost
-            estimation. Defaults to False.
-        progress_bar_desc (str, optional): Description for the progress bar.
-            Defaults to "Mapping".
-        **model_kwargs: Any: Additional keyword arguments to pass to the model.
-
-    Returns:
-        pd.DataFrame: A DataFrame containing the original data plus the mapped
-            outputs. Additional columns may be added for explanations and raw
-            outputs if requested.
-
-    Raises:
-        ValueError: If the language model is not configured, if specified
-            columns don't exist in the DataFrame, or if the examples DataFrame
-            doesn't have the required "Answer" column.
-
-    Example:
-        >>> import pandas as pd
-        >>> import lotus
-        >>> from lotus.models import LM, SentenceTransformersRM
-        >>> lotus.settings.configure(lm=LM(model="gpt-4o-mini"))
-        >>> df = pd.DataFrame({
-        ...     'document': ['Harry is happy and love cats', 'Harry is feeling nauseous']
-        ... })
-        # Example 1: simple mapping
-        >>> result1 = df.sem_map("Label the sentiment of Harry in the {document} as positive/negative/neutral. Answer in one word.")
-        Mapping: 100%|████████████████████████████████████████████████████████████████████ 2/2 LM calls [00:00<00:00,  3.18it/s]
-        document      _map
-        0  Harry is happy and love cats  Positive
-        1     Harry is feeling nauseous  Negative
-
-        # Example 2: with zero-shot chain-of-thought (ZS-COT) reasoning
-        >>> from lotus.types import ReasoningStrategy
-        >>> df.sem_map("Label the sentiment of Harry in the {document} as positive/negative/neutral. Answer in one word.", return_explanations=True, strategy=ReasoningStrategy.ZS_COT)
-        Mapping: 100%|████████████████████████████████████████████████████████████████████ 2/2 LM calls [00:02<00:00,  1.04s/it]
-        document       _map                                    explanation_map
-        0  Harry is happy and love cats   positive  Reasoning: The document states that "Harry is ...
-        1  Harry is feeling nauseous   negative  Reasoning: The phrase "Harry is feeling nauseo...
-    """
-
     def __init__(self, pandas_obj: pd.DataFrame):
-        """
-        Initialize the semantic mapping accessor.
-
-        Args:
-            pandas_obj (pd.DataFrame): The pandas DataFrame object to attach the accessor to.
-        """
         self._validate(pandas_obj)
         self._obj = pandas_obj
 
     @staticmethod
     def _validate(obj: pd.DataFrame) -> None:
-        """
-        Validate that the object is a pandas DataFrame.
-
-        Args:
-            obj (pd.DataFrame): The object to validate.
-
-        Raises:
-            AttributeError: If the object is not a pandas DataFrame.
-        """
         if not isinstance(obj, pd.DataFrame):
             raise AttributeError("Must be a DataFrame")
 
@@ -224,6 +112,10 @@ class SemMapDataframe:
         strategy: ReasoningStrategy | None = None,
         safe_mode: bool = False,
         progress_bar_desc: str = "Mapping",
+        return_provenance: bool = False,
+        provenance_col: str = "provenance_index",
+        track_pipeline: bool = False,
+        op_name: str = "sem_map",
         **model_kwargs: Any,
     ) -> pd.DataFrame:
         if lotus.settings.lm is None:
@@ -231,28 +123,37 @@ class SemMapDataframe:
                 "The language model must be an instance of LM. Please configure a valid language model using lotus.settings.configure()"
             )
 
-        col_li = lotus.nl_expression.parse_cols(user_instruction)
+        start_t = time.time()
+        rows_in = len(self._obj)
 
-        # check that column exists
+        col_li = lotus.nl_expression.parse_cols(user_instruction)
         for column in col_li:
             if column not in self._obj.columns:
                 raise ValueError(f"Column {column} not found in DataFrame")
 
-        multimodal_data = task_instructions.df2multimodal_info(self._obj, col_li)
+        df_in = self._obj.copy()
+
+        tmp_prov = None
+        if return_provenance or track_pipeline:
+            tmp_prov = _unique_col_name(df_in, "__lotus_prov_index__")
+            df_in[tmp_prov] = df_in.index
+
+        multimodal_data = task_instructions.df2multimodal_info(df_in, col_li)
         formatted_usr_instr = lotus.nl_expression.nle2str(user_instruction, col_li)
 
         examples_multimodal_data = None
         examples_answers = None
         cot_reasoning = None
-
         if examples is not None:
-            assert "Answer" in examples.columns, "Answer must be a column in examples dataframe"
+            if "Answer" not in examples.columns:
+                raise ValueError("Answer must be a column in examples dataframe")
             examples_multimodal_data = task_instructions.df2multimodal_info(examples, col_li)
             examples_answers = examples["Answer"].tolist()
 
-            if strategy == ReasoningStrategy.COT or strategy == ReasoningStrategy.ZS_COT:
+            if strategy in (ReasoningStrategy.COT, ReasoningStrategy.ZS_COT):
                 return_explanations = True
-                cot_reasoning = examples["Reasoning"].tolist()
+                if "Reasoning" in examples.columns:
+                    cot_reasoning = examples["Reasoning"].tolist()
 
         output = sem_map(
             multimodal_data,
@@ -269,11 +170,34 @@ class SemMapDataframe:
             **model_kwargs,
         )
 
-        new_df = self._obj.copy()
-        new_df[suffix] = output.outputs
-        if return_explanations:
-            new_df["explanation" + suffix] = output.explanations
-        if return_raw_outputs:
-            new_df["raw_output" + suffix] = output.raw_outputs
+        out_df = df_in.copy()
+        out_df[suffix] = output.outputs
 
-        return new_df
+        if return_explanations:
+            out_df["explanation" + suffix] = output.explanations
+        if return_raw_outputs:
+            out_df["raw_output" + suffix] = output.raw_outputs
+
+        if return_provenance:
+            if provenance_col in out_df.columns:
+                raise ValueError("provenance_col already exists in output. Use a different name.")
+            if tmp_prov is None:
+                tmp_prov = _unique_col_name(out_df, "__lotus_prov_index__")
+                out_df[tmp_prov] = self._obj.index
+            out_df.rename(columns={tmp_prov: provenance_col}, inplace=True)
+        else:
+            if tmp_prov is not None and tmp_prov in out_df.columns:
+                out_df.drop(columns=[tmp_prov], inplace=True)
+
+        if track_pipeline:
+            entry = {
+                "op": op_name,
+                "langex": user_instruction,
+                "rows_in": rows_in,
+                "rows_out": len(out_df),
+                "duration_s": round(time.time() - start_t, 4),
+                "model": _get_lm_model_name(),
+            }
+            _append_pipeline_prov(out_df, entry)
+
+        return out_df
