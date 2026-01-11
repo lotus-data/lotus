@@ -1,8 +1,11 @@
+from typing import Any
+
 import numpy as np
+import pandas as pd
 from numpy.typing import NDArray
 
 import lotus
-from lotus.types import CascadeArgs
+from lotus.types import CascadeArgs, PromptStrategy
 
 
 def importance_sampling(
@@ -147,3 +150,113 @@ def learn_cascade_thresholds(
 def calibrate_sem_sim_join(true_score: list[float]) -> list[float]:
     true_score = list(np.clip(true_score, 0, 1))
     return true_score
+
+
+def bootstrap_demonstrations(
+    data: pd.DataFrame,
+    col_li: list[str],
+    user_instruction: str,
+    prompt_strategy: PromptStrategy = PromptStrategy(),
+    operation_type: str = "filter",
+) -> tuple[list[dict[str, Any]], list[Any], list[str] | None]:
+    """
+    Bootstrap demonstrations automatically using a teacher model and sem_ops.
+
+    This function samples diverse examples from the input data and uses a teacher
+    model with the appropriate sem_op to generate high-quality answers and reasoning.
+
+    Args:
+        data (pd.DataFrame): The input DataFrame to sample from
+        col_li (list[str]): List of column names to include in the examples
+        user_instruction (str): The user instruction for the task
+        prompt_strategy (PromptStrategy): The prompt strategy containing bootstrapping config
+        operation_type (str): Type of operation ("filter", "map", "extract")
+
+    Returns:
+        tuple: (examples_multimodal_data, examples_answers, cot_reasoning)
+            - examples_multimodal_data: List of example documents
+            - examples_answers: List of answers for the examples
+            - cot_reasoning: List of reasoning explanations (if CoT enabled)
+    """
+    # Determine teacher model
+    teacher_lm = prompt_strategy.teacher_lm if prompt_strategy.teacher_lm is not None else lotus.settings.lm
+    if teacher_lm is None:
+        raise ValueError("No teacher model available for bootstrapping")
+
+    # Sample diverse examples from the data
+    max_dems = min(prompt_strategy.max_dems, len(data))
+    if max_dems == 0:
+        return [], [], None
+
+    # Use random sampling
+    np.random.seed(42)
+    sample_indices = np.random.choice(len(data), size=max_dems, replace=False)
+    sample_data = data.iloc[sample_indices]
+
+    lotus.logger.info(f"Bootstrapping {max_dems} demonstrations using teacher model with sem_ops")
+
+    # Convert sampled data to multimodal format
+    from lotus.templates import task_instructions
+
+    examples_multimodal_data = task_instructions.df2multimodal_info(sample_data, col_li)
+
+    # Create teacher prompt strategy for bootstrapping (without auto-demos to avoid recursion)
+    teacher_prompt_strategy = PromptStrategy(
+        cot=prompt_strategy.cot, dems=None, additional_cot_instructions=prompt_strategy.additional_cot_instructions
+    )
+
+    examples_answers: list[Any] = []
+    cot_reasoning: list[str] | None = None
+
+    try:
+        if operation_type == "filter":
+            # Use sem_filter with teacher model
+            from lotus.sem_ops.sem_filter import sem_filter
+
+            # For filter, we need to call the function directly since DataFrame method has different signature
+            filter_result = sem_filter(
+                docs=examples_multimodal_data,
+                model=teacher_lm,
+                user_instruction=user_instruction,
+                prompt_strategy=teacher_prompt_strategy,
+                show_progress_bar=False,
+            )
+            examples_answers = filter_result.outputs
+            if prompt_strategy.cot and filter_result.explanations is not None:
+                filtered_explanations = [exp for exp in filter_result.explanations if exp is not None]
+                cot_reasoning = filtered_explanations if filtered_explanations else None
+            else:
+                cot_reasoning = None
+
+        elif operation_type == "map":
+            # Use sem_map with teacher model
+            from lotus.sem_ops.sem_map import sem_map
+
+            # For map, we need to call the function directly since DataFrame method has different signature
+            map_result = sem_map(
+                docs=examples_multimodal_data,
+                model=teacher_lm,
+                user_instruction=user_instruction,
+                prompt_strategy=teacher_prompt_strategy,
+            )
+            examples_answers = map_result.outputs
+            if prompt_strategy.cot and map_result.explanations is not None:
+                filtered_explanations = [exp for exp in map_result.explanations if exp is not None]
+                cot_reasoning = filtered_explanations if filtered_explanations else None
+            else:
+                cot_reasoning = None
+
+        elif operation_type == "extract":
+            lotus.logger.warning("Bootstrapping for extract operation requires output_cols parameter")
+            return [], [], None
+
+        else:
+            lotus.logger.warning(f"Bootstrapping not yet implemented for operation type: {operation_type}")
+            return [], [], None
+
+    except Exception as e:
+        lotus.logger.warning(f"Failed to bootstrap demonstrations: {e}")
+        return [], [], None
+
+    lotus.logger.info(f"Successfully bootstrapped {len(examples_answers)} demonstrations")
+    return examples_multimodal_data, examples_answers, cot_reasoning

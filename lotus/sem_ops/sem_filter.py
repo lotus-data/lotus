@@ -11,13 +11,18 @@ from lotus.types import (
     CascadeArgs,
     LMOutput,
     LogprobsForFilterCascade,
+    PromptStrategy,
     ProxyModel,
-    ReasoningStrategy,
     SemanticFilterOutput,
 )
 from lotus.utils import show_safe_mode
 
-from .cascade_utils import calibrate_llm_logprobs, importance_sampling, learn_cascade_thresholds
+from .cascade_utils import (
+    bootstrap_demonstrations,
+    calibrate_llm_logprobs,
+    importance_sampling,
+    learn_cascade_thresholds,
+)
 from .postprocessors import filter_postprocess
 
 
@@ -29,12 +34,11 @@ def sem_filter(
     examples_multimodal_data: list[dict[str, Any]] | None = None,
     examples_answers: list[bool] | None = None,
     cot_reasoning: list[str] | None = None,
-    strategy: ReasoningStrategy | None = None,
+    prompt_strategy: PromptStrategy = PromptStrategy(),
     logprobs: bool = False,
     safe_mode: bool = False,
     show_progress_bar: bool = True,
     progress_bar_desc: str = "Filtering",
-    additional_cot_instructions: str = "",
 ) -> SemanticFilterOutput:
     """
     Filters a list of documents based on a natural language instruction using a language model.
@@ -61,8 +65,8 @@ def sem_filter(
         cot_reasoning (list[str] | None, optional): Chain-of-thought reasoning
             for the example documents. Used when strategy includes COT reasoning.
             Defaults to None.
-        strategy (ReasoningStrategy | None, optional): The reasoning strategy to use.
-            Can be None, COT, or ZS_COT. Defaults to None.
+        prompt_strategy (PromptStrategy | None, optional): The prompt strategy to use.
+            Configures chain-of-thought, demonstrations, and bootstrapping. Defaults to None.
         logprobs (bool, optional): Whether to return log probabilities for the
             model outputs. Useful for confidence estimation. Defaults to False.
         safe_mode (bool, optional): Whether to enable safe mode with cost estimation.
@@ -71,8 +75,6 @@ def sem_filter(
             processing. Defaults to True.
         progress_bar_desc (str, optional): Description for the progress bar.
             Defaults to "Filtering".
-        additional_cot_instructions (str, optional): Additional instructions for
-            chain-of-thought reasoning. Defaults to "".
 
     Returns:
         SemanticFilterOutput: An object containing the boolean filter outputs, raw
@@ -97,8 +99,8 @@ def sem_filter(
             examples_multimodal_data,
             examples_answers,
             cot_reasoning,
-            strategy,
-            reasoning_instructions=additional_cot_instructions,
+            prompt_strategy,
+            reasoning_instructions=prompt_strategy.additional_cot_instructions,
         )
         lotus.logger.debug(f"input to model: {prompt}")
         inputs.append(prompt)
@@ -113,7 +115,7 @@ def sem_filter(
         inputs, show_progress_bar=show_progress_bar, progress_bar_desc=progress_bar_desc, **kwargs
     )
 
-    postprocess_output = filter_postprocess(lm_output.outputs, model, default)
+    postprocess_output = filter_postprocess(lm_output.outputs, model, default, cot_reasoning=prompt_strategy.cot)
     lotus.logger.debug(f"outputs: {postprocess_output.outputs}")
     lotus.logger.debug(f"raw_outputs: {postprocess_output.raw_outputs}")
     lotus.logger.debug(f"explanations: {postprocess_output.explanations}")
@@ -140,8 +142,7 @@ def learn_filter_cascade_thresholds(
     examples_multimodal_data: list[dict[str, Any]] | None = None,
     examples_answers: list[bool] | None = None,
     cot_reasoning: list[str] | None = None,
-    strategy: ReasoningStrategy | None = None,
-    additional_cot_instructions: str = "",
+    prompt_strategy: PromptStrategy = PromptStrategy(),
 ) -> tuple[float, float]:
     """
     Automatically learns optimal cascade thresholds for filter operations.
@@ -170,10 +171,8 @@ def learn_filter_cascade_thresholds(
             for the example documents. Defaults to None.
         cot_reasoning (list[str] | None, optional): Chain-of-thought reasoning
             for the example documents. Defaults to None.
-        strategy (ReasoningStrategy | None, optional): The reasoning strategy to use.
+        prompt_strategy (PromptStrategy | None, optional): The prompt strategy to use.
             Defaults to None.
-        additional_cot_instructions (str, optional): Additional instructions for
-            chain-of-thought reasoning. Defaults to "".
 
     Returns:
         tuple[float, float]: A tuple containing the learned low and high thresholds
@@ -201,10 +200,9 @@ def learn_filter_cascade_thresholds(
             examples_multimodal_data=examples_multimodal_data,
             examples_answers=examples_answers,
             cot_reasoning=cot_reasoning,
-            strategy=strategy,
+            prompt_strategy=prompt_strategy,
             safe_mode=False,
             progress_bar_desc="Running oracle for threshold learning",
-            additional_cot_instructions=additional_cot_instructions,
         ).outputs
 
         best_combination, _ = learn_cascade_thresholds(
@@ -252,8 +250,8 @@ class SemFilterDataframe:
             input DataFrame plus an "Answer" column. Defaults to None.
         helper_examples (pd.DataFrame | None, optional): Additional helper
             examples for cascade filtering. Defaults to None.
-        strategy (ReasoningStrategy | None, optional): The reasoning strategy
-            to use. Can be None, COT, or ZS_COT. Defaults to None.
+        prompt_strategy (PromptStrategy | None, optional): The prompt strategy to use.
+            Configures chain-of-thought, demonstrations, and bootstrapping. Defaults to None.
         cascade_args (CascadeArgs | None, optional): Configuration for cascade
             filtering. Includes parameters like recall_target, precision_target,
             sampling_percentage, and failure_probability. Defaults to None.
@@ -263,8 +261,6 @@ class SemFilterDataframe:
             estimation. Defaults to False.
         progress_bar_desc (str, optional): Description for the progress bar.
             Defaults to "Filtering".
-        additional_cot_instructions (str, optional): Additional instructions
-            for chain-of-thought reasoning. Defaults to "".
 
     Returns:
         pd.DataFrame | tuple[pd.DataFrame, dict[str, Any]]: A DataFrame
@@ -294,8 +290,8 @@ class SemFilterDataframe:
         0  Great product!      5
 
         # Example 2: with zero-shot chain-of-thought (ZS-COT) reasoning
-        >>> from lotus.types import ReasoningStrategy
-        >>> df.sem_filter("The review {text} and {rating} reflect's a positive sentiment ", strategy=ReasoningStrategy.ZS_COT, return_explanations=True, return_all=True)
+        >>> from lotus.types import PromptStrategy
+        >>> df.sem_filter("The review {text} and {rating} reflect's a positive sentiment ", prompt_strategy=PromptStrategy(cot=True), return_explanations=True, return_all=True)
         Filtering: 100%|██████████████████████████████████████████████████████████████████ 4/4 LM calls [00:01<00:00,  3.66it/s]
                                                         Text  filter_label explanation_filter
         0             I had two apples, then I gave away one          True
@@ -341,12 +337,11 @@ class SemFilterDataframe:
         suffix: str = "_filter",
         examples: pd.DataFrame | None = None,
         helper_examples: pd.DataFrame | None = None,
-        strategy: ReasoningStrategy | None = None,
+        prompt_strategy: PromptStrategy = PromptStrategy(),
         cascade_args: CascadeArgs | None = None,
         return_stats: bool = False,
         safe_mode: bool = False,
         progress_bar_desc: str = "Filtering",
-        additional_cot_instructions: str = "",
     ) -> pd.DataFrame | tuple[pd.DataFrame, dict[str, Any]]:
         if lotus.settings.lm is None:
             raise ValueError(
@@ -357,7 +352,8 @@ class SemFilterDataframe:
         lotus.logger.debug(user_instruction)
         col_li = lotus.nl_expression.parse_cols(user_instruction)
         lotus.logger.debug(col_li)
-        helper_strategy = strategy
+
+        helper_strategy = prompt_strategy
 
         # check that column exists
         for column in col_li:
@@ -371,13 +367,44 @@ class SemFilterDataframe:
         examples_multimodal_data = None
         examples_answers = None
         cot_reasoning = None
-        if examples is not None:
-            assert "Answer" in examples.columns, "Answer must be a column in examples dataframe"
-            examples_multimodal_data = task_instructions.df2multimodal_info(examples, col_li)
-            examples_answers = examples["Answer"].tolist()
 
-            if strategy == ReasoningStrategy.COT and "Reasoning" in examples.columns:
-                cot_reasoning = examples["Reasoning"].tolist()
+        # Handle examples from PromptStrategy.dems first, then fall back to examples parameter for backward compatibility
+        if prompt_strategy.dems is not None:
+            if isinstance(prompt_strategy.dems, pd.DataFrame):
+                # User-provided examples
+                examples_source = prompt_strategy.dems
+                assert "Answer" in examples_source.columns, "Answer must be a column in examples dataframe"
+                examples_multimodal_data = task_instructions.df2multimodal_info(examples_source, col_li)
+                examples_answers = examples_source["Answer"].tolist()
+
+                if prompt_strategy.cot and "Reasoning" in examples_source.columns:
+                    cot_reasoning = examples_source["Reasoning"].tolist()
+
+            elif prompt_strategy.dems == "auto":
+                # Auto-bootstrap demonstrations
+                try:
+                    examples_multimodal_data, examples_answers, cot_reasoning = bootstrap_demonstrations(
+                        data=self._obj,
+                        col_li=col_li,
+                        user_instruction=formatted_usr_instr,
+                        prompt_strategy=prompt_strategy,
+                        operation_type="filter",
+                    )
+                except Exception as e:
+                    lotus.logger.warning(f"Failed to bootstrap demonstrations: {e}")
+                    # Fall back to no examples
+                    examples_multimodal_data = None
+                    examples_answers = None
+                    cot_reasoning = None
+        elif examples is not None:
+            # Backward compatibility: use the old examples parameter
+            examples_source = examples
+            assert "Answer" in examples_source.columns, "Answer must be a column in examples dataframe"
+            examples_multimodal_data = task_instructions.df2multimodal_info(examples_source, col_li)
+            examples_answers = examples_source["Answer"].tolist()
+
+            if prompt_strategy.cot and "Reasoning" in examples_source.columns:
+                cot_reasoning = examples_source["Reasoning"].tolist()
 
         pos_cascade_threshold, neg_cascade_threshold = None, None
         if cascade_args is not None:
@@ -389,7 +416,7 @@ class SemFilterDataframe:
                 assert "Answer" in helper_examples.columns, "Answer must be a column in examples dataframe"
                 helper_examples_multimodal_data = task_instructions.df2multimodal_info(helper_examples, col_li)
                 helper_examples_answers = helper_examples["Answer"].tolist()
-                if helper_strategy == ReasoningStrategy.COT and "Reasoning" in helper_examples.columns:
+                if helper_strategy is not None and helper_strategy.cot and "Reasoning" in helper_examples.columns:
                     helper_cot_reasoning = helper_examples["Reasoning"].tolist()
 
         if cascade_args:
@@ -408,7 +435,7 @@ class SemFilterDataframe:
                 if not lotus.settings.helper_lm:
                     raise ValueError("Helper LM must be set in settings")
 
-                if helper_strategy == ReasoningStrategy.COT:
+                if helper_strategy is not None and helper_strategy.cot:
                     raise ValueError("CoT not supported for helper models in cascades.")
 
                 # Run small LM and get logits
@@ -421,7 +448,7 @@ class SemFilterDataframe:
                     examples_answers=helper_examples_answers,
                     cot_reasoning=helper_cot_reasoning,
                     logprobs=True,
-                    strategy=helper_strategy,
+                    prompt_strategy=helper_strategy,
                     safe_mode=safe_mode,
                     show_progress_bar=True,
                     progress_bar_desc="Running helper LM",
@@ -457,8 +484,7 @@ class SemFilterDataframe:
                 examples_multimodal_data=examples_multimodal_data,
                 examples_answers=examples_answers,
                 cot_reasoning=cot_reasoning,
-                strategy=strategy,
-                additional_cot_instructions=additional_cot_instructions,
+                prompt_strategy=prompt_strategy,
             )
 
             stats["pos_cascade_threshold"] = pos_cascade_threshold
@@ -515,10 +541,9 @@ class SemFilterDataframe:
                     examples_multimodal_data=examples_multimodal_data,
                     examples_answers=examples_answers,
                     cot_reasoning=cot_reasoning,
-                    strategy=strategy,
+                    prompt_strategy=prompt_strategy,
                     safe_mode=safe_mode,
                     progress_bar_desc="Running predicate evals with oracle LM",
-                    additional_cot_instructions=additional_cot_instructions,
                 )
 
                 for idx, large_idx in enumerate(low_conf_idxs):
@@ -538,11 +563,10 @@ class SemFilterDataframe:
                 examples_multimodal_data=examples_multimodal_data,
                 examples_answers=examples_answers,
                 cot_reasoning=cot_reasoning,
-                strategy=strategy,
+                prompt_strategy=prompt_strategy,
                 safe_mode=safe_mode,
                 show_progress_bar=True,
                 progress_bar_desc=progress_bar_desc,
-                additional_cot_instructions=additional_cot_instructions,
             )
             outputs = output.outputs
             raw_outputs = output.raw_outputs
