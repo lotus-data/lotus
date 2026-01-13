@@ -9,7 +9,7 @@ import numpy as np
 from litellm import batch_completion
 from litellm.exceptions import AuthenticationError
 from litellm.types.utils import ChatCompletionTokenLogprob, ChoiceLogprobs, Choices, ModelResponse
-from litellm.utils import token_counter
+from litellm.utils import decode, encode, token_counter
 from openai._exceptions import OpenAIError
 from pydantic import BaseModel
 from tokenizers import Tokenizer
@@ -461,6 +461,20 @@ class LM:
             model=self.model,
             messages=messages,
         )
+
+    def encode_text(self, text: str) -> list[int]:
+        """Encode text into tokens using either custom tokenizer or model's default tokenizer"""
+        custom_tokenizer: dict[str, Any] | None = None
+        if self.tokenizer:
+            custom_tokenizer = dict(type="huggingface_tokenizer", tokenizer=self.tokenizer)
+        return encode(model=self.model, text=text, custom_tokenizer=custom_tokenizer)
+
+    def decode_tokens(self, tokens: list[int]) -> str:
+        """Decode tokens into text using either custom tokenizer or model's default tokenizer"""
+        custom_tokenizer: dict[str, Any] | None = None
+        if self.tokenizer:
+            custom_tokenizer = dict(type="huggingface_tokenizer", tokenizer=self.tokenizer)
+        return decode(model=self.model, tokens=tokens, custom_tokenizer=custom_tokenizer)
 
     def print_total_usage(self):
         print("\n=== Usage Statistics ===")
