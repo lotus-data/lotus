@@ -658,3 +658,57 @@ def test_pairwise_judge(setup_models, model):
     )
     assert list(df["_judge_0"].values) == ["A", "B"]
     assert list(df["_judge_1"].values) == ["A", "B"]
+
+
+@pytest.mark.parametrize("model", get_enabled("gpt-4o-mini"))
+def test_sem_agg_document_chunking(setup_models, model):
+    """Test sem_agg with document chunking for constrained context."""
+    from lotus.types import ChunkingStrategy
+
+    # Create a model with very constrained context to force chunking
+    constrained_lm = LM(model=model, max_ctx_len=500, max_tokens=100)
+    lotus.settings.configure(lm=constrained_lm)
+
+    # Create data with long content that will exceed context
+    long_content = "This is a very long piece of content that contains important information. " * 50
+    data = {
+        "title": ["Long Document", "Another Long Document"],
+        "content": [long_content, long_content + " Additional content at the end."],
+        "category": ["Research", "Analysis"],
+    }
+    df = pd.DataFrame(data)
+
+    # Test that without chunking strategy, this would be problematic
+    # But with chunking, it should work
+
+    # Test TRUNCATE strategy
+    result_truncate = df.sem_agg(
+        "Provide a brief summary of the {content}", chunking_strategy=ChunkingStrategy.TRUNCATE
+    )
+    assert len(result_truncate) == 1
+    assert "_output" in result_truncate.columns
+    assert len(result_truncate["_output"].iloc[0]) > 0
+
+    # Test CHUNK strategy
+    result_chunk = df.sem_agg("Provide a brief summary of the {content}", chunking_strategy=ChunkingStrategy.CHUNK)
+    assert len(result_chunk) == 1
+    assert "_output" in result_chunk.columns
+    assert len(result_chunk["_output"].iloc[0]) > 0
+
+    # Test with group_by and chunking
+    result_grouped = df.sem_agg(
+        "Summarize the {content} for this {category}", group_by=["category"], chunking_strategy=ChunkingStrategy.CHUNK
+    )
+    assert len(result_grouped) == 2  # Two categories
+    assert set(result_grouped["category"].values) == {"Research", "Analysis"}
+
+    # Verify all results contain meaningful content
+    for result in [result_truncate, result_chunk]:
+        output = result["_output"].iloc[0]
+        assert isinstance(output, str)
+        assert len(output.strip()) > 10  # Should have substantial content
+
+    for _, row in result_grouped.iterrows():
+        output = row["_output"]
+        assert isinstance(output, str)
+        assert len(output.strip()) > 10

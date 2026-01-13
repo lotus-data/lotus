@@ -114,6 +114,53 @@ Output:
 
 
 
+Document Chunking
+------------------
+When documents exceed the language model's context length, sem_agg supports automatic chunking strategies to handle large content:
+
+.. code-block:: python
+
+    import pandas as pd
+    import lotus
+    from lotus.models import LM
+    from lotus.types import ChunkingStrategy
+
+    # Configure model with smaller context for demonstration
+    lm = LM(model="gpt-4o-mini", max_ctx_len=2000, max_tokens=200)
+    lotus.settings.configure(lm=lm)
+
+    # Create DataFrame with potentially large documents
+    data = {
+        "title": ["Research Paper", "Blog Post"],
+        "content": [
+            "Very long research content..." * 500,  # Exceeds context
+            "Regular blog post content"
+        ]
+    }
+    df = pd.DataFrame(data)
+
+    # Use TRUNCATE strategy (default) - simply cuts off excess content
+    result_truncate = df.sem_agg(
+        "Summarize the key points from {content}",
+        chunking_strategy=ChunkingStrategy.TRUNCATE
+    )
+
+    # Use CHUNK strategy - intelligently splits largest column
+    result_chunk = df.sem_agg(
+        "Summarize the key points from {content}",
+        chunking_strategy=ChunkingStrategy.CHUNK
+    )
+
+**Chunking Strategies:**
+
+- **TRUNCATE**: Simple truncation that cuts documents at the token limit with "..." appended
+- **CHUNK**: Intelligent splitting that identifies the largest column and splits it while preserving other columns
+
+**When to Use:**
+
+- Use **TRUNCATE** when the most important information is at the beginning of documents
+- Use **CHUNK** when all parts of the document are potentially important and you need to preserve complete information
+
 Required Parameters
 --------------------
 - **user_instructions** : Prompt to pass into LM
@@ -123,3 +170,4 @@ Optional Parameters
 - **all_cols** : Whether to use all columns in the dataframe. 
 - **suffix** : The suffix for the new column
 - **group_by** : The columns to group by before aggregation. Each group will be aggregated separately.
+- **chunking_strategy** : Strategy for handling documents that exceed context length (ChunkingStrategy.TRUNCATE or ChunkingStrategy.CHUNK)

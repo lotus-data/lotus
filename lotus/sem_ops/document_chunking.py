@@ -18,7 +18,7 @@ class ChunkInfo:
 
 
 @dataclass
-class DocumentChunker:
+class ChunkedDocument:
     """
     A class that handles document chunking for semantic aggregation.
 
@@ -44,7 +44,7 @@ def create_chunked_documents(
     model: lotus.models.LM,
     strategy: ChunkingStrategy,
     extra_tokens: int,
-) -> DocumentChunker:
+) -> ChunkedDocument:
     """
     Create chunked documents from a DataFrame based on the specified strategy.
 
@@ -56,7 +56,7 @@ def create_chunked_documents(
         extra_tokens (int): Number of extra tokens to leave for the template and other overhead.
 
     Returns:
-        DocumentChunker: Object containing chunked documents and restoration info.
+        ChunkedDocument: Object containing chunked documents and restoration info.
     """
     if strategy == ChunkingStrategy.TRUNCATE:
         return _create_truncated_documents(df, cols, model, extra_tokens)
@@ -71,7 +71,7 @@ def _create_truncated_documents(
     cols: list[str],
     model: lotus.models.LM,
     extra_tokens: int,
-) -> DocumentChunker:
+) -> ChunkedDocument:
     """
     Create documents using the truncation strategy.
 
@@ -118,7 +118,7 @@ def _create_truncated_documents(
 
         chunk_info.append(ChunkInfo(original_row_idx=i, chunk_idx=0, total_chunks=1))
 
-    return DocumentChunker(
+    return ChunkedDocument(
         docs=truncated_docs,
         chunk_info=chunk_info,
         original_df=df,
@@ -131,7 +131,7 @@ def _create_chunked_documents(
     cols: list[str],
     model: lotus.models.LM,
     extra_tokens: int,
-) -> DocumentChunker:
+) -> ChunkedDocument:
     """
     Create documents using the intelligent chunking strategy.
 
@@ -209,7 +209,7 @@ def _create_chunked_documents(
                     )
                 )
 
-    return DocumentChunker(
+    return ChunkedDocument(
         docs=chunked_docs,
         chunk_info=chunk_info,
         original_df=df,

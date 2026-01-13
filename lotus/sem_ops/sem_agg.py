@@ -4,7 +4,7 @@ import pandas as pd
 
 import lotus.models
 from lotus.cache import operator_cache
-from lotus.sem_ops.document_chunking import DocumentChunker, create_chunked_documents
+from lotus.sem_ops.document_chunking import ChunkedDocument, create_chunked_documents
 from lotus.templates import task_instructions
 from lotus.types import ChunkingStrategy, LMOutput, SemanticAggOutput
 
@@ -58,7 +58,7 @@ def _get_node_instruction_template(user_instruction: str) -> str:
 
 
 def sem_agg(
-    docs: list[str] | DocumentChunker,
+    docs: list[str] | ChunkedDocument,
     model: lotus.models.LM,
     user_instruction: str,
     partition_ids: list[int],
@@ -74,8 +74,8 @@ def sem_agg(
     and intermediate summaries.
 
     Args:
-        docs (list[str] | DocumentChunker): The list of documents to aggregate or a
-            DocumentChunker object containing chunked documents. Each document should
+        docs (list[str] | ChunkedDocument): The list of documents to aggregate or a
+            ChunkedDocument object containing chunked documents. Each document should
             be a string containing the text content to be aggregated.
         model (lotus.models.LM): The language model instance to use for aggregation.
             Must be properly configured with appropriate API keys and settings.
@@ -152,8 +152,8 @@ def sem_agg(
         # TODO: implement safe mode
         lotus.logger.warning("Safe mode is not implemented yet")
 
-    # Handle DocumentChunker input
-    if isinstance(docs, DocumentChunker):
+    # Handle ChunkedDocument input
+    if isinstance(docs, ChunkedDocument):
         doc_list = docs.docs
     else:
         doc_list = docs
@@ -400,7 +400,7 @@ class SemAggDataframe:
         lotus.logger.debug(f"formatted_usr_instr: {formatted_usr_instr}")
 
         # Prepare documents based on chunking strategy
-        docs_input: list[str] | DocumentChunker
+        docs_input: list[str] | ChunkedDocument
         if chunking_strategy in (ChunkingStrategy.TRUNCATE, ChunkingStrategy.CHUNK):
             # Calculate template tokens for chunking
             leaf_template = _get_leaf_instruction_template(formatted_usr_instr)
