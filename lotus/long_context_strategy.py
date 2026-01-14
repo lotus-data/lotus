@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Any
 
 import pandas as pd
 
@@ -35,7 +36,22 @@ class ChunkedDocument:
     strategy: LongContextStrategy
     docs: list[str]
     chunk_info: list[ChunkInfo]
-    original_df: pd.DataFrame | None = None
+    original_df: pd.DataFrame
+
+    def __len__(self) -> int:
+        """Get the number of chunks."""
+        return len(self.docs)
+
+    def get_row(self, index: int) -> pd.Series:
+        """Get the original row from the original DataFrame."""
+        row = self.original_df.iloc[self.chunk_info[index].original_row_idx]
+        if self.chunk_info[index].chunked_column is not None:
+            row[self.chunk_info[index].chunked_column] = self.docs[index]
+        return row
+
+    def get_value(self, index: int, column: str) -> Any:
+        """Get the value from the original row."""
+        return self.get_row(index)[column]
 
 
 def create_chunked_documents(

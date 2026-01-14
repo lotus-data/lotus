@@ -418,6 +418,10 @@ class SemAggDataframe:
             docs_input = create_chunked_documents(
                 self._obj, col_li, lotus.settings.lm, long_context_strategy, template_tokens
             )
+            if "_lotus_partition_id" in self._obj.columns:
+                partition_ids = [docs_input.get_value(i, "_lotus_partition_id") for i in range(len(docs_input))]
+            else:
+                partition_ids = [0] * len(docs_input)
         else:
             # Use original document creation for backward compatibility
             docs_input = task_instructions.df2text(self._obj, col_li)
