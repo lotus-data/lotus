@@ -415,11 +415,9 @@ class SemAggDataframe:
             leaf_template = _get_leaf_instruction_template(formatted_usr_instr)
             template_tokens = lotus.settings.lm.count_tokens(leaf_template)
 
-            document_chunker = create_chunked_documents(
+            docs_input = create_chunked_documents(
                 self._obj, col_li, lotus.settings.lm, long_context_strategy, template_tokens
             )
-
-            docs_input = document_chunker
         else:
             # Use original document creation for backward compatibility
             docs_input = task_instructions.df2text(self._obj, col_li)

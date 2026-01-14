@@ -102,8 +102,8 @@ jobs:
       - name: Setup Ollama
         if: ${{ matrix.requires-ollama }}
         run: |
-          docker pull ollama/ollama:latest
-          docker run -d -v ollama:/root/.ollama -p 11434:11434 --name ollama ollama/ollama
+          docker pull ollama/ollama@sha256:2c9595c555fd70a28363489ac03bd5bf9e7c5bdf2890373c3a830ffd7252ce6d
+          docker run -d -v ollama:/root/.ollama -p 11434:11434 --name ollama ollama/ollama@sha256:2c9595c555fd70a28363489ac03bd5bf9e7c5bdf2890373c3a830ffd7252ce6d
           timeout=120
           while ! curl -s http://localhost:11434/ >/dev/null; do
             if [ $timeout -le 0 ]; then

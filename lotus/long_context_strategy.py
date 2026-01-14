@@ -143,9 +143,9 @@ def _create_chunked_documents(
     chunked_docs = []
     chunk_info = []
 
-    for row_idx, row in df.iterrows():
+    for i, (row_idx, row) in enumerate(df.iterrows()):
         # Create document string for this row
-        doc_str = task_instructions.df2text(df.iloc[[row_idx]], cols)[0]
+        doc_str = task_instructions.df2text(df.iloc[[i]], cols)[0]
         doc_tokens = model.count_tokens(doc_str)
 
         if doc_tokens <= max_doc_tokens:
