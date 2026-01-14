@@ -30,12 +30,13 @@ def require_cache_enabled(func: Callable) -> Callable:
     return wrapper
 
 
+# Decorator for operator-level caching, currently only supports LMWithoutTools
 def operator_cache(func: Callable) -> Callable:
     """Decorator to add operator level caching."""
 
     @wraps(func)
     def wrapper(self, *args, **kwargs):
-        model = lotus.settings.lm
+        model = lotus.settings.lm.get_lm_without_tools() if lotus.settings.lm else None
         use_operator_cache = lotus.settings.enable_cache
 
         if use_operator_cache and model.cache:
@@ -88,9 +89,9 @@ def operator_cache(func: Callable) -> Callable:
                 return cached_result
             lotus.logger.debug(f"Cache miss for {cache_key}")
 
-            virtual_usage_before = copy.deepcopy(lotus.settings.lm.stats.virtual_usage)
+            virtual_usage_before = copy.deepcopy(model.stats.virtual_usage)
             result = func(self, *args, **kwargs)
-            virtual_usage = lotus.settings.lm.stats.virtual_usage - virtual_usage_before
+            virtual_usage = model.stats.virtual_usage - virtual_usage_before
             model.cache.insert(virtual_usage_cache_key, virtual_usage)
             model.cache.insert(cache_key, result)
             return result
