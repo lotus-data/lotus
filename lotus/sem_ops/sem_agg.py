@@ -4,9 +4,9 @@ import pandas as pd
 
 import lotus.models
 from lotus.cache import operator_cache
-from lotus.sem_ops.document_chunking import ChunkedDocument, create_chunked_documents
+from lotus.long_context_strategy import ChunkedDocument, create_chunked_documents
 from lotus.templates import task_instructions
-from lotus.types import ChunkingStrategy, LMOutput, SemanticAggOutput
+from lotus.types import LMOutput, LongContextStrategy, SemanticAggOutput
 
 
 def _get_leaf_instruction_template(user_instruction: str) -> str:
@@ -247,7 +247,7 @@ class SemAggDataframe:
             Defaults to False.
         progress_bar_desc (str, optional): Description for the progress bar.
             Defaults to "Aggregating".
-        chunking_strategy (ChunkingStrategy, optional): Strategy to use when documents
+        long_context_strategy (LongContextStrategy, optional): Strategy to use when documents
             exceed the model's context length. TRUNCATE simply truncates documents,
             while CHUNK intelligently splits the largest column. Defaults to TRUNCATE.
 
@@ -265,7 +265,7 @@ class SemAggDataframe:
         >>> import pandas as pd
         >>> import lotus
         >>> from lotus.models import LM
-        >>> from lotus.types import ChunkingStrategy
+        >>> from lotus.types import LongContextStrategy
         >>> lotus.settings.configure(lm=LM(model="gpt-4o-mini"))
         >>> df = pd.DataFrame({
         ...     'journal': ['Harry is happy and love cats', 'Harry is feeling nauseous', "Harry is doing homework"],
@@ -292,8 +292,8 @@ class SemAggDataframe:
                                                     _output
         0  Harry is currently experiencing a mix of emoti...
 
-        # Example 4: aggregation with chunking strategy for large documents
-        >>> df.sem_agg("Summarize the key points", all_cols=True, chunking_strategy=ChunkingStrategy.CHUNK)
+        # Example 4: aggregation with long_context strategy for large documents
+        >>> df.sem_agg("Summarize the key points", all_cols=True, long_context_strategy=LongContextStrategy.CHUNK)
         Aggregating: 100%|████████████████████████████████████████████████████████████████ 1/1 LM calls [00:01<00:00,  1.05s/it]
                                                     _output
         0  Harry experienced a range of emotions and acti...
@@ -333,19 +333,19 @@ class SemAggDataframe:
 
         Args:
             args (tuple): A tuple containing (group_name, group, user_instruction,
-                         all_cols, group_by, suffix, progress_bar_desc, chunking_strategy).
+                         all_cols, group_by, suffix, progress_bar_desc, long_context_strategy).
 
         Returns:
             pd.DataFrame: The aggregated result for the group with group identifier.
         """
-        group_name, group, user_instruction, all_cols, group_by, suffix, progress_bar_desc, chunking_strategy = args
+        group_name, group, user_instruction, all_cols, group_by, suffix, progress_bar_desc, long_context_strategy = args
         result = group.sem_agg(
             user_instruction,
             all_cols,
             suffix,
             None,
             progress_bar_desc=progress_bar_desc,
-            chunking_strategy=chunking_strategy,
+            long_context_strategy=long_context_strategy,
         )
         result[group_by] = group_name
         return result
@@ -359,7 +359,7 @@ class SemAggDataframe:
         group_by: list[str] | None = None,
         safe_mode: bool = False,
         progress_bar_desc: str = "Aggregating",
-        chunking_strategy: ChunkingStrategy | None = ChunkingStrategy.TRUNCATE,
+        long_context_strategy: LongContextStrategy | None = LongContextStrategy.CHUNK,
     ) -> pd.DataFrame:
         if lotus.settings.lm is None:
             raise ValueError(
@@ -381,7 +381,16 @@ class SemAggDataframe:
         if group_by:
             grouped = self._obj.groupby(group_by)
             group_args = [
-                (group_name, group, user_instruction, all_cols, group_by, suffix, progress_bar_desc, chunking_strategy)
+                (
+                    group_name,
+                    group,
+                    user_instruction,
+                    all_cols,
+                    group_by,
+                    suffix,
+                    progress_bar_desc,
+                    long_context_strategy,
+                )
                 for group_name, group in grouped
             ]
             from concurrent.futures import ThreadPoolExecutor
@@ -399,15 +408,15 @@ class SemAggDataframe:
         formatted_usr_instr = lotus.nl_expression.nle2str(user_instruction, col_li)
         lotus.logger.debug(f"formatted_usr_instr: {formatted_usr_instr}")
 
-        # Prepare documents based on chunking strategy
+        # Prepare documents based on long_context strategy
         docs_input: list[str] | ChunkedDocument
-        if chunking_strategy in (ChunkingStrategy.TRUNCATE, ChunkingStrategy.CHUNK):
-            # Calculate template tokens for chunking
+        if long_context_strategy in (LongContextStrategy.TRUNCATE, LongContextStrategy.CHUNK):
+            # Calculate template tokens for long_context
             leaf_template = _get_leaf_instruction_template(formatted_usr_instr)
             template_tokens = lotus.settings.lm.count_tokens(leaf_template)
 
             document_chunker = create_chunked_documents(
-                self._obj, col_li, lotus.settings.lm, chunking_strategy, template_tokens
+                self._obj, col_li, lotus.settings.lm, long_context_strategy, template_tokens
             )
 
             docs_input = document_chunker

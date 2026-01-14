@@ -131,8 +131,8 @@ class SemanticAggOutput:
     outputs: list[str]
 
 
-class ChunkingStrategy(Enum):
-    """Enumeration of available document chunking strategies for semantic aggregation."""
+class LongContextStrategy(Enum):
+    """Enumeration of available document long_context strategies for semantic aggregation."""
 
     TRUNCATE = auto()
     CHUNK = auto()

@@ -4,9 +4,9 @@ import pandas as pd
 import pytest
 
 import lotus
+from lotus.long_context_strategy import ChunkedDocument, ChunkInfo, create_chunked_documents
 from lotus.models import LM
-from lotus.sem_ops.document_chunking import ChunkedDocument, ChunkInfo, create_chunked_documents
-from lotus.types import ChunkingStrategy
+from lotus.types import LongContextStrategy
 
 ################################################################################
 # Setup
@@ -57,7 +57,7 @@ def print_usage_after_each_test(setup_models):
 def validate_chunked_document(
     chunked_doc: ChunkedDocument,
     original_df: pd.DataFrame,
-    expected_strategy: ChunkingStrategy,
+    expected_strategy: LongContextStrategy,
     expected_min_chunks: int | None = None,
     expected_max_chunks: int | None = None,
 ) -> None:
@@ -67,7 +67,7 @@ def validate_chunked_document(
     Args:
         chunked_doc: The ChunkedDocument to validate
         original_df: The original DataFrame that was chunked
-        expected_strategy: The expected chunking strategy
+        expected_strategy: The expected long_context strategy
         expected_min_chunks: Minimum expected number of chunks (None for no check)
         expected_max_chunks: Maximum expected number of chunks (None for no check)
 
@@ -109,7 +109,7 @@ def validate_chunked_document(
         ), f"chunk_idx {chunk_info.chunk_idx} >= total_chunks {chunk_info.total_chunks} for chunk {i}"
 
     # Strategy-specific validations
-    if expected_strategy == ChunkingStrategy.TRUNCATE:
+    if expected_strategy == LongContextStrategy.TRUNCATE:
         # For TRUNCATE, each original row should have exactly 1 chunk
         num_chunks_per_row: dict[int, int] = {}
         for chunk_info in chunked_doc.chunk_info:
@@ -127,7 +127,7 @@ def validate_chunked_document(
                         chunk_info.chunked_column is None
                     ), f"TRUNCATE: chunked_column should be None, got {chunk_info.chunked_column}"
 
-    elif expected_strategy == ChunkingStrategy.CHUNK:
+    elif expected_strategy == LongContextStrategy.CHUNK:
         # For CHUNK, verify chunk_info consistency per row
         chunks_per_row: dict[int, list[ChunkInfo]] = {}
         for chunk_info in chunked_doc.chunk_info:
@@ -164,11 +164,11 @@ def validate_chunked_document(
 
 
 ################################################################################
-# Document Chunking Tests
+# Document LongContext Tests
 ################################################################################
 @pytest.mark.parametrize("model", get_enabled("gpt-4o-mini"))
-def test_chunking_short_text_all_columns(setup_models, model):
-    """Test chunking with short text in each column - all strategies should pass."""
+def test_long_context_short_text_all_columns(setup_models, model):
+    """Test long_context with short text in each column - all strategies should pass."""
     # Use constrained model
     constrained_lm = LM(model=model, max_ctx_len=500, max_tokens=100)
 
@@ -183,34 +183,34 @@ def test_chunking_short_text_all_columns(setup_models, model):
     extra_tokens = 50
 
     # Test TRUNCATE strategy
-    chunked_truncate = create_chunked_documents(df, cols, constrained_lm, ChunkingStrategy.TRUNCATE, extra_tokens)
+    chunked_truncate = create_chunked_documents(df, cols, constrained_lm, LongContextStrategy.TRUNCATE, extra_tokens)
     validate_chunked_document(
         chunked_truncate,
         df,
-        ChunkingStrategy.TRUNCATE,
+        LongContextStrategy.TRUNCATE,
         expected_min_chunks=len(df),  # Should have at least one chunk per row
         expected_max_chunks=len(df),  # Should have exactly one chunk per row
     )
 
     # Test CHUNK strategy
-    chunked_chunk = create_chunked_documents(df, cols, constrained_lm, ChunkingStrategy.CHUNK, extra_tokens)
+    chunked_chunk = create_chunked_documents(df, cols, constrained_lm, LongContextStrategy.CHUNK, extra_tokens)
     validate_chunked_document(
         chunked_chunk,
         df,
-        ChunkingStrategy.CHUNK,
+        LongContextStrategy.CHUNK,
         expected_min_chunks=len(df),  # Should have at least one chunk per row
-        expected_max_chunks=len(df),  # Should have exactly one chunk per row (no chunking needed)
+        expected_max_chunks=len(df),  # Should have exactly one chunk per row (no long_context needed)
     )
 
-    # Both should have same number of chunks (no chunking needed for short text)
+    # Both should have same number of chunks (no long_context needed for short text)
     assert len(chunked_truncate.docs) == len(df)
     assert len(chunked_chunk.docs) == len(df)
 
 
 @pytest.mark.parametrize("model", get_enabled("gpt-4o-mini"))
-def test_chunking_long_text_one_column(setup_models, model):
-    """Test chunking with long text in one column - all strategies should pass with correct row counts."""
-    # Use constrained model to force chunking
+def test_long_context_long_text_one_column(setup_models, model):
+    """Test long_context with long text in one column - all strategies should pass with correct row counts."""
+    # Use constrained model to force long_context
     constrained_lm = LM(model=model, max_ctx_len=800, max_tokens=150)
 
     # Create data with one very long column
@@ -225,11 +225,11 @@ def test_chunking_long_text_one_column(setup_models, model):
     extra_tokens = 100
 
     # Test TRUNCATE strategy
-    chunked_truncate = create_chunked_documents(df, cols, constrained_lm, ChunkingStrategy.TRUNCATE, extra_tokens)
+    chunked_truncate = create_chunked_documents(df, cols, constrained_lm, LongContextStrategy.TRUNCATE, extra_tokens)
     validate_chunked_document(
         chunked_truncate,
         df,
-        ChunkingStrategy.TRUNCATE,
+        LongContextStrategy.TRUNCATE,
         expected_min_chunks=len(df),  # At least one chunk per row
         expected_max_chunks=len(df),  # Exactly one chunk per row (truncated)
     )
@@ -239,12 +239,12 @@ def test_chunking_long_text_one_column(setup_models, model):
     ), f"TRUNCATE: Expected {len(df)} chunks, got {len(chunked_truncate.docs)}"
 
     # Test CHUNK strategy
-    chunked_chunk = create_chunked_documents(df, cols, constrained_lm, ChunkingStrategy.CHUNK, extra_tokens)
+    chunked_chunk = create_chunked_documents(df, cols, constrained_lm, LongContextStrategy.CHUNK, extra_tokens)
     validate_chunked_document(
         chunked_chunk,
         df,
-        ChunkingStrategy.CHUNK,
-        expected_min_chunks=len(df),  # At least one chunk per row (may be more if chunking occurs)
+        LongContextStrategy.CHUNK,
+        expected_min_chunks=len(df),  # At least one chunk per row (may be more if long_context occurs)
     )
     # CHUNK should have at least one chunk per row, but may have more if content is split
     assert len(chunked_chunk.docs) >= len(
@@ -264,8 +264,8 @@ def test_chunking_long_text_one_column(setup_models, model):
 
 
 @pytest.mark.parametrize("model", get_enabled("gpt-4o-mini"))
-def test_chunking_long_text_multiple_columns(setup_models, model):
-    """Test chunking with long text in multiple columns - TRUNCATE should pass, CHUNK should fail."""
+def test_long_context_long_text_multiple_columns(setup_models, model):
+    """Test long_context with long text in multiple columns - TRUNCATE should pass, CHUNK should fail."""
     # Use very constrained model
     constrained_lm = LM(model=model, max_ctx_len=200, max_tokens=50)
 
@@ -283,9 +283,9 @@ def test_chunking_long_text_multiple_columns(setup_models, model):
     extra_tokens = 30
 
     # Test TRUNCATE strategy - should pass
-    chunked_truncate = create_chunked_documents(df, cols, constrained_lm, ChunkingStrategy.TRUNCATE, extra_tokens)
+    chunked_truncate = create_chunked_documents(df, cols, constrained_lm, LongContextStrategy.TRUNCATE, extra_tokens)
     validate_chunked_document(
-        chunked_truncate, df, ChunkingStrategy.TRUNCATE, expected_min_chunks=len(df), expected_max_chunks=len(df)
+        chunked_truncate, df, LongContextStrategy.TRUNCATE, expected_min_chunks=len(df), expected_max_chunks=len(df)
     )
     assert len(chunked_truncate.docs) == len(
         df
@@ -293,12 +293,12 @@ def test_chunking_long_text_multiple_columns(setup_models, model):
 
     # Test CHUNK strategy - should fail because multiple columns are long
     with pytest.raises(ValueError, match="Cannot fit document even after emptying column"):
-        create_chunked_documents(df, cols, constrained_lm, ChunkingStrategy.CHUNK, extra_tokens)
+        create_chunked_documents(df, cols, constrained_lm, LongContextStrategy.CHUNK, extra_tokens)
 
 
 @pytest.mark.parametrize("model", get_enabled("gpt-4o-mini"))
-def test_chunking_edge_case_empty_dataframe(setup_models, model):
-    """Test chunking with empty DataFrame."""
+def test_long_context_edge_case_empty_dataframe(setup_models, model):
+    """Test long_context with empty DataFrame."""
     constrained_lm = LM(model=model, max_ctx_len=500, max_tokens=100)
 
     # Empty DataFrame
@@ -307,37 +307,39 @@ def test_chunking_edge_case_empty_dataframe(setup_models, model):
     extra_tokens = 50
 
     # Both strategies should handle empty DataFrame
-    chunked_truncate = create_chunked_documents(df, cols, constrained_lm, ChunkingStrategy.TRUNCATE, extra_tokens)
+    chunked_truncate = create_chunked_documents(df, cols, constrained_lm, LongContextStrategy.TRUNCATE, extra_tokens)
     validate_chunked_document(
-        chunked_truncate, df, ChunkingStrategy.TRUNCATE, expected_min_chunks=0, expected_max_chunks=0
+        chunked_truncate, df, LongContextStrategy.TRUNCATE, expected_min_chunks=0, expected_max_chunks=0
     )
 
-    chunked_chunk = create_chunked_documents(df, cols, constrained_lm, ChunkingStrategy.CHUNK, extra_tokens)
-    validate_chunked_document(chunked_chunk, df, ChunkingStrategy.CHUNK, expected_min_chunks=0, expected_max_chunks=0)
+    chunked_chunk = create_chunked_documents(df, cols, constrained_lm, LongContextStrategy.CHUNK, extra_tokens)
+    validate_chunked_document(
+        chunked_chunk, df, LongContextStrategy.CHUNK, expected_min_chunks=0, expected_max_chunks=0
+    )
 
 
 @pytest.mark.parametrize("model", get_enabled("gpt-4o-mini"))
-def test_chunking_edge_case_single_row(setup_models, model):
-    """Test chunking with single row DataFrame."""
+def test_long_context_edge_case_single_row(setup_models, model):
+    """Test long_context with single row DataFrame."""
     constrained_lm = LM(model=model, max_ctx_len=400, max_tokens=80)
 
     # Single row with long content
-    long_text = "This is a single row with very long content that needs chunking. " * 25
+    long_text = "This is a single row with very long content that needs long_context. " * 25
     df = pd.DataFrame({"title": ["Single Paper"], "content": [long_text]})
     cols = ["title", "content"]
     extra_tokens = 50
 
     # Test both strategies
-    chunked_truncate = create_chunked_documents(df, cols, constrained_lm, ChunkingStrategy.TRUNCATE, extra_tokens)
+    chunked_truncate = create_chunked_documents(df, cols, constrained_lm, LongContextStrategy.TRUNCATE, extra_tokens)
     validate_chunked_document(
-        chunked_truncate, df, ChunkingStrategy.TRUNCATE, expected_min_chunks=1, expected_max_chunks=1
+        chunked_truncate, df, LongContextStrategy.TRUNCATE, expected_min_chunks=1, expected_max_chunks=1
     )
 
-    chunked_chunk = create_chunked_documents(df, cols, constrained_lm, ChunkingStrategy.CHUNK, extra_tokens)
+    chunked_chunk = create_chunked_documents(df, cols, constrained_lm, LongContextStrategy.CHUNK, extra_tokens)
     validate_chunked_document(
         chunked_chunk,
         df,
-        ChunkingStrategy.CHUNK,
+        LongContextStrategy.CHUNK,
         expected_min_chunks=1,  # At least 1, but may be more if chunked
     )
 

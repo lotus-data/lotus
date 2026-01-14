@@ -661,11 +661,11 @@ def test_pairwise_judge(setup_models, model):
 
 
 @pytest.mark.parametrize("model", get_enabled("gpt-4o-mini"))
-def test_sem_agg_document_chunking(setup_models, model):
-    """Test sem_agg with document chunking for constrained context."""
-    from lotus.types import ChunkingStrategy
+def test_sem_agg_document_long_context(setup_models, model):
+    """Test sem_agg with document long_context for constrained context."""
+    from lotus.types import LongContextStrategy
 
-    # Create a model with very constrained context to force chunking
+    # Create a model with very constrained context to force long_context
     constrained_lm = LM(model=model, max_ctx_len=500, max_tokens=100)
     lotus.settings.configure(lm=constrained_lm)
 
@@ -678,26 +678,30 @@ def test_sem_agg_document_chunking(setup_models, model):
     }
     df = pd.DataFrame(data)
 
-    # Test that without chunking strategy, this would be problematic
-    # But with chunking, it should work
+    # Test that without long_context strategy, this would be problematic
+    # But with long_context, it should work
 
     # Test TRUNCATE strategy
     result_truncate = df.sem_agg(
-        "Provide a brief summary of the {content}", chunking_strategy=ChunkingStrategy.TRUNCATE
+        "Provide a brief summary of the {content}", long_context_strategy=LongContextStrategy.TRUNCATE
     )
     assert len(result_truncate) == 1
     assert "_output" in result_truncate.columns
     assert len(result_truncate["_output"].iloc[0]) > 0
 
     # Test CHUNK strategy
-    result_chunk = df.sem_agg("Provide a brief summary of the {content}", chunking_strategy=ChunkingStrategy.CHUNK)
+    result_chunk = df.sem_agg(
+        "Provide a brief summary of the {content}", long_context_strategy=LongContextStrategy.CHUNK
+    )
     assert len(result_chunk) == 1
     assert "_output" in result_chunk.columns
     assert len(result_chunk["_output"].iloc[0]) > 0
 
-    # Test with group_by and chunking
+    # Test with group_by and long_context
     result_grouped = df.sem_agg(
-        "Summarize the {content} for this {category}", group_by=["category"], chunking_strategy=ChunkingStrategy.CHUNK
+        "Summarize the {content} for this {category}",
+        group_by=["category"],
+        long_context_strategy=LongContextStrategy.CHUNK,
     )
     assert len(result_grouped) == 2  # Two categories
     assert set(result_grouped["category"].values) == {"Research", "Analysis"}

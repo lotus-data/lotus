@@ -4,7 +4,7 @@ import pandas as pd
 
 import lotus.models
 from lotus.templates import task_instructions
-from lotus.types import ChunkingStrategy
+from lotus.types import LongContextStrategy
 
 
 @dataclass
@@ -20,7 +20,7 @@ class ChunkInfo:
 @dataclass
 class ChunkedDocument:
     """
-    A class that handles document chunking for semantic aggregation.
+    A class that handles document long_context for semantic aggregation.
 
     This class replaces the simple list[str] docs parameter in sem_agg
     and provides chunked documents when they exceed the model's context length.
@@ -29,10 +29,10 @@ class ChunkedDocument:
         docs (list[str]): The chunked document strings ready for processing.
         chunk_info (list[ChunkInfo]): Information about each chunk for restoration.
         original_df (pd.DataFrame | None): Original DataFrame for restoration in sem_map/sem_filter.
-        strategy (ChunkingStrategy): The chunking strategy used.
+        strategy (LongContextStrategy): The long_context strategy used.
     """
 
-    strategy: ChunkingStrategy
+    strategy: LongContextStrategy
     docs: list[str]
     chunk_info: list[ChunkInfo]
     original_df: pd.DataFrame | None = None
@@ -42,7 +42,7 @@ def create_chunked_documents(
     df: pd.DataFrame,
     cols: list[str],
     model: lotus.models.LM,
-    strategy: ChunkingStrategy,
+    strategy: LongContextStrategy,
     extra_tokens: int,
 ) -> ChunkedDocument:
     """
@@ -52,18 +52,18 @@ def create_chunked_documents(
         df (pd.DataFrame): The input DataFrame.
         cols (list[str]): The columns to include in the documents.
         model (lotus.models.LM): The language model for token counting.
-        strategy (ChunkingStrategy): The chunking strategy to use.
+        strategy (LongContextStrategy): The long_context strategy to use.
         extra_tokens (int): Number of extra tokens to leave for the template and other overhead.
 
     Returns:
         ChunkedDocument: Object containing chunked documents and restoration info.
     """
-    if strategy == ChunkingStrategy.TRUNCATE:
+    if strategy == LongContextStrategy.TRUNCATE:
         return _create_truncated_documents(df, cols, model, extra_tokens)
-    elif strategy == ChunkingStrategy.CHUNK:
+    elif strategy == LongContextStrategy.CHUNK:
         return _create_chunked_documents(df, cols, model, extra_tokens)
     else:
-        raise ValueError(f"Unknown chunking strategy: {strategy}")
+        raise ValueError(f"Unknown long_context strategy: {strategy}")
 
 
 def _create_truncated_documents(
@@ -122,7 +122,7 @@ def _create_truncated_documents(
         docs=truncated_docs,
         chunk_info=chunk_info,
         original_df=df,
-        strategy=ChunkingStrategy.TRUNCATE,
+        strategy=LongContextStrategy.TRUNCATE,
     )
 
 
@@ -133,7 +133,7 @@ def _create_chunked_documents(
     extra_tokens: int,
 ) -> ChunkedDocument:
     """
-    Create documents using the intelligent chunking strategy.
+    Create documents using the intelligent long_context strategy.
 
     This strategy finds the column with the most tokens and splits it to fit
     within the context limit, duplicating other columns across chunks.
@@ -149,7 +149,7 @@ def _create_chunked_documents(
         doc_tokens = model.count_tokens(doc_str)
 
         if doc_tokens <= max_doc_tokens:
-            # Document fits, no chunking needed
+            # Document fits, no long_context needed
             chunked_docs.append(doc_str)
             chunk_info.append(ChunkInfo(original_row_idx=row_idx, chunk_idx=0, total_chunks=1))
         else:
@@ -169,7 +169,7 @@ def _create_chunked_documents(
                         max_tokens_col = col
 
             if max_tokens_col is None:
-                raise ValueError("No valid columns found for chunking")
+                raise ValueError("No valid columns found for long_context")
 
             # Create document string with the max column emptied
             row_copy = row.copy()
@@ -213,7 +213,7 @@ def _create_chunked_documents(
         docs=chunked_docs,
         chunk_info=chunk_info,
         original_df=df,
-        strategy=ChunkingStrategy.CHUNK,
+        strategy=LongContextStrategy.CHUNK,
     )
 
 

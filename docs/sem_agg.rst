@@ -114,16 +114,16 @@ Output:
 
 
 
-Document Chunking
+Long Context Handling
 ------------------
-When documents exceed the language model's context length, sem_agg supports automatic chunking strategies to handle large content:
+When documents exceed the language model's context length, sem_agg supports automatic strategies to handle large contents:
 
 .. code-block:: python
 
     import pandas as pd
     import lotus
     from lotus.models import LM
-    from lotus.types import ChunkingStrategy
+    from lotus.types import LongContextStrategy
 
     # Configure model with smaller context for demonstration
     lm = LM(model="gpt-4o-mini", max_ctx_len=2000, max_tokens=200)
@@ -142,16 +142,16 @@ When documents exceed the language model's context length, sem_agg supports auto
     # Use TRUNCATE strategy (default) - simply cuts off excess content
     result_truncate = df.sem_agg(
         "Summarize the key points from {content}",
-        chunking_strategy=ChunkingStrategy.TRUNCATE
+        long_context_strategy=LongContextStrategy.TRUNCATE
     )
 
     # Use CHUNK strategy - intelligently splits largest column
     result_chunk = df.sem_agg(
         "Summarize the key points from {content}",
-        chunking_strategy=ChunkingStrategy.CHUNK
+        long_context_strategy=LongContextStrategy.CHUNK
     )
 
-**Chunking Strategies:**
+**LongContext Strategies:**
 
 - **TRUNCATE**: Simple truncation that cuts documents at the token limit with "..." appended
 - **CHUNK**: Intelligent splitting that identifies the largest column and splits it while preserving other columns
@@ -170,4 +170,4 @@ Optional Parameters
 - **all_cols** : Whether to use all columns in the dataframe. 
 - **suffix** : The suffix for the new column
 - **group_by** : The columns to group by before aggregation. Each group will be aggregated separately.
-- **chunking_strategy** : Strategy for handling documents that exceed context length (ChunkingStrategy.TRUNCATE or ChunkingStrategy.CHUNK)
+- **long_context_strategy** : Strategy for handling documents that exceed context length (LongContextStrategy.TRUNCATE or LongContextStrategy.CHUNK)
