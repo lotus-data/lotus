@@ -5,7 +5,7 @@ Overview
 ---------
 The `web_search` function allows you to load documents from the web, then process that data with LOTUS.
 
-Different search engines are supported, including Google, Google Scholar, Arxiv, You.com, Bing and Tavily.
+Different search engines are supported, including Google, Google Scholar, Arxiv, You.com and Tavily.
 
 Arxiv Example
 --------
@@ -78,30 +78,6 @@ Then you can run your lotus program:
     print(f"Top 3 most interesting articles from You.com:\n{top_you_articles}")
 
 
-Bing Example
---------
-Before running the following example, you need to set the `BING_API_KEY` environment variable. You will also need to install the lotus submodule as follows:
-.. code-block:: shell
-    pip install lotus[bing]
-
-Then you can run your lotus program:
-
-.. code-block:: python
-
-    import lotus
-    from lotus import WebSearchCorpus, web_search
-    from lotus.models import LM
-
-    lm = LM(model="gpt-4o-mini")
-
-    lotus.settings.configure(lm=lm)
-
-    df = web_search(WebSearchCorpus.BING, "state-of-the-art AI models", 10)[["title", "snippet"]]
-    print(f"Results from Bing:\n{df}\n")
-    top_bing_articles = df.sem_topk("Which {snippet} provides the best insight into AI models?", K=3)
-    print(f"Top 3 most insightful articles from Bing:\n{top_bing_articles}")
-
-
 Tavily Example
 --------
 Before running the following example, you need to set the `TAVILY_API_KEY` environment variable. You will also need to install the lotus submodule as follows:
@@ -126,6 +102,39 @@ Then you can run your lotus program:
     print(f"Top 3 articles from Tavily on AI ethics:\n{top_tavily_articles}")
 
 
+Date Filtering Example
+--------------------
+You can filter search results by date range using the ``start_date`` and ``end_date`` parameters:
+
+.. code-block:: python
+
+    from datetime import datetime
+    from lotus import WebSearchCorpus, web_search
+
+    # Search for papers published in 2024
+    start = datetime(2024, 1, 1)
+    end = datetime(2024, 12, 31)
+    
+    df = web_search(
+        WebSearchCorpus.ARXIV, 
+        "transformer architecture", 
+        10,
+        start_date=start,
+        end_date=end
+    )
+    
+    # Search for recent news from the past month
+    from datetime import timedelta
+    one_month_ago = datetime.now() - timedelta(days=30)
+    
+    df = web_search(
+        WebSearchCorpus.TAVILY,
+        "AI developments",
+        10,
+        start_date=one_month_ago
+    )
+
+
 Required Parameters
 --------------------
 - **corpus** : The search corpus to use. Available options:
@@ -133,7 +142,6 @@ Required Parameters
   - ``WebSearchCorpus.GOOGLE``: Search the web using Google Search
   - ``WebSearchCorpus.GOOGLE_SCHOLAR``: Search academic papers using Google Scholar
   - ``WebSearchCorpus.YOU``: Search the web using You.com
-  - ``WebSearchCorpus.BING``: Search the web using Bing
   - ``WebSearchCorpus.TAVILY``: Search the web using Tavily
 - **query** : The query to search for
 - **K** : The number of results to return
@@ -147,3 +155,8 @@ Optional Parameters
       import logging
       logging.basicConfig(level=logging.INFO)
 
+- **start_date** : Optional start date for filtering results (as a ``datetime`` object). 
+  Returns only results created or published on or after this date. 
+
+- **end_date** : Optional end date for filtering results (as a ``datetime`` object). 
+  Returns only results created or published on or before this date. 
