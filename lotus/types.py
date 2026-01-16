@@ -131,6 +131,13 @@ class SemanticAggOutput:
     outputs: list[str]
 
 
+class LongContextStrategy(Enum):
+    """Enumeration of available document long_context strategies for semantic aggregation."""
+
+    TRUNCATE = auto()
+    CHUNK = auto()
+
+
 @dataclass
 class SemanticJoinOutput:
     join_results: list[tuple[int, int, str | None]]
