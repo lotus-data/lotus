@@ -66,4 +66,4 @@ class TestWebSearch:
         print(df)
         assert isinstance(df, pd.DataFrame)
         assert not df.empty
-        assert all(col in df.columns for col in {"title", "link", "abstract", "publication_date", "authors", "pmid"})
+        assert all(col in df.columns for col in {"id", "title", "link", "abstract", "published", "authors", "categories"})

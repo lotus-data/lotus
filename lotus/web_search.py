@@ -274,14 +274,8 @@ def _web_search_pubmed(
             "    pip install 'lotus-ai[pubmed]'"
         )
 
-    # Get tool and email from environment variables or use defaults
+    # Get tool from environment variable or use default
     tool = os.getenv("PUBMED_TOOL", "LOTUS")
-    email = os.getenv("PUBMED_EMAIL")
-    if not email:
-        raise ValueError(
-            "PUBMED_EMAIL environment variable is not set. "
-            "It is required to use PubMed search. Please set it to your email address."
-        )
 
     # Add date filtering to query if dates are provided
     # PubMed query syntax: dates can be added as "YYYY:YYYY[PDAT]" for publication dates
@@ -297,30 +291,52 @@ def _web_search_pubmed(
             date_filter = f"1800:{end_date.year}[PDAT]"
             search_query = f"({query}) AND {date_filter}"
 
-    pubmed = PubMed(tool=tool, email=email)
+    pubmed = PubMed(tool=tool)
     results = pubmed.query(search_query, max_results=K)
 
-    default_cols = ["title", "link", "abstract", "publication_date", "authors", "pmid"]
+    default_cols = ["id", "title", "link", "abstract", "published", "authors", "categories", "journal", "doi", "methods", "conclusions", "results"]
 
     articles = []
     for article in results:
-        # Extract authors as comma-separated string
         authors_str = ""
-        if article.authors:
+        if hasattr(article, "authors") and article.authors:
             authors_str = ", ".join([f"{author.get('firstname', '')} {author.get('lastname', '')}".strip() for author in article.authors])
 
+        # PMID parsing, handle dict/newline cases and use first ID
+        pmid = None
+        if hasattr(article, "pubmed_id"):
+            pubmed_id_value = article.pubmed_id
+            # Handle if it's a dict
+            if isinstance(pubmed_id_value, dict):
+                pubmed_id_value = pubmed_id_value.get("pubmed_id", "")
+            # Handle if it's a string with newlines
+            if isinstance(pubmed_id_value, str):
+                pmid = pubmed_id_value.split("\n")[0].strip() if pubmed_id_value else None
+            elif pubmed_id_value:
+                pmid = str(pubmed_id_value)
+
         # Create PubMed link
-        pmid = article.pubmed_id if hasattr(article, "pubmed_id") else None
         link = f"https://pubmed.ncbi.nlm.nih.gov/{pmid}" if pmid else None
+
+        # Extract categories
+        categories_str = ""
+        if hasattr(article, "publication_types") and article.publication_types:
+            categories_str = ", ".join([pt.get("name", "") for pt in article.publication_types if pt.get("name")])
 
         articles.append(
             {
+                "id": pmid,
                 "title": article.title if hasattr(article, "title") else None,
                 "link": link,
                 "abstract": article.abstract if hasattr(article, "abstract") else None,
-                "publication_date": article.publication_date if hasattr(article, "publication_date") else None,
+                "published": article.publication_date if hasattr(article, "publication_date") else None,
                 "authors": authors_str,
-                "pmid": pmid,
+                "categories": categories_str,
+                "journal": article.journal if hasattr(article, "journal") else None,
+                "doi": article.doi if hasattr(article, "doi") else None,
+                "methods": article.methods if hasattr(article, "methods") else None,
+                "conclusions": article.conclusions if hasattr(article, "conclusions") else None,
+                "results": article.results if hasattr(article, "results") else None,
             }
         )
 
