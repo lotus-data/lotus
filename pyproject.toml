@@ -47,6 +47,9 @@ serpapi = [
 arxiv = [
     "arxiv",
 ]
+pubmed = [
+    "pymed",
+]
 file_extractor = [
     "llama-index==0.10.53",
     "pymupdf",

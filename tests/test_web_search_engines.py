@@ -60,3 +60,10 @@ class TestWebSearch:
         assert all(col in df.columns for col in {"title", "link", "abstract", "published"})
         assert df["published"].min() >= datetime(2025, 1, 1, 0, 0, 0, 0, tzinfo=timezone.utc)
         assert df["published"].max() <= datetime(2025, 1, 31, 0, 0, 0, 0, tzinfo=timezone.utc)
+
+    def test_pubmed_search(self):
+        df = web_search(WebSearchCorpus.PUBMED, "machine learning", 3)
+        print(df)
+        assert isinstance(df, pd.DataFrame)
+        assert not df.empty
+        assert all(col in df.columns for col in {"title", "link", "abstract", "publication_date", "authors", "pmid"})

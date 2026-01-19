@@ -17,6 +17,7 @@ class WebSearchCorpus(Enum):
     YOU = "you"
     BING = "bing"
     TAVILY = "tavily"
+    PUBMED = "pubmed"
 
 
 def _web_search_google(
@@ -257,6 +258,78 @@ def _web_search_tavily(
     return df
 
 
+def _web_search_pubmed(
+    query: str,
+    K: int,
+    cols: list[str] | None = None,
+    start_date: datetime | None = None,
+    end_date: datetime | None = None,
+) -> pd.DataFrame:
+    try:
+        from pymed import PubMed
+    except ImportError:
+        raise ImportError(
+            "The 'pymed' library is required for PubMed search. "
+            "You can install it with the following command:\n\n"
+            "    pip install 'lotus-ai[pubmed]'"
+        )
+
+    # Get tool and email from environment variables or use defaults
+    tool = os.getenv("PUBMED_TOOL", "LOTUS")
+    email = os.getenv("PUBMED_EMAIL")
+    if not email:
+        raise ValueError(
+            "PUBMED_EMAIL environment variable is not set. "
+            "It is required to use PubMed search. Please set it to your email address."
+        )
+
+    # Add date filtering to query if dates are provided
+    # PubMed query syntax: dates can be added as "YYYY:YYYY[PDAT]" for publication dates
+    search_query = query
+    if start_date or end_date:
+        if start_date and end_date:
+            date_filter = f"{start_date.year}:{end_date.year}[PDAT]"
+            search_query = f"({query}) AND {date_filter}"
+        elif start_date:
+            date_filter = f"{start_date.year}:3000[PDAT]"
+            search_query = f"({query}) AND {date_filter}"
+        elif end_date:
+            date_filter = f"1800:{end_date.year}[PDAT]"
+            search_query = f"({query}) AND {date_filter}"
+
+    pubmed = PubMed(tool=tool, email=email)
+    results = pubmed.query(search_query, max_results=K)
+
+    default_cols = ["title", "link", "abstract", "publication_date", "authors", "pmid"]
+
+    articles = []
+    for article in results:
+        # Extract authors as comma-separated string
+        authors_str = ""
+        if article.authors:
+            authors_str = ", ".join([f"{author.get('firstname', '')} {author.get('lastname', '')}".strip() for author in article.authors])
+
+        # Create PubMed link
+        pmid = article.pubmed_id if hasattr(article, "pubmed_id") else None
+        link = f"https://pubmed.ncbi.nlm.nih.gov/{pmid}" if pmid else None
+
+        articles.append(
+            {
+                "title": article.title if hasattr(article, "title") else None,
+                "link": link,
+                "abstract": article.abstract if hasattr(article, "abstract") else None,
+                "publication_date": article.publication_date if hasattr(article, "publication_date") else None,
+                "authors": authors_str,
+                "pmid": pmid,
+            }
+        )
+
+    df = pd.DataFrame(articles)
+    columns_to_use = cols if cols is not None else default_cols
+    df = df[[col for col in columns_to_use if col in df.columns]]
+    return df
+
+
 def web_search(
     corpus: WebSearchCorpus,
     query: str,
@@ -270,15 +343,15 @@ def web_search(
     Perform web search across different search engines.
 
     Args:
-        corpus: The search engine to use (GOOGLE, GOOGLE_SCHOLAR, ARXIV, YOU, BING, TAVILY)
+        corpus: The search engine to use (GOOGLE, GOOGLE_SCHOLAR, ARXIV, YOU, BING, TAVILY, PUBMED)
         query: The search query string
         K: Maximum number of results to return
         cols: Optional list of columns to include in the results
         sort_by_date: Whether to sort results by date (currently only supported for ARXIV)
         start_date: Optional start date for filtering results (as a datetime object).
-                   Supported for GOOGLE, GOOGLE_SCHOLAR, ARXIV, TAVILY, and YOU.
+                   Supported for GOOGLE, GOOGLE_SCHOLAR, ARXIV, TAVILY, YOU, and PUBMED.
         end_date: Optional end date for filtering results (as a datetime object).
-                 Supported for GOOGLE, GOOGLE_SCHOLAR, ARXIV, TAVILY, and YOU.
+                 Supported for GOOGLE, GOOGLE_SCHOLAR, ARXIV, TAVILY, YOU, and PUBMED.
 
     Returns:
         A pandas DataFrame containing the search results
@@ -302,3 +375,5 @@ def web_search(
         return _web_search_bing(query, K, cols=cols)
     elif corpus == WebSearchCorpus.TAVILY:
         return _web_search_tavily(query, K, cols=cols, start_date=start_date, end_date=end_date)
+    elif corpus == WebSearchCorpus.PUBMED:
+        return _web_search_pubmed(query, K, cols=cols, start_date=start_date, end_date=end_date)
