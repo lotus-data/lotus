@@ -82,6 +82,29 @@ When ``rate_limit`` is set, the system:
 2. Dynamically computes and enforces the delay between batches based on actual batch completion time, so the specified rate is not exceeded.
 3. Maintains backward compatibility—existing code without rate limiting continues to work unchanged.
 
+Token Rate Limits (TPM)
+-----------------------
+The LM class also supports token-based rate limiting through the ``tpm_limit`` parameter to control the number of tokens consumed per minute. This is particularly useful for API providers that enforce token-based rate limits rather than request-based limits. When ``tpm_limit`` is set, the system tracks token usage over a rolling 60-second window and automatically batches requests to stay within the limit. It uses a 5% safety buffer to avoid tight boundary errors and can work in conjunction with ``rate_limit`` to enforce both token and request limits simultaneously. If a single request would exceed the TPM limit, a ``ValueError`` is raised indicating the request is too large for the current API tier.
+
+Example setting token rate limits:
+
+.. code-block:: python
+
+    from lotus.models import LM
+    
+    # Token-based rate limiting - 100,000 tokens per minute
+    lm = LM(
+        model="gpt-4o",
+        tpm_limit=100000  # 100,000 tokens per minute
+    )
+    
+    # Combined RPM and TPM limiting
+    lm = LM(
+        model="gpt-4o",
+        rate_limit=30,    # 30 requests per minute
+        tpm_limit=50000   # 50,000 tokens per minute
+    )
+
 Usage Limits
 -----------
 The LM class supports setting usage limits to control costs and token consumption. You can set limits on:
