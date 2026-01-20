@@ -17,6 +17,7 @@ class WebSearchCorpus(Enum):
     YOU = "you"
     BING = "bing"
     TAVILY = "tavily"
+    PUBMED = "pubmed"
 
 
 def _web_search_google(
@@ -257,6 +258,94 @@ def _web_search_tavily(
     return df
 
 
+def _web_search_pubmed(
+    query: str,
+    K: int,
+    cols: list[str] | None = None,
+    start_date: datetime | None = None,
+    end_date: datetime | None = None,
+) -> pd.DataFrame:
+    try:
+        from pymed import PubMed
+    except ImportError:
+        raise ImportError(
+            "The 'pymed' library is required for PubMed search. "
+            "You can install it with the following command:\n\n"
+            "    pip install 'lotus-ai[pubmed]'"
+        )
+
+    # Get tool from environment variable or use default
+    tool = os.getenv("PUBMED_TOOL", "LOTUS")
+
+    # Add date filtering to query if dates are provided
+    # PubMed query syntax: dates can be added as "YYYY:YYYY[PDAT]" for publication dates
+    search_query = query
+    if start_date or end_date:
+        if start_date and end_date:
+            date_filter = f"{start_date.year}:{end_date.year}[PDAT]"
+            search_query = f"({query}) AND {date_filter}"
+        elif start_date:
+            date_filter = f"{start_date.year}:3000[PDAT]"
+            search_query = f"({query}) AND {date_filter}"
+        elif end_date:
+            date_filter = f"1800:{end_date.year}[PDAT]"
+            search_query = f"({query}) AND {date_filter}"
+
+    pubmed = PubMed(tool=tool)
+    results = pubmed.query(search_query, max_results=K)
+
+    default_cols = ["id", "title", "link", "abstract", "published", "authors", "categories", "journal", "doi", "methods", "conclusions", "results"]
+
+    articles = []
+    for article in results:
+        authors_str = ""
+        if hasattr(article, "authors") and article.authors:
+            authors_str = ", ".join([f"{author.get('firstname', '')} {author.get('lastname', '')}".strip() for author in article.authors])
+
+        # PMID parsing, handle dict/newline cases and use first ID
+        pmid = None
+        if hasattr(article, "pubmed_id"):
+            pubmed_id_value = article.pubmed_id
+            # Handle if it's a dict
+            if isinstance(pubmed_id_value, dict):
+                pubmed_id_value = pubmed_id_value.get("pubmed_id", "")
+            # Handle if it's a string with newlines
+            if isinstance(pubmed_id_value, str):
+                pmid = pubmed_id_value.split("\n")[0].strip() if pubmed_id_value else None
+            elif pubmed_id_value:
+                pmid = str(pubmed_id_value)
+
+        # Create PubMed link
+        link = f"https://pubmed.ncbi.nlm.nih.gov/{pmid}" if pmid else None
+
+        # Extract categories
+        categories_str = ""
+        if hasattr(article, "publication_types") and article.publication_types:
+            categories_str = ", ".join([pt.get("name", "") for pt in article.publication_types if pt.get("name")])
+
+        articles.append(
+            {
+                "id": pmid,
+                "title": article.title if hasattr(article, "title") else None,
+                "link": link,
+                "abstract": article.abstract if hasattr(article, "abstract") else None,
+                "published": article.publication_date if hasattr(article, "publication_date") else None,
+                "authors": authors_str,
+                "categories": categories_str,
+                "journal": article.journal if hasattr(article, "journal") else None,
+                "doi": article.doi if hasattr(article, "doi") else None,
+                "methods": article.methods if hasattr(article, "methods") else None,
+                "conclusions": article.conclusions if hasattr(article, "conclusions") else None,
+                "results": article.results if hasattr(article, "results") else None,
+            }
+        )
+
+    df = pd.DataFrame(articles)
+    columns_to_use = cols if cols is not None else default_cols
+    df = df[[col for col in columns_to_use if col in df.columns]]
+    return df
+
+
 def web_search(
     corpus: WebSearchCorpus,
     query: str,
@@ -302,3 +391,5 @@ def web_search(
         return _web_search_bing(query, K, cols=cols)
     elif corpus == WebSearchCorpus.TAVILY:
         return _web_search_tavily(query, K, cols=cols, start_date=start_date, end_date=end_date)
+    elif corpus == WebSearchCorpus.PUBMED:
+        return _web_search_pubmed(query, K, cols=cols, start_date=start_date, end_date=end_date)
