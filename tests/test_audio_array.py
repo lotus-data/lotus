@@ -6,17 +6,14 @@ classes that enable audio data processing in LOTUS.
 """
 
 import base64
-import tempfile
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
-import pytest
 
 from lotus.dtype_extensions.audio import (
+    SUPPORTED_AUDIO_FORMATS,
     AudioArray,
     AudioDtype,
-    SUPPORTED_AUDIO_FORMATS,
 )
 
 
@@ -31,7 +28,7 @@ class TestAudioDtype:
     def test_dtype_type(self):
         """Should have bytes as scalar type."""
         dtype = AudioDtype()
-        assert dtype.type == bytes
+        assert dtype.type is bytes
 
     def test_na_value(self):
         """Should have None as na_value."""

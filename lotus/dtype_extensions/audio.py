@@ -19,8 +19,6 @@ Example:
 """
 
 import base64
-import io
-import os
 import sys
 from pathlib import Path
 from typing import Any, Sequence, Union
@@ -28,7 +26,6 @@ from typing import Any, Sequence, Union
 import numpy as np
 import pandas as pd
 from pandas.api.extensions import ExtensionArray, ExtensionDtype
-
 
 # Supported audio formats and their MIME types
 SUPPORTED_AUDIO_FORMATS = {
@@ -264,7 +261,7 @@ class AudioArray(ExtensionArray):
             
             return self._encode_to_base64(audio_bytes, mime_type)
             
-        except (IOError, OSError) as e:
+        except (IOError, OSError):
             # Log the error but don't crash - return None for missing files
             return None
     
