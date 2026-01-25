@@ -21,7 +21,7 @@ from lotus.sem_ops import (
     sem_topk,
 )
 from lotus.evals import llm_as_judge, pairwise_judge
-from lotus.web_search import web_search, WebSearchCorpus
+from lotus.web_search import web_search, web_extract, WebSearchCorpus
 from lotus.settings import settings  # type: ignore[attr-defined]
 
 
@@ -51,6 +51,7 @@ __all__ = [
     "utils",
     "dtype_extensions",
     "web_search",
+    "web_extract",
     "WebSearchCorpus",
     "llm_as_judge",
     "pairwise_judge",
