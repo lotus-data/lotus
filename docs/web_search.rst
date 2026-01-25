@@ -160,3 +160,108 @@ Optional Parameters
 
 - **end_date** : Optional end date for filtering results (as a ``datetime`` object). 
   Returns only results created or published on or before this date. 
+
+
+web_extract
+========================
+
+Overview
+---------
+The `web_extract` function allows you to extract full text content from specific URLs or document IDs across different search engines. This is useful when you already know the URL or ID of a document and want to extract its full content for processing with LOTUS.
+
+The function returns a simple DataFrame with three columns: ``id``, ``url``, and ``full_text``.
+
+Arxiv Extract Example
+--------
+To get started, you will need to install the lotus submodule as follows:
+.. code-block:: shell
+    pip install lotus[arxiv]
+
+Then you can run your lotus program:
+
+.. code-block:: python
+
+    import lotus
+    from lotus import WebSearchCorpus, web_extract
+    from lotus.models import LM
+
+    lm = LM(model="gpt-4o-mini")
+
+    lotus.settings.configure(lm=lm)
+
+    # Extract full text from an arXiv paper using its ID
+    df = web_extract(WebSearchCorpus.ARXIV, doc_id="2303.08774")
+    print(f"Extracted from ArXiv:\n{df}\n\n")
+
+    # Use the extracted full text for semantic operations
+    if df["full_text"].iloc[0]:
+        print(f"Full text length: {len(df['full_text'].iloc[0])} characters")
+
+
+Tavily Extract Example
+--------
+Before running the following example, you need to set the `TAVILY_API_KEY` environment variable. You will also need to install the lotus submodule as follows:
+.. code-block:: shell
+    pip install lotus[tavily]
+
+Then you can run your lotus program:
+
+.. code-block:: python
+
+    import lotus
+    from lotus import WebSearchCorpus, web_extract
+    from lotus.models import LM
+
+    lm = LM(model="gpt-4o-mini")
+
+    lotus.settings.configure(lm=lm)
+
+    # Extract full text from a URL using Tavily Extract API
+    df = web_extract(WebSearchCorpus.TAVILY, url="https://en.wikipedia.org/wiki/Artificial_intelligence")
+    print(f"Extracted from Tavily:\n{df}\n\n")
+
+    # Use the extracted full text for semantic operations
+    if df["full_text"].iloc[0]:
+        print(f"Full text length: {len(df['full_text'].iloc[0])} characters")
+
+
+PubMed Extract Example
+--------
+To get started, you will need to install the lotus submodule as follows:
+.. code-block:: shell
+    pip install lotus[pubmed]
+
+Then you can run your lotus program:
+
+.. code-block:: python
+
+    import lotus
+    from lotus import WebSearchCorpus, web_extract
+    from lotus.models import LM
+
+    lm = LM(model="gpt-4o-mini")
+
+    lotus.settings.configure(lm=lm)
+
+    # Extract full text from a PubMed article using its ID
+    df = web_extract(WebSearchCorpus.PUBMED, doc_id="12345678")
+    print(f"Extracted from PubMed:\n{df}\n\n")
+
+    # Use the extracted full text for semantic operations
+    if df["full_text"].iloc[0]:
+        print(f"Full text length: {len(df['full_text'].iloc[0])} characters")
+
+web_extract Required Parameters
+--------------------
+- **corpus** : The search corpus to use. Available options:
+  - ``WebSearchCorpus.ARXIV``: Extract from academic papers on arxiv.org
+  - ``WebSearchCorpus.GOOGLE``: Extract from URLs using standard HTTP fetching
+  - ``WebSearchCorpus.GOOGLE_SCHOLAR``: Extract from URLs using standard HTTP fetching
+  - ``WebSearchCorpus.YOU``: Extract from URLs using standard HTTP fetching
+  - ``WebSearchCorpus.TAVILY``: Extract from URLs using Tavily Extract API
+  - ``WebSearchCorpus.PUBMED``: Extract from PubMed articles
+- **doc_id** or **url** : Either a corpus-specific identifier (required for ARXIV/PUBMED if url not provided) or a URL to fetch. You must provide exactly one of these parameters.
+
+web_extract Optional Parameters
+--------------------
+- **max_length** : Optional maximum character length for extracted full text. If provided, the extracted text will be truncated to this length.
