@@ -35,6 +35,22 @@ This PR implements two major features for LOTUS:
 -   Verified `sem_filter` integration by running with `n_sample=3` and checking aggregated results vs individual runs.
 -   Linting and static analysis passed (`ruff`, `mypy`).
 
+## Type of Change
+-   [ ] Bug fix (non-breaking change which fixes an issue)
+-   [x] New feature (non-breaking change which adds functionality)
+-   [ ] Breaking change (fix or feature that would cause existing functionality to not work as expected)
+-   [ ] Documentation update
+-   [ ] Performance improvement
+-   [ ] Refactoring (no functional changes)
+
+## Checklist
+-   [x] My code follows the style guidelines of this project
+-   [x] I have performed a self-review of my own code
+-   [x] I have commented my code, updating docstrings
+-   [x] I have made corresponding changes to the documentation
+-   [x] I have added tests that prove my fix is effective or that my feature works
+-   [x] New and existing unit tests pass locally with my changes
+
 
 ## Work done by
 Ireddi Rakshitha & Yaswanth Devavarapu
