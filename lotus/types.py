@@ -124,6 +124,11 @@ class SemanticFilterOutput:
     explanations: list[str | None]
     stats: dict[str, Any] | None = None
     logprobs: list[list[ChatCompletionTokenLogprob]] | None = None
+    # Per-run rollout data for test-time scaling (n_sample > 1)
+    all_runs_outputs: list[list[bool]] | None = None
+    all_runs_raw_outputs: list[list[str]] | None = None
+    all_runs_explanations: list[list[str | None]] | None = None
+    all_runs_logprobs: list[list[list[ChatCompletionTokenLogprob]]] | None = None
 
 
 @dataclass
