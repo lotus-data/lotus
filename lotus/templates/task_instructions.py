@@ -4,7 +4,7 @@ from typing import Any
 import pandas as pd
 
 import lotus
-from lotus.dtype_extensions import ImageDtype
+from lotus.dtype_extensions import AudioDtype, ImageDtype
 from lotus.types import ReasoningStrategy, SerializationFormat
 
 
@@ -39,11 +39,24 @@ def non_cot_prompt_formatter(answer_instructions: str = "") -> str:
 
 def context_formatter(
     multimodal_data: dict[str, Any] | str,
-) -> tuple[str, list[dict[str, str]]]:
+) -> tuple[str, list[dict[str, Any]], list[dict[str, Any]]]:
+    """
+    Format multimodal data into text, image inputs, and audio inputs.
+
+    Args:
+        multimodal_data: Either a string (text only) or a dictionary with
+                        'text', 'image', and optionally 'audio' keys.
+
+    Returns:
+        Tuple of (text, image_inputs, audio_inputs) where inputs are
+        formatted for LLM API consumption.
+    """
     if isinstance(multimodal_data, str):
         text = multimodal_data
-        image_inputs: list[dict[str, str]] = []
+        image_inputs: list[dict[str, Any]] = []
+        audio_inputs: list[dict[str, Any]] = []
     elif isinstance(multimodal_data, dict):
+        # Handle image data
         image_data: dict[str, str] = multimodal_data.get("image", {})
         _image_inputs: list[tuple[dict, dict]] = [
             (
@@ -59,25 +72,64 @@ def context_formatter(
             for key, base64_image in image_data.items()
         ]
         image_inputs = [m for image_input in _image_inputs for m in image_input]
+
+        # Handle audio data
+        audio_data: dict[str, str] = multimodal_data.get("audio", {})
+        _audio_inputs: list[tuple[dict, dict]] = [
+            (
+                {
+                    "type": "text",
+                    "text": f"[{key.capitalize()} Audio]: \n",
+                },
+                {
+                    "type": "input_audio",
+                    "input_audio": {
+                        "data": base64_audio.split(",")[1] if "," in base64_audio else base64_audio,
+                        "format": "wav",  # Default format, could be inferred from data URI
+                    },
+                },
+            )
+            for key, base64_audio in audio_data.items()
+            if base64_audio is not None
+        ]
+        audio_inputs = [m for audio_input in _audio_inputs for m in audio_input]
+
         text = multimodal_data["text"] or ""
     else:
         raise ValueError("multimodal_data must be a dictionary or a string")
-    return text, image_inputs
+    return text, image_inputs, audio_inputs
 
 
 def user_message_formatter(
     multimodal_data: dict[str, Any] | str,
     user_instruction_with_tag: str | None = None,
 ) -> dict[str, Any]:
-    text, image_inputs = context_formatter(multimodal_data)
-    if not image_inputs or len(image_inputs) == 0:
+    """
+    Format multimodal data into a user message for LLM APIs.
+
+    Args:
+        multimodal_data: Text string or dict with 'text', 'image', 'audio' keys.
+        user_instruction_with_tag: Optional instruction to append to the message.
+
+    Returns:
+        A dictionary representing the user message for the LLM API.
+    """
+    text, image_inputs, audio_inputs = context_formatter(multimodal_data)
+    has_media = (image_inputs and len(image_inputs) > 0) or (audio_inputs and len(audio_inputs) > 0)
+
+    if not has_media:
         return {
             "role": "user",
             "content": f"Context:\n{text}\n\n{user_instruction_with_tag}",
         }
-    content = [{"type": "text", "text": f"Context:\n{text}"}] + image_inputs
+
+    content: list[dict[str, Any]] = [{"type": "text", "text": f"Context:\n{text}"}]
+    content.extend(image_inputs)
+    content.extend(audio_inputs)
+
     if user_instruction_with_tag:
         content.append({"type": "text", "text": f"\n\n{user_instruction_with_tag}"})
+
     return {
         "role": "user",
         "content": content,
@@ -363,16 +415,29 @@ def df2text(df: pd.DataFrame, cols: list[str]) -> list[str]:
 
 def df2multimodal_info(df: pd.DataFrame, cols: list[str]) -> list[dict[str, Any]]:
     """
-    Formats the given DataFrame into a string containing info from cols.
-    Return a list of dictionaries, each containing text and image data.
+    Formats the given DataFrame into a list of multimodal info dictionaries.
+
+    Extracts text, image, and audio data from the specified columns based on
+    their dtypes. Image columns are identified by ImageDtype, audio columns
+    by AudioDtype, and all other columns are treated as text.
+
+    Args:
+        df: The DataFrame to format.
+        cols: List of column names to include in the output.
+
+    Returns:
+        A list of dictionaries, each containing 'text', 'image', and 'audio'
+        keys with the corresponding data for each row.
     """
     image_cols = [col for col in cols if isinstance(df[col].dtype, ImageDtype)]
-    text_cols = [col for col in cols if col not in image_cols]
+    audio_cols = [col for col in cols if isinstance(df[col].dtype, AudioDtype)]
+    text_cols = [col for col in cols if col not in image_cols and col not in audio_cols]
     text_rows = df2text(df, text_cols)
     multimodal_data = [
         {
             "text": text_rows[i],
             "image": {col.capitalize(): df[col].array.get_image(i, "base64") for col in image_cols},
+            "audio": {col.capitalize(): df[col].array.get_audio(i, "base64") for col in audio_cols},
         }
         for i in range(len(df))
     ]
@@ -395,7 +460,8 @@ def merge_multimodal_info(first: list[dict[str, Any]], second: list[dict[str, An
             "text": f"{first[i]['text']}\n{second[j]['text']}"
             if first[i]["text"] != "" and second[j]["text"] != ""
             else first[i]["text"] + second[j]["text"],
-            "image": {**first[i]["image"], **second[j]["image"]},
+            "image": {**first[i].get("image", {}), **second[j].get("image", {})},
+            "audio": {**first[i].get("audio", {}), **second[j].get("audio", {})},
         }
         for i in range(len(first))
         for j in range(len(second))

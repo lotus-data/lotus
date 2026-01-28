@@ -9,15 +9,16 @@ from lotus.cache import operator_cache
 from lotus.templates import task_instructions
 from lotus.types import (
     CascadeArgs,
-    LMOutput,
     LogprobsForFilterCascade,
     ProxyModel,
+    RawOutputs,
     ReasoningStrategy,
     SemanticFilterOutput,
 )
 from lotus.utils import show_safe_mode
 
 from .cascade_utils import calibrate_llm_logprobs, importance_sampling, learn_cascade_thresholds
+from .ensembling import Ensemble, EnsembleConfig, EnsembleStrategy
 from .postprocessors import filter_postprocess
 
 
@@ -35,6 +36,8 @@ def sem_filter(
     show_progress_bar: bool = True,
     progress_bar_desc: str = "Filtering",
     additional_cot_instructions: str = "",
+    n_sample: int = 1,
+    ensemble: Ensemble | None = None,
 ) -> SemanticFilterOutput:
     """
     Filters a list of documents based on a natural language instruction using a language model.
@@ -73,21 +76,30 @@ def sem_filter(
             Defaults to "Filtering".
         additional_cot_instructions (str, optional): Additional instructions for
             chain-of-thought reasoning. Defaults to "".
-
+        n_sample (int, optional): Number of samples to generate for test-time scaling.
+            When > 1, multiple predictions are made and aggregated. Defaults to 1.
+        ensemble (Ensemble | None, optional): The ensemble object to use for aggregation
+            when n_sample > 1. If None and n_sample > 1, defaults to MAJORITY_VOTE.
+    
     Returns:
-        SemanticFilterOutput: An object containing the boolean filter outputs, raw
-            outputs, explanations (if applicable), and log probabilities (if requested).
+        SemanticFilterOutput: An object containing the boolean filter outputs, 
+            per-run rollout data, and stats.
 
     Raises:
-        ValueError: If the model is not properly configured or if there are
-            issues with the input parameters.
+        ValueError: If the model is not properly configured, if n_sample < 1,
+            or if there are issues with the input parameters.
 
     Example:
         >>> docs = [{"text": "Positive review"}, {"text": "Negative review"}]
         >>> model = LM(model="gpt-4o")
         >>> result = sem_filter(docs, model, "Is this a positive sentiment?")
         >>> print(result.outputs)  # [True, False]
+        >>> # With test-time scaling
+        >>> result = sem_filter(docs, model, "Is this positive?", n_sample=3, ensemble=EnsembleStrategy.MAJORITY_VOTE)
     """
+    if n_sample < 1:
+        raise ValueError("n_sample must be at least 1")
+
     inputs = []
     for doc in docs:
         prompt = lotus.templates.task_instructions.filter_formatter(
@@ -102,30 +114,61 @@ def sem_filter(
         )
         lotus.logger.debug(f"input to model: {prompt}")
         inputs.append(prompt)
+    
     kwargs: dict[str, Any] = {"logprobs": logprobs}
-
+    
     if safe_mode:
-        estimated_total_calls = len(docs)
-        estimated_total_cost = sum(model.count_tokens(input) for input in inputs)
+        estimated_total_calls = len(docs) * n_sample
+        estimated_total_cost = sum(model.count_tokens(input) for input in inputs) * n_sample
         show_safe_mode(estimated_total_cost, estimated_total_calls)
 
-    lm_output: LMOutput = model(
-        inputs, show_progress_bar=show_progress_bar, progress_bar_desc=progress_bar_desc, **kwargs
+    # Multi-sample path with ensembling
+    if ensemble is None:
+        ensemble_obj = Ensemble(EnsembleConfig(strategy=EnsembleStrategy.MAJORITY_VOTE))
+    else:
+        ensemble_obj = ensemble
+
+    # Collect all run outputs
+    all_runs_outputs: list[list[bool]] = [[] for _ in range(len(docs))]
+    all_runs_raw_outputs: list[list[str]] = [[] for _ in range(len(docs))]
+    all_runs_explanations: list[list[str | None]] = [[] for _ in range(len(docs))]
+    all_runs_logprobs: list[list[list]] = [[] for _ in range(len(docs))] if logprobs else None
+
+    # Run n_sample times
+    for sample_idx in range(n_sample):
+        desc = f"{progress_bar_desc} (sample {sample_idx + 1}/{n_sample})"
+        lm_output = model(
+            inputs, show_progress_bar=show_progress_bar, progress_bar_desc=desc, **kwargs
+        )
+
+        postprocess_output = filter_postprocess(lm_output.outputs, model, default)
+
+        # Collect outputs for each document
+        for doc_idx in range(len(docs)):
+            all_runs_outputs[doc_idx].append(postprocess_output.outputs[doc_idx])
+            all_runs_raw_outputs[doc_idx].append(postprocess_output.raw_outputs[doc_idx])
+            all_runs_explanations[doc_idx].append(postprocess_output.explanations[doc_idx])
+            if logprobs and lm_output.logprobs:
+                all_runs_logprobs[doc_idx].append(lm_output.logprobs[doc_idx])
+
+    # Aggregate using ensemble strategy
+    final_outputs = ensemble_obj.aggregate_batch(all_runs_outputs)
+
+    raw_outputs_obj = RawOutputs(
+        predictions=all_runs_outputs,
+        raw_outputs=all_runs_raw_outputs,
+        explanations=all_runs_explanations,
+        logprobs=all_runs_logprobs,
     )
 
-    postprocess_output = filter_postprocess(lm_output.outputs, model, default)
-    lotus.logger.debug(f"outputs: {postprocess_output.outputs}")
-    lotus.logger.debug(f"raw_outputs: {postprocess_output.raw_outputs}")
-    lotus.logger.debug(f"explanations: {postprocess_output.explanations}")
-
+    lotus.logger.debug(f"outputs: {final_outputs}")
+    
     if safe_mode:
         model.print_total_usage()
 
     return SemanticFilterOutput(
-        raw_outputs=postprocess_output.raw_outputs,
-        outputs=postprocess_output.outputs,
-        explanations=postprocess_output.explanations,
-        logprobs=lm_output.logprobs if logprobs else None,
+        outputs=final_outputs,
+        _raw_outputs=raw_outputs_obj,
     )
 
 
@@ -347,6 +390,8 @@ class SemFilterDataframe:
         safe_mode: bool = False,
         progress_bar_desc: str = "Filtering",
         additional_cot_instructions: str = "",
+        n_sample: int = 1,
+        ensemble: Ensemble | None = None,
     ) -> pd.DataFrame | tuple[pd.DataFrame, dict[str, Any]]:
         if lotus.settings.lm is None:
             raise ValueError(
@@ -543,8 +588,11 @@ class SemFilterDataframe:
                 show_progress_bar=True,
                 progress_bar_desc=progress_bar_desc,
                 additional_cot_instructions=additional_cot_instructions,
+                n_sample=n_sample,
+                ensemble=ensemble,
             )
             outputs = output.outputs
+            # Access raw_outputs via backward compatibility property
             raw_outputs = output.raw_outputs
             explanations = output.explanations
 
