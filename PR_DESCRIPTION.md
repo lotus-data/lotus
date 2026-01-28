@@ -1,75 +1,40 @@
-# Pull Request: Test-Time Scaling and Audio Data Support
+## Purpose
+Closes #200 (Test-Time Scaling)
+Closes #196 (Audio Data Support)
 
-## Summary
+This PR implements two major features for LOTUS:
+1.  **Audio Data Support**: Adds the ability to process audio files using semantic operators, enabling multimodal pipelines with audio inputs.
+2.  **Test-Time Scaling (Ensembling)**: Adds test-time scaling strategies to `sem_filter`, allowing users to trade off compute for accuracy by aggregating multiple samples.
 
-This PR adds two highly requested features to LOTUS:
+## Summary of Changes
 
-1. **Test-Time Scaling with Ensembling** (Closes #200)
-2. **Audio Data Support via AudioArray** (Closes #196)
+### Audio Data Support
+-   **New `AudioArray` & `AudioDtype`**: Implemented in `lotus/dtype_extensions/audio.py` to handle audio files (.wav, .mp3, etc.) locally and efficiently.
+-   **Multimodal Integration**: Updated `lotus/templates/task_instructions.py`:
+    -   `context_formatter` now handles `audio` data, formatting it as `input_audio` for LLM APIs.
+    -   `df2multimodal_info` automatically detects `AudioDtype` columns and extracts base64 audio data.
+    -   `merge_multimodal_info` supports merging audio data.
 
-## Changes
+### Test-Time Scaling (Ensembling)
+-   **`Ensemble` Module**: Created `lotus/sem_ops/ensembling.py` implementing strategies:
+    -   `MAJORITY_VOTE`, `WEIGHTED_AVERAGE`, `CONSENSUS`, `CONFIDENCE_THRESHOLD`.
+-   **`sem_filter` Integration**: Updated `sem_filter` to accept test-time scaling parameters:
+    -   `n_sample`: Number of samples to generate (default: 1).
+    -   `ensemble`: Strategy to use (e.g., `EnsembleStrategy.MAJORITY_VOTE`).
+    -   `temperature`: Sampling temperature.
+-   **Rich Output**: Updated `SemanticFilterOutput` in `lotus/types.py` to include full per-run rollout data:
+    -   `all_runs_outputs`, `all_runs_raw_outputs`, `all_runs_explanations`, `all_runs_logprobs`.
 
-### Feature 1: Test-Time Scaling (`lotus/sem_ops/ensembling.py`)
+## Test Plan
+**Audio Verification**:
+-   Verified `AudioArray` creation and manipulation with `tests/test_audio_array.py`.
+-   Verified multimodal prompt formatting for audio inputs.
 
-Adds ensemble-based test-time scaling strategies for improving semantic operator accuracy:
+**Ensembling Verification**:
+-   Verified ensembling strategies (majority vote, etc.) with `tests/test_ensembling.py`.
+-   Verified `sem_filter` integration by running with `n_sample=3` and checking aggregated results vs individual runs.
+-   Linting and static analysis passed (`ruff`, `mypy`).
 
-- **`EnsembleStrategy`** enum with four strategies:
-  - `MAJORITY_VOTE` - Returns most common prediction
-  - `WEIGHTED_AVERAGE` - Weighs predictions by confidence
-  - `CONSENSUS` - Returns result only if unanimous
-  - `CONFIDENCE_THRESHOLD` - Majority vote with confidence tracking
 
-- **`EnsembleConfig`** dataclass for configuration:
-  - `n_samples` - Number of samples to generate
-  - `strategy` - Which ensembling strategy to use
-  - `temperature` - Sampling temperature
-  - `confidence_threshold` - Minimum confidence for threshold strategy
-
-- **`Ensemble`** class for aggregating predictions
-
-### Feature 2: Audio Data Support (`lotus/dtype_extensions/audio.py`)
-
-Extends LOTUS to support audio data processing:
-
-- **`AudioDtype`** - Custom pandas ExtensionDtype for audio
-- **`AudioArray`** - ExtensionArray for storing audio data
-- Supports 7 audio formats: `.wav`, `.mp3`, `.mp4`, `.m4a`, `.flac`, `.ogg`, `.webm`
-- Includes caching, base64 encoding, and MIME type detection
-
-### Tests
-
-- `tests/test_ensembling.py` - 40+ test cases for all strategies
-- `tests/test_audio_array.py` - Comprehensive tests for AudioArray
-
-## Usage Examples
-
-### Test-Time Scaling
-```python
-from lotus.sem_ops.ensembling import Ensemble, EnsembleConfig, EnsembleStrategy
-
-config = EnsembleConfig(n_samples=5, strategy=EnsembleStrategy.MAJORITY_VOTE)
-ensemble = Ensemble(config)
-result = ensemble.aggregate([True, True, False, True, False])  # Returns True
-```
-
-### Audio Data
-```python
-from lotus.dtype_extensions import AudioArray
-import pandas as pd
-
-audio_files = ['speech.wav', 'music.mp3', 'podcast.flac']
-df = pd.DataFrame({'audio': AudioArray(audio_files)})
-# Now can use with semantic operators
-```
-
-## Checklist
-
-- [x] Code follows project style guidelines
-- [x] Comprehensive tests included
-- [x] Documentation updated (docstrings)
-- [x] All tests pass locally
-
-## Contributors
-
-- @iredd
-- @yaswanth
+## Work done by
+Ireddi Rakshitha & Yaswanth Devavarapu
