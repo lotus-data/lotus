@@ -6,12 +6,14 @@ from numpy.typing import NDArray
 
 import lotus
 from lotus.cache import operator_cache
+from lotus.sampling_utils import apply_ensemble, pick_logprobs_for_choices, resample_batch
 from lotus.templates import task_instructions
 from lotus.types import (
     CascadeArgs,
-    LMOutput,
+    EnsembleStrategy,
     LogprobsForFilterCascade,
     ProxyModel,
+    RawOutputs,
     ReasoningStrategy,
     SemanticFilterOutput,
 )
@@ -35,6 +37,9 @@ def sem_filter(
     show_progress_bar: bool = True,
     progress_bar_desc: str = "Filtering",
     additional_cot_instructions: str = "",
+    n_sample: int = 1,  # number of samples per item
+    ensemble: EnsembleStrategy = EnsembleStrategy.PICK_FIRST,  # "majority_vote", "mean_prob",
+    temperature: float | None = None,  # if None, use model default
 ) -> SemanticFilterOutput:
     """
     Filters a list of documents based on a natural language instruction using a language model.
@@ -88,6 +93,8 @@ def sem_filter(
         >>> result = sem_filter(docs, model, "Is this a positive sentiment?")
         >>> print(result.outputs)  # [True, False]
     """
+    if n_sample <= 0:
+        raise ValueError("n_sample must be >= 1 for semantic filtering.")
     inputs = []
     for doc in docs:
         prompt = lotus.templates.task_instructions.filter_formatter(
@@ -102,30 +109,79 @@ def sem_filter(
         )
         lotus.logger.debug(f"input to model: {prompt}")
         inputs.append(prompt)
-    kwargs: dict[str, Any] = {"logprobs": logprobs}
 
     if safe_mode:
-        estimated_total_calls = len(docs)
-        estimated_total_cost = sum(model.count_tokens(input) for input in inputs)
+        estimated_total_calls = len(docs) * n_sample
+        estimated_total_cost = sum(model.count_tokens(input) for input in inputs) * n_sample
         show_safe_mode(estimated_total_cost, estimated_total_calls)
 
-    lm_output: LMOutput = model(
-        inputs, show_progress_bar=show_progress_bar, progress_bar_desc=progress_bar_desc, **kwargs
+    # Define a single-call function using closure to capture outer variables
+    def _call_once():
+        call_kwargs: dict[str, Any] = {
+            "show_progress_bar": show_progress_bar,
+            "progress_bar_desc": (progress_bar_desc if n_sample == 1 else f"{progress_bar_desc} (x{n_sample})"),
+        }
+        if logprobs:
+            call_kwargs["logprobs"] = True
+        if temperature is not None:
+            call_kwargs["temperature"] = temperature
+
+        return model(inputs, **call_kwargs)
+
+    # Run the model n_sample times (sampling)
+    all_runs_texts, all_runs_logprobs = resample_batch(_call_once, n_sample=n_sample)
+
+    # Postprocess each run independently to get canonical booleans
+    postprocessed_runs = [filter_postprocess(run_texts, model, default) for run_texts in all_runs_texts]
+
+    # NEW: package all runs into RawOutputs objects
+    all_runs_packaged = []
+    for run_idx, pp in enumerate(postprocessed_runs):
+        all_runs_packaged.append(
+            RawOutputs(
+                preds=pp.raw_outputs,
+                logprobs=all_runs_logprobs[run_idx] if all_runs_logprobs else None,
+                parsed_outputs=pp.outputs,
+                explanations=pp.explanations,
+            )
+        )
+
+    canonical_runs_bool: list[list[bool]] = [pp.outputs for pp in postprocessed_runs]  # [n_sample][batch]
+
+    final_labels, chosen_run_idx = apply_ensemble(
+        ensemble,
+        canonical_runs_bool,  # shape [n_sample][batch], booleans only
+        default_yes=default,  # tie-break only for exact boolean ties
+        return_indices=True,
     )
 
-    postprocess_output = filter_postprocess(lm_output.outputs, model, default)
-    lotus.logger.debug(f"outputs: {postprocess_output.outputs}")
-    lotus.logger.debug(f"raw_outputs: {postprocess_output.raw_outputs}")
-    lotus.logger.debug(f"explanations: {postprocess_output.explanations}")
+    # Type assertion to help mypy understand the tuple unpacking
+    assert isinstance(final_labels, list) and isinstance(chosen_run_idx, list)
+
+    batch = len(final_labels)
+
+    # Pick raw outputs & explanations from the winning run per item
+    raw_outputs: list[str] = [postprocessed_runs[chosen_run_idx[i]].raw_outputs[i] for i in range(batch)]
+    explanations: list[str | None] = [postprocessed_runs[chosen_run_idx[i]].explanations[i] for i in range(batch)]
+
+    # Pick logprobs from the winning run per item, if requested
+    chosen_logprobs = pick_logprobs_for_choices(all_runs_logprobs, chosen_run_idx) if logprobs else None
+
+    # Debug logging
+    lotus.logger.debug(f"final_labels: {final_labels}")
+    lotus.logger.debug(f"chosen_run_idx: {chosen_run_idx}")
+    lotus.logger.debug(f"raw_outputs (winners): {raw_outputs}")
+    lotus.logger.debug(f"explanations (winners): {explanations}")
 
     if safe_mode:
         model.print_total_usage()
 
     return SemanticFilterOutput(
-        raw_outputs=postprocess_output.raw_outputs,
-        outputs=postprocess_output.outputs,
-        explanations=postprocess_output.explanations,
-        logprobs=lm_output.logprobs if logprobs else None,
+        raw_outputs=raw_outputs,  # from winners
+        outputs=final_labels,  # canonical booleans after ensembling
+        explanations=explanations,  # from winners
+        logprobs=chosen_logprobs,  # from winners (or None)
+        raw_outputs_all_runs=all_runs_packaged,  # all runs packaged
     )
 
 
@@ -347,11 +403,16 @@ class SemFilterDataframe:
         safe_mode: bool = False,
         progress_bar_desc: str = "Filtering",
         additional_cot_instructions: str = "",
+        n_sample: int = 1,  # number of samples per item
+        ensemble: EnsembleStrategy = EnsembleStrategy.PICK_FIRST,  # Changed from str | None
+        temperature: float | None = None,  # if None, use model default
     ) -> pd.DataFrame | tuple[pd.DataFrame, dict[str, Any]]:
         if lotus.settings.lm is None:
             raise ValueError(
                 "The language model must be an instance of LM. Please configure a valid language model using lotus.settings.configure()"
             )
+        if n_sample <= 0:
+            raise ValueError("n_sample must be >= 1 for semantic filtering.")
 
         stats: dict[str, float] = {}
         lotus.logger.debug(user_instruction)
@@ -425,6 +486,9 @@ class SemFilterDataframe:
                     safe_mode=safe_mode,
                     show_progress_bar=True,
                     progress_bar_desc="Running helper LM",
+                    n_sample=n_sample,  # NEW
+                    ensemble=ensemble,  # NEW
+                    temperature=temperature,  # NEW
                 )
                 _, helper_logprobs = helper_output.outputs, helper_output.logprobs
                 assert helper_logprobs is not None
@@ -493,6 +557,7 @@ class SemFilterDataframe:
 
             for idx in high_conf_idxs:
                 outputs[idx] = proxy_outputs[idx]
+            all_runs: list[RawOutputs] = []
 
             # If using helper LM, get raw outputs and explanations
             if proxy_model == ProxyModel.HELPER_LM:
@@ -519,6 +584,9 @@ class SemFilterDataframe:
                     safe_mode=safe_mode,
                     progress_bar_desc="Running predicate evals with oracle LM",
                     additional_cot_instructions=additional_cot_instructions,
+                    n_sample=n_sample,  # NEW
+                    ensemble=ensemble,  # NEW
+                    temperature=temperature,  # NEW
                 )
 
                 for idx, large_idx in enumerate(low_conf_idxs):
@@ -543,10 +611,14 @@ class SemFilterDataframe:
                 show_progress_bar=True,
                 progress_bar_desc=progress_bar_desc,
                 additional_cot_instructions=additional_cot_instructions,
+                n_sample=n_sample,  # NEW
+                ensemble=ensemble,  # NEW
+                temperature=temperature,  # NEW
             )
             outputs = output.outputs
             raw_outputs = output.raw_outputs
             explanations = output.explanations
+            all_runs = output.raw_outputs_all_runs if output.raw_outputs_all_runs else []
 
         if not return_all:
             # find indices where output is True
@@ -577,6 +649,30 @@ class SemFilterDataframe:
             new_df[get_out_col_name(new_df, "filter_label")] = outputs
             filtered_explanations = explanations
             filtered_raw_outputs = raw_outputs
+
+        # NEW — Add per-run rollout columns if multiple runs exist
+
+        if all_runs and n_sample > 1:
+            for run_idx, run_data in enumerate(all_runs, start=1):
+                # CASE 1 — return_all=True → show all rows
+                if return_all:
+                    new_df[f"raw_output_{run_idx}{suffix}"] = run_data.preds
+                    new_df[f"parsed_output_{run_idx}{suffix}"] = run_data.parsed_outputs
+
+                    if return_explanations:
+                        new_df[f"explanation_{run_idx}{suffix}"] = run_data.explanations
+
+                # CASE 2 — return_all=False → only rows that passed the filter
+                else:
+                    new_df[f"raw_output_{run_idx}{suffix}"] = [run_data.preds[i] for i in ids]
+                    new_df[f"parsed_output_{run_idx}{suffix}"] = [run_data.parsed_outputs[i] for i in ids]
+
+                    if return_explanations:
+                        new_df[f"explanation_{run_idx}{suffix}"] = [run_data.explanations[i] for i in ids]
+
+            # Finally add the ensemble answer as a column
+            ensemble_col = [outputs[i] for i in ids] if not return_all else outputs
+            new_df[f"ensemble_answer{suffix}"] = ensemble_col
 
         # return rows where output is True
         if return_explanations and return_raw_outputs:

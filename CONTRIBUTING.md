@@ -280,6 +280,10 @@ lm = LM(
 - **Discussions**: https://github.com/lotus-data/lotus/discussions
 - **Issues**: https://github.com/lotus-data/lotus/issues
 
+## Code of Conduct
+
+We are committed to providing a welcoming and inclusive environment for all contributors. Please be respectful and constructive in all interactions.
+
 
 ---
 
