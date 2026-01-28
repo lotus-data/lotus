@@ -38,15 +38,15 @@ class EnsembleConfig:
     Configuration for ensemble-based test-time scaling.
     
     Attributes:
-        n_samples: Number of samples to generate for each input.
         strategy: The ensembling strategy to use.
-        temperature: Sampling temperature for the language model.
+        weights: Optional weights for weighted averaging strategy.
+        default: Default value for consensus strategy when no agreement.
         confidence_threshold: Minimum confidence required for confidence-based strategies.
     """
     
-    n_samples: int = 3
     strategy: EnsembleStrategy = EnsembleStrategy.MAJORITY_VOTE
-    temperature: float = 1.0
+    weights: list[float] | None = None
+    default: Any = None
     confidence_threshold: float = 0.6
 
 
@@ -203,8 +203,6 @@ class Ensemble:
     def aggregate(
         self, 
         samples: list[Any], 
-        weights: list[float] | None = None,
-        default: Any = None
     ) -> Any:
         """
         Aggregate multiple samples using the configured strategy.
@@ -229,10 +227,10 @@ class Ensemble:
             if not all(isinstance(s, bool) for s in samples):
                 # Fall back to majority vote for non-boolean types
                 return majority_vote(samples)
-            return weighted_average(samples, weights)
+            return weighted_average(samples, self.config.weights)
             
         elif strategy == EnsembleStrategy.CONSENSUS:
-            return consensus(samples, default=default)
+            return consensus(samples, default=self.config.default)
             
         elif strategy == EnsembleStrategy.CONFIDENCE_THRESHOLD:
             result, confidence = confidence_threshold(
@@ -247,8 +245,6 @@ class Ensemble:
     def aggregate_batch(
         self, 
         batch_samples: list[list[Any]], 
-        weights: list[list[float]] | None = None,
-        default: Any = None
     ) -> list[Any]:
         """
         Aggregate samples for a batch of inputs.
@@ -263,6 +259,7 @@ class Ensemble:
         """
         results = []
         for i, samples in enumerate(batch_samples):
-            sample_weights = weights[i] if weights else None
-            results.append(self.aggregate(samples, sample_weights, default))
+            # For now, we assume uniform weights across the batch if configured globally
+            # Realistically, per-item weights would need a different config structure
+            results.append(self.aggregate(samples))
         return results

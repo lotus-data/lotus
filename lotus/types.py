@@ -118,17 +118,43 @@ class SemanticFilterPostprocessOutput:
 
 
 @dataclass
+class RawOutputs:
+    predictions: list[list[bool]]
+    raw_outputs: list[list[str]]
+    explanations: list[list[str | None]]
+    logprobs: list[list[list[ChatCompletionTokenLogprob]]] | None = None
+
+
+@dataclass
 class SemanticFilterOutput:
-    raw_outputs: list[str]
     outputs: list[bool]
-    explanations: list[str | None]
+    _raw_outputs: RawOutputs
     stats: dict[str, Any] | None = None
-    logprobs: list[list[ChatCompletionTokenLogprob]] | None = None
-    # Per-run rollout data for test-time scaling (n_sample > 1)
-    all_runs_outputs: list[list[bool]] | None = None
-    all_runs_raw_outputs: list[list[str]] | None = None
-    all_runs_explanations: list[list[str | None]] | None = None
-    all_runs_logprobs: list[list[list[ChatCompletionTokenLogprob]]] | None = None
+
+    @property
+    def raw_outputs(self) -> list[str]:
+        # Backward compatibility: flatten if single run, or return first run?
+        # Feedback says: "check if the lists only have 1 item and return that item"
+        if len(self._raw_outputs.raw_outputs) > 0 and len(self._raw_outputs.raw_outputs[0]) == 1:
+            return [runs[0] for runs in self._raw_outputs.raw_outputs]
+        # Fallback if multiple runs: return just the first run's data or handle differently?
+        # For now, let's return the simplified single-run view required by existing tests
+        return [runs[0] for runs in self._raw_outputs.raw_outputs]
+
+    @property
+    def explanations(self) -> list[str | None]:
+        if len(self._raw_outputs.explanations) > 0 and len(self._raw_outputs.explanations[0]) == 1:
+            return [runs[0] for runs in self._raw_outputs.explanations]
+        return [runs[0] for runs in self._raw_outputs.explanations]
+
+    @property
+    def logprobs(self) -> list[list[ChatCompletionTokenLogprob]] | None:
+        if self._raw_outputs.logprobs:
+            if len(self._raw_outputs.logprobs) > 0 and len(self._raw_outputs.logprobs[0]) == 1:
+                return [runs[0] for runs in self._raw_outputs.logprobs]
+            return [runs[0] for runs in self._raw_outputs.logprobs]
+        return None
+
 
 
 @dataclass
