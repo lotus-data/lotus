@@ -5,7 +5,10 @@ import pandas as pd
 
 import lotus
 from lotus.dtype_extensions import ImageDtype
-from lotus.types import ReasoningStrategy, SerializationFormat
+from lotus.types import (
+    PromptStrategy,
+    SerializationFormat,
+)
 
 
 def cot_formatter(reasoning, answer):
@@ -91,7 +94,7 @@ def filter_formatter(
     examples_multimodal_data: list[dict[str, Any]] | None = None,
     examples_answer: list[bool] | None = None,
     cot_reasoning: list[str] | None = None,
-    strategy: ReasoningStrategy | None = None,
+    prompt_strategy: PromptStrategy | None = None,
     reasoning_instructions: str = "",
 ) -> list[dict[str, str]]:
     answer_instructions = "The answer should be either True or False"
@@ -100,11 +103,8 @@ def filter_formatter(
     Your job is to determine whether the claim is true for the given context.
      """
 
-    if strategy == ReasoningStrategy.COT:
-        sys_instruction += cot_prompt_formatter(
-            reasoning_instructions=reasoning_instructions, answer_instructions=answer_instructions
-        )
-    elif strategy == ReasoningStrategy.ZS_COT:
+    # Simple strategy checking
+    if prompt_strategy is not None and prompt_strategy.cot:
         sys_instruction += cot_prompt_formatter(
             reasoning_instructions=reasoning_instructions, answer_instructions=answer_instructions
         )
@@ -135,7 +135,7 @@ def filter_formatter(
             # reasoning as filler if the user wants cot reasoning
             if cot_reasoning:
                 content = cot_formatter(cot_reasoning[idx], str(ex_ans))
-            elif strategy == ReasoningStrategy.COT:
+            elif prompt_strategy is not None and prompt_strategy.cot:
                 content = cot_formatter("Reasoning omitted", str(ex_ans))
             else:
                 content = answer_only_formatter(str(ex_ans))
@@ -149,7 +149,8 @@ def filter_formatter(
                     },
                 ]
             )
-    if strategy == ReasoningStrategy.ZS_COT and model.is_deepseek():
+    # Handle DeepSeek CoT formatting (backward compatibility)
+    if prompt_strategy is not None and prompt_strategy.cot and model.is_deepseek() and not examples_multimodal_data:
         user_instruction = f"Claim: {user_instruction}\n\n{deepseek_cot_formatter()}"
         messages.append(user_message_formatter(multimodal_data, user_instruction))
     else:
@@ -217,7 +218,7 @@ def map_formatter(
     examples_multimodal_data: list[dict[str, Any]] | None = None,
     examples_answer: list[str] | None = None,
     cot_reasoning: list[str] | None = None,
-    strategy: ReasoningStrategy | str | None = None,
+    prompt_strategy: PromptStrategy | None = None,
     system_prompt: str | None = None,
 ) -> list[dict[str, str]]:
     sys_instruction = system_prompt or (
@@ -229,7 +230,7 @@ def map_formatter(
         return map_formatter_cot(
             multimodal_data, user_instruction, examples_multimodal_data, examples_answer, cot_reasoning, system_prompt
         )
-    elif strategy == ReasoningStrategy.ZS_COT:
+    elif prompt_strategy is not None and prompt_strategy.cot:
         return map_formatter_zs_cot(multimodal_data, user_instruction, system_prompt)
 
     messages = [
@@ -246,7 +247,8 @@ def map_formatter(
                 ]
             )
 
-    if strategy == ReasoningStrategy.ZS_COT and model.is_deepseek():
+    # Handle DeepSeek CoT formatting (backward compatibility)
+    if prompt_strategy is not None and prompt_strategy.cot and model.is_deepseek() and not examples_multimodal_data:
         user_intructions = f"Instruction: {user_instruction}\n\n{deepseek_cot_formatter()}"
         messages.append(user_message_formatter(multimodal_data, user_intructions))
     else:
@@ -259,7 +261,7 @@ def extract_formatter(
     multimodal_data: dict[str, Any],
     output_cols: dict[str, str | None],
     extract_quotes: bool = True,
-    strategy: ReasoningStrategy | None = None,
+    prompt_strategy: PromptStrategy = PromptStrategy(),
 ) -> list[dict[str, str]]:
     output_col_names = list(output_cols.keys())
     # Set the description to be the key if no value is provided
@@ -274,14 +276,10 @@ def extract_formatter(
     fields_str = ", ".join(all_fields)
 
     # Add CoT reasoning instructions to the system prompt if needed
-    if strategy == ReasoningStrategy.COT:
+    if prompt_strategy.cot:
         reasoning_instructions = "Think through each extraction step by step."
-        answer_instructions = f"Provide the JSON response with fields: {fields_str}"
-        cot_instruction = cot_prompt_formatter(
-            reasoning_instructions=reasoning_instructions, answer_instructions=answer_instructions
-        )
-    elif strategy == ReasoningStrategy.ZS_COT:
-        reasoning_instructions = "Think through each extraction step by step."
+        if prompt_strategy.additional_cot_instructions:
+            reasoning_instructions += f" {prompt_strategy.additional_cot_instructions}"
         answer_instructions = f"Provide the JSON response with fields: {fields_str}"
         cot_instruction = cot_prompt_formatter(
             reasoning_instructions=reasoning_instructions, answer_instructions=answer_instructions
@@ -309,12 +307,16 @@ def extract_formatter(
     if cot_instruction:
         sys_instruction += "\n" + cot_instruction
 
+    # Add CoT instructions for CoT strategy
+    if prompt_strategy is not None and prompt_strategy.cot:
+        sys_instruction += "\n\nFor your response, first provide your reasoning, then give your final answer in the specified JSON format."
+
     messages = [
         {"role": "system", "content": sys_instruction},
         user_message_formatter(multimodal_data),
     ]
 
-    if strategy == ReasoningStrategy.ZS_COT and model.is_deepseek():
+    if prompt_strategy is not None and prompt_strategy.cot and model.is_deepseek():
         user_intructions = f"Instruction: {deepseek_cot_formatter()}"
         messages.append(user_message_formatter(multimodal_data, user_intructions))
 

@@ -23,6 +23,7 @@ from lotus.sem_ops import (
 from lotus.evals import llm_as_judge, pairwise_judge
 from lotus.web_search import web_search, web_extract, WebSearchCorpus
 from lotus.settings import settings  # type: ignore[attr-defined]
+from lotus.types import PromptStrategy
 
 
 logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
@@ -53,6 +54,7 @@ __all__ = [
     "web_search",
     "web_extract",
     "WebSearchCorpus",
+    "PromptStrategy",
     "llm_as_judge",
     "pairwise_judge",
 ]

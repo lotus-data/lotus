@@ -7,7 +7,7 @@ from tokenizers import Tokenizer
 
 import lotus
 from lotus.models import LM, SentenceTransformersRM
-from lotus.types import CascadeArgs
+from lotus.types import CascadeArgs, PromptStrategy
 from lotus.vector_store import FaissVS
 
 ################################################################################
@@ -161,7 +161,7 @@ def test_map_fewshot(setup_models, model):
     examples = {"School": ["Stanford", "MIT"], "Answer": ["CA", "MA"]}
     examples_df = pd.DataFrame(examples)
     user_instruction = "What state is {School} in? Respond only with the two-letter abbreviation."
-    df = df.sem_map(user_instruction, examples=examples_df, suffix="State")
+    df = df.sem_map(user_instruction, prompt_strategy=PromptStrategy(dems=examples_df), suffix="State")
 
     # clean up the state names to be more robust to free-form text
     df["State"] = df["State"].str[-2:].str.lower()
@@ -341,7 +341,7 @@ def test_filter_operation_cot(setup_models, model):
     }
     df = pd.DataFrame(data)
     user_instruction = "{Text} I have at least one apple"
-    filtered_df = df.sem_filter(user_instruction, strategy="cot")
+    filtered_df = df.sem_filter(user_instruction, prompt_strategy=PromptStrategy(cot=True))
     expected_df = pd.DataFrame({"Text": ["I had two apples, then I gave away one", "My friend gave me an apple"]})
     assert filtered_df.equals(expected_df)
 
@@ -361,11 +361,12 @@ def test_filter_operation_cot_fewshot(setup_models, model):
     }
     df = pd.DataFrame(data)
     examples = {
-        "Sequence": ["1, 2, 3", "penny, nickel, dime, quarter", "villiage, town, city"],
-        "Answer": [True, True, True],
+        "Sequence": ["1, 2, 3", "A, B, C", "penny, nickel, dime, quarter", "villiage, town, city"],
+        "Answer": [True, True, True, True],
         "Reasoning": [
             "1, 2, 3 is an increasing sequence of numbers",
-            "penny, nickel, dime, quarter is an increasing sequence of coins",
+            "A, B, C is an increasing sequence of letters in alphabetical order",
+            "penny, nickel, dime, quarter is an increasing sequence of coins by value",
             "villiage, town, city is an increasing sequence of settlements",
         ],
     }
@@ -374,9 +375,9 @@ def test_filter_operation_cot_fewshot(setup_models, model):
     user_instruction = "{Sequence} is increasing"
     filtered_df = df.sem_filter(
         user_instruction,
-        strategy="cot",
-        examples=examples_df,
-        additional_cot_instructions="Assume the most typical or logical case.",
+        prompt_strategy=PromptStrategy(
+            cot=True, dems=examples_df, additional_cot_instructions="Assume the most typical or logical case."
+        ),
     )
     expected_df = pd.DataFrame(
         {
@@ -405,13 +406,13 @@ def test_filter_operation_cot_fewshot_no_reasoning(setup_models, model):
     }
     df = pd.DataFrame(data)
     examples = {
-        "Sequence": ["1, 2, 3", "penny, nickel, dime, quarter", "villiage, town, city"],
-        "Answer": [True, True, True],
+        "Sequence": ["1, 2, 3", "penny, nickel, dime, quarter", "villiage, town, city", "A, B, C"],
+        "Answer": [True, True, True, True],
     }
     examples_df = pd.DataFrame(examples)
 
     user_instruction = "{Sequence} is increasing"
-    filtered_df = df.sem_filter(user_instruction, strategy="cot", examples=examples_df)
+    filtered_df = df.sem_filter(user_instruction, prompt_strategy=PromptStrategy(cot=True, dems=examples_df))
     expected_df = pd.DataFrame(
         {
             "Sequence": [
@@ -606,6 +607,99 @@ def test_custom_tokenizer():
     tokens = custom_lm.count_tokens("Hello, world!")
     assert custom_lm.count_tokens([{"role": "user", "content": "Hello, world!"}]) == tokens
     assert tokens < 100
+
+
+################################################################################
+# Auto-bootstrapping tests
+################################################################################
+@pytest.mark.parametrize("model", get_enabled("gpt-4o-mini"))
+def test_auto_bootstrapping_filter(setup_models, model):
+    lm = setup_models[model]
+    lotus.settings.configure(lm=lm)
+
+    # Test auto-bootstrapping with filter operation
+    data = {
+        "Course Name": [
+            "Linear Algebra",
+            "Poetry Writing",
+            "Calculus II",
+            "Art History",
+            "Statistics",
+            "Creative Writing",
+            "Machine Learning",
+            "Philosophy",
+        ]
+    }
+    df = pd.DataFrame(data)
+    user_instruction = "{Course Name} requires a lot of math"
+
+    # Test auto-bootstrapping
+    result = df.sem_filter(
+        user_instruction,
+        prompt_strategy=PromptStrategy(cot=True, dems="auto", max_dems=2),
+        return_explanations=True,
+        return_all=True,
+    )
+
+    # Check structure
+    assert "filter_label" in result.columns
+    assert "explanation_filter" in result.columns
+
+    # Should have some math courses identified
+    math_courses = result[result["filter_label"]]["Course Name"].tolist()
+    expected_math_courses = ["Linear Algebra", "Calculus II", "Statistics", "Machine Learning"]
+    assert any(course in expected_math_courses for course in math_courses)
+
+
+@pytest.mark.parametrize("model", get_enabled("gpt-4o-mini"))
+def test_auto_bootstrapping_map(setup_models, model):
+    lm = setup_models[model]
+    lotus.settings.configure(lm=lm)
+
+    # Test auto-bootstrapping with map operation
+    data = {"Course Name": ["Linear Algebra", "Poetry Writing", "Calculus II", "Art History"]}
+    df = pd.DataFrame(data)
+    user_instruction = "What is the difficulty level of {Course Name}? Answer: Beginner, Intermediate, or Advanced"
+
+    # Test auto-bootstrapping
+    result = df.sem_map(
+        user_instruction,
+        prompt_strategy=PromptStrategy(cot=True, dems="auto", max_dems=2),
+        return_explanations=True,
+    )
+
+    # Check structure
+    assert "_map" in result.columns
+    assert "explanation_map" in result.columns
+
+    # Check that all difficulty levels are valid
+    for difficulty in result["_map"]:
+        assert difficulty.lower() in ["beginner", "intermediate", "advanced"]
+
+
+@pytest.mark.parametrize("model", get_enabled("gpt-4o-mini"))
+def test_auto_bootstrapping_with_teacher_model(setup_models, model):
+    lm = setup_models[model]
+    teacher_lm = setup_models[model]  # Use same model as teacher for testing
+    lotus.settings.configure(lm=lm)
+
+    data = {"Text": ["I am happy", "I am sad", "I am excited", "I am tired"]}
+    df = pd.DataFrame(data)
+    user_instruction = "{Text} expresses a positive emotion"
+
+    # Test auto-bootstrapping with explicit teacher model
+    result = df.sem_filter(
+        user_instruction,
+        prompt_strategy=PromptStrategy(cot=True, dems="auto", max_dems=2, teacher_lm=teacher_lm),
+        return_all=True,
+    )
+
+    # Check structure
+    assert "filter_label" in result.columns
+
+    # Should identify positive emotions
+    positive_texts = result[result["filter_label"]]["Text"].tolist()
+    assert any(text in ["I am happy", "I am excited"] for text in positive_texts)
 
 
 ################################################################################
