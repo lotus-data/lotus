@@ -2,12 +2,17 @@
 
 Captures a user's program of chained semantic operators as a tree of nodes,
 supporting lineage queries (ancestors and descendants) for each operator.
+
+Also provides a ``LazyFrame`` wrapper that records a pipeline of semantic
+operators as an AST without executing them, then replays via ``.execute()``.
 """
 
 from __future__ import annotations
 
 from collections import deque
-from typing import Any
+from typing import Any, Callable
+
+import pandas as pd
 
 
 class ASTNode:
@@ -104,25 +109,28 @@ class ASTNode:
         roots = self._get_roots()
         visited: set[int] = set()
         for root in roots:
-            self._print_subtree(root, "", True, visited)
+            self._print_subtree(root, "", True, True, visited)
 
     def _print_subtree(
-        self, node: ASTNode, prefix: str, is_last: bool, visited: set[int]
+        self, node: ASTNode, prefix: str, is_root: bool, is_last: bool, visited: set[int]
     ) -> None:
-        connector = "└── " if is_last else "├── "
-        if not prefix:
-            print(node._label())
+        if is_root:
+            print(f"{prefix}{node._label()}")
         else:
+            connector = "└── " if is_last else "├── "
             print(f"{prefix}{connector}{node._label()}")
 
         if id(node) in visited:
             return
         visited.add(id(node))
 
-        child_prefix = prefix + ("    " if is_last else "│   ") if prefix else ""
+        if is_root:
+            child_prefix = prefix
+        else:
+            child_prefix = prefix + ("    " if is_last else "│   ")
         for i, child in enumerate(node.children):
             self._print_subtree(
-                child, child_prefix, i == len(node.children) - 1, visited
+                child, child_prefix, False, i == len(node.children) - 1, visited
             )
 
     # ------------------------------------------------------------------
@@ -235,6 +243,170 @@ class SemDedupNode(ASTNode):
 
 class SemPartitionByNode(ASTNode):
     op_type = "sem_partition_by"
+
+
+class PandasFilterNode(ASTNode):
+    op_type = "filter"
+
+    def __init__(self, parents: list[ASTNode] | None = None, **kwargs: Any) -> None:
+        super().__init__(instruction="filter(predicate)", parents=parents, **kwargs)
+
+
+# ------------------------------------------------------------------
+# LazyFrame — deferred execution wrapper
+# ------------------------------------------------------------------
+
+
+class LazyFrame:
+    """Records a pipeline of LOTUS semantic operators as an AST and executes them lazily.
+
+    Usage::
+
+        lf = LazyFrame(df, name="courses_df")
+        lf = lf.sem_filter("{Course Name} requires math")
+        lf = lf.sem_map("Summarize {Course Name}")
+        lf.print_tree()
+        result = lf.execute()
+    """
+
+    def __init__(
+        self,
+        df: pd.DataFrame,
+        name: str = "source",
+        *,
+        _node: ASTNode | None = None,
+        _ops: list[tuple[str, str | None, dict[str, Any]]] | None = None,
+    ) -> None:
+        self._source_df = df
+        self._node = _node or SourceNode(name)
+        self._ops: list[tuple[str, str | None, dict[str, Any]]] = list(_ops) if _ops else []
+
+    # Helper to derive a new LazyFrame with an extra op
+    def _chain(
+        self,
+        op_name: str,
+        instruction: str | None,
+        node: ASTNode,
+        kwargs: dict[str, Any],
+    ) -> LazyFrame:
+        new_ops = list(self._ops)
+        new_ops.append((op_name, instruction, kwargs))
+        return LazyFrame(self._source_df, _node=node, _ops=new_ops)
+
+    # ------------------------------------------------------------------
+    # Sem_* methods
+    # ------------------------------------------------------------------
+
+    def sem_filter(self, instruction: str = "", **kwargs: Any) -> LazyFrame:
+        node = SemFilterNode(instruction=instruction, parents=[self._node])
+        return self._chain("sem_filter", instruction, node, kwargs)
+
+    def sem_map(self, instruction: str = "", **kwargs: Any) -> LazyFrame:
+        node = SemMapNode(instruction=instruction, parents=[self._node])
+        return self._chain("sem_map", instruction, node, kwargs)
+
+    def sem_agg(self, instruction: str = "", **kwargs: Any) -> LazyFrame:
+        node = SemAggNode(instruction=instruction, parents=[self._node])
+        return self._chain("sem_agg", instruction, node, kwargs)
+
+    def sem_extract(self, instruction: str = "", **kwargs: Any) -> LazyFrame:
+        node = SemExtractNode(instruction=instruction, parents=[self._node])
+        return self._chain("sem_extract", instruction, node, kwargs)
+
+    def sem_topk(self, instruction: str = "", **kwargs: Any) -> LazyFrame:
+        node = SemTopKNode(instruction=instruction, parents=[self._node])
+        return self._chain("sem_topk", instruction, node, kwargs)
+
+    def sem_join(self, right: LazyFrame | pd.DataFrame, instruction: str = "", **kwargs: Any) -> LazyFrame:
+        if isinstance(right, LazyFrame):
+            right_node = right._node
+            kwargs["_right_lazy"] = right
+        else:
+            right_node = SourceNode("right_df")
+            kwargs["_right_df"] = right
+        node = SemJoinNode(instruction=instruction, parents=[self._node, right_node])
+        return self._chain("sem_join", instruction, node, kwargs)
+
+    def sem_search(self, instruction: str = "", **kwargs: Any) -> LazyFrame:
+        node = SemSearchNode(instruction=instruction, parents=[self._node])
+        return self._chain("sem_search", instruction, node, kwargs)
+
+    def sem_sim_join(self, right: LazyFrame | pd.DataFrame, instruction: str = "", **kwargs: Any) -> LazyFrame:
+        if isinstance(right, LazyFrame):
+            right_node = right._node
+            kwargs["_right_lazy"] = right
+        else:
+            right_node = SourceNode("right_df")
+            kwargs["_right_df"] = right
+        node = SemSimJoinNode(instruction=instruction, parents=[self._node, right_node])
+        return self._chain("sem_sim_join", instruction, node, kwargs)
+
+    def sem_index(self, instruction: str = "", **kwargs: Any) -> LazyFrame:
+        node = SemIndexNode(instruction=instruction, parents=[self._node])
+        return self._chain("sem_index", instruction, node, kwargs)
+
+    def sem_cluster_by(self, instruction: str = "", **kwargs: Any) -> LazyFrame:
+        node = SemClusterByNode(instruction=instruction, parents=[self._node])
+        return self._chain("sem_cluster_by", instruction, node, kwargs)
+
+    def sem_dedup(self, instruction: str = "", **kwargs: Any) -> LazyFrame:
+        node = SemDedupNode(instruction=instruction, parents=[self._node])
+        return self._chain("sem_dedup", instruction, node, kwargs)
+
+    def sem_partition_by(self, instruction: str = "", **kwargs: Any) -> LazyFrame:
+        node = SemPartitionByNode(instruction=instruction, parents=[self._node])
+        return self._chain("sem_partition_by", instruction, node, kwargs)
+
+    # ------------------------------------------------------------------
+    # Pandas filter
+    # ------------------------------------------------------------------
+
+    def filter(self, predicate: Callable[[pd.DataFrame], pd.Series]) -> LazyFrame:
+        node = PandasFilterNode(parents=[self._node])
+        new_ops = list(self._ops)
+        new_ops.append(("filter", None, {"predicate": predicate}))
+        return LazyFrame(self._source_df, _node=node, _ops=new_ops)
+
+    # ------------------------------------------------------------------
+    # Execution
+    # ------------------------------------------------------------------
+
+    def execute(self) -> pd.DataFrame:
+        """Replay all recorded operations and return the materialised DataFrame."""
+        df = self._source_df.copy()
+        for op_name, instruction, kwargs in self._ops:
+            if op_name == "filter":
+                df = df[kwargs["predicate"](df)]
+            elif op_name in ("sem_join", "sem_sim_join"):
+                kw = dict(kwargs)
+                right_lazy: LazyFrame | None = kw.pop("_right_lazy", None)
+                right_df: pd.DataFrame | None = kw.pop("_right_df", None)
+                if right_lazy is not None:
+                    right_df = right_lazy.execute()
+                df = getattr(df, op_name)(right_df, instruction, **kw)
+            else:
+                df = getattr(df, op_name)(instruction, **kwargs)
+        return df
+
+    # ------------------------------------------------------------------
+    # Inspection
+    # ------------------------------------------------------------------
+
+    def print_tree(self) -> None:
+        self._node.print_tree()
+
+    def print_lineage(self) -> None:
+        print_lineage(self._node)
+
+    def __repr__(self) -> str:
+        steps = []
+        for op_name, instruction, _kwargs in self._ops:
+            if instruction:
+                steps.append(f'.{op_name}("{instruction}")')
+            else:
+                steps.append(f".{op_name}(...)")
+        root = self._node._get_roots()[0]._label() if self._node._get_roots() else "LazyFrame"
+        return f"LazyFrame({root})" + "".join(steps)
 
 
 # ------------------------------------------------------------------
