@@ -3,8 +3,12 @@
 import io
 import contextlib
 
+import pandas as pd
+
 from lotus.ast import (
     ASTNode,
+    LazyFrame,
+    PandasFilterNode,
     SourceNode,
     SemFilterNode,
     SemMapNode,
@@ -265,3 +269,360 @@ class TestPrintOutput:
         assert repr(source) == 'SourceNode("df")'
         filt = source.sem_filter("test filter")
         assert repr(filt) == 'SemFilterNode("test filter")'
+
+
+# ------------------------------------------------------------------
+# PandasFilterNode
+# ------------------------------------------------------------------
+
+
+class TestPandasFilterNode:
+    def test_op_type(self):
+        assert PandasFilterNode.op_type == "filter"
+
+    def test_instruction_label(self):
+        source = SourceNode("df")
+        node = PandasFilterNode(parents=[source])
+        assert node.instruction == "filter(predicate)"
+        assert source.children == [node]
+
+
+# ------------------------------------------------------------------
+# LazyFrame — construction & AST building
+# ------------------------------------------------------------------
+
+
+class TestLazyFrameConstruction:
+    def test_creates_source_node(self):
+        df = pd.DataFrame({"a": [1, 2, 3]})
+        lf = LazyFrame(df, name="my_df")
+        assert isinstance(lf._node, SourceNode)
+        assert lf._node.instruction == "my_df"
+        assert lf._ops == []
+
+    def test_default_name(self):
+        df = pd.DataFrame({"a": [1]})
+        lf = LazyFrame(df)
+        assert lf._node.instruction == "source"
+
+    def test_source_df_preserved(self):
+        df = pd.DataFrame({"x": [10, 20]})
+        lf = LazyFrame(df, name="t")
+        assert lf._source_df is df
+
+
+# ------------------------------------------------------------------
+# LazyFrame — chaining builds AST without execution
+# ------------------------------------------------------------------
+
+
+class TestLazyFrameChaining:
+    def test_sem_filter_builds_node(self):
+        df = pd.DataFrame({"a": [1]})
+        lf = LazyFrame(df, name="src")
+        lf2 = lf.sem_filter("keep important")
+
+        assert isinstance(lf2._node, SemFilterNode)
+        assert lf2._node.parents == [lf._node]
+        assert len(lf2._ops) == 1
+        assert lf2._ops[0][0] == "sem_filter"
+        assert lf2._ops[0][1] == "keep important"
+
+    def test_chaining_is_immutable(self):
+        df = pd.DataFrame({"a": [1]})
+        lf = LazyFrame(df, name="src")
+        lf2 = lf.sem_filter("f")
+        lf3 = lf2.sem_map("m")
+
+        # Original LazyFrames are unmodified
+        assert len(lf._ops) == 0
+        assert len(lf2._ops) == 1
+        assert len(lf3._ops) == 2
+
+    def test_all_sem_methods_build_correct_node_types(self):
+        df = pd.DataFrame({"a": [1]})
+        lf = LazyFrame(df, name="src")
+
+        cases = [
+            ("sem_filter", SemFilterNode),
+            ("sem_map", SemMapNode),
+            ("sem_agg", SemAggNode),
+            ("sem_extract", SemExtractNode),
+            ("sem_topk", SemTopKNode),
+            ("sem_search", SemSearchNode),
+            ("sem_index", SemIndexNode),
+            ("sem_cluster_by", SemClusterByNode),
+            ("sem_dedup", SemDedupNode),
+            ("sem_partition_by", SemPartitionByNode),
+        ]
+        for method_name, expected_node_type in cases:
+            result = getattr(lf, method_name)("instruction")
+            assert isinstance(result._node, expected_node_type), f"{method_name} failed"
+            assert result._node.instruction == "instruction"
+            assert result._node.parents == [lf._node]
+
+    def test_kwargs_forwarded_in_ops(self):
+        df = pd.DataFrame({"a": [1]})
+        lf = LazyFrame(df).sem_topk("best", k=5)
+        assert lf._ops[0][2] == {"k": 5}
+
+    def test_multi_step_chain_ast(self):
+        df = pd.DataFrame({"a": [1]})
+        lf = LazyFrame(df, name="src")
+        lf = lf.sem_filter("f1")
+        lf = lf.sem_map("m1")
+        lf = lf.sem_agg("a1")
+
+        # Walk up from final node
+        assert isinstance(lf._node, SemAggNode)
+        map_node = lf._node.parents[0]
+        assert isinstance(map_node, SemMapNode)
+        filter_node = map_node.parents[0]
+        assert isinstance(filter_node, SemFilterNode)
+        source_node = filter_node.parents[0]
+        assert isinstance(source_node, SourceNode)
+
+
+# ------------------------------------------------------------------
+# LazyFrame — join operations
+# ------------------------------------------------------------------
+
+
+class TestLazyFrameJoin:
+    def test_sem_join_with_dataframe(self):
+        left_df = pd.DataFrame({"Course": ["Math", "CS"]})
+        right_df = pd.DataFrame({"Skill": ["Algebra", "Coding"]})
+        lf = LazyFrame(left_df, name="courses")
+        lf2 = lf.sem_join(right_df, "match {Course:left} to {Skill:right}")
+
+        assert isinstance(lf2._node, SemJoinNode)
+        assert len(lf2._node.parents) == 2
+        assert lf2._node.parents[0] is lf._node
+        # Right parent is an auto-created SourceNode
+        assert isinstance(lf2._node.parents[1], SourceNode)
+        assert lf2._ops[0][0] == "sem_join"
+        assert "_right_df" in lf2._ops[0][2]
+
+    def test_sem_join_with_lazyframe(self):
+        left_df = pd.DataFrame({"Course": ["Math"]})
+        right_df = pd.DataFrame({"Skill": ["Algebra"]})
+        lf_left = LazyFrame(left_df, name="courses")
+        lf_right = LazyFrame(right_df, name="skills")
+        lf_joined = lf_left.sem_join(lf_right, "match")
+
+        assert isinstance(lf_joined._node, SemJoinNode)
+        assert lf_joined._node.parents == [lf_left._node, lf_right._node]
+        assert "_right_lazy" in lf_joined._ops[0][2]
+
+    def test_sem_sim_join_with_dataframe(self):
+        left_df = pd.DataFrame({"Course": ["Math"]})
+        right_df = pd.DataFrame({"Skill": ["Algebra"]})
+        lf = LazyFrame(left_df, name="courses")
+        lf2 = lf.sem_sim_join(right_df, "similar", left_on="Course", right_on="Skill", K=1)
+
+        assert isinstance(lf2._node, SemSimJoinNode)
+        assert len(lf2._node.parents) == 2
+        assert lf2._ops[0][0] == "sem_sim_join"
+        assert lf2._ops[0][2]["left_on"] == "Course"
+        assert lf2._ops[0][2]["K"] == 1
+
+    def test_sem_sim_join_with_lazyframe(self):
+        left_df = pd.DataFrame({"Course": ["Math"]})
+        right_df = pd.DataFrame({"Skill": ["Algebra"]})
+        lf_left = LazyFrame(left_df, name="courses")
+        lf_right = LazyFrame(right_df, name="skills")
+        lf_joined = lf_left.sem_sim_join(lf_right, "similar")
+
+        assert isinstance(lf_joined._node, SemSimJoinNode)
+        assert lf_joined._node.parents == [lf_left._node, lf_right._node]
+
+    def test_join_then_chain(self):
+        left_df = pd.DataFrame({"A": [1]})
+        right_df = pd.DataFrame({"B": [2]})
+        lf = LazyFrame(left_df, name="left")
+        lf = lf.sem_join(right_df, "join")
+        lf = lf.sem_filter("keep important")
+
+        assert isinstance(lf._node, SemFilterNode)
+        assert isinstance(lf._node.parents[0], SemJoinNode)
+        assert len(lf._ops) == 2
+
+    def test_join_ast_lineage(self):
+        left_df = pd.DataFrame({"A": [1]})
+        right_df = pd.DataFrame({"B": [2]})
+        lf_left = LazyFrame(left_df, name="left")
+        lf_right = LazyFrame(right_df, name="right")
+        lf_joined = lf_left.sem_join(lf_right, "join")
+
+        ancestors = lf_joined._node.get_ancestors()
+        assert lf_left._node in ancestors
+        assert lf_right._node in ancestors
+
+
+# ------------------------------------------------------------------
+# LazyFrame — pandas filter
+# ------------------------------------------------------------------
+
+
+class TestLazyFrameFilter:
+    def test_filter_builds_pandas_filter_node(self):
+        df = pd.DataFrame({"score": [1, 2, 3]})
+        lf = LazyFrame(df, name="scores")
+        lf2 = lf.filter(lambda d: d["score"] > 1)
+
+        assert isinstance(lf2._node, PandasFilterNode)
+        assert lf2._node.parents == [lf._node]
+        assert lf2._ops[0][0] == "filter"
+        assert lf2._ops[0][1] is None  # no instruction for pandas filter
+
+    def test_filter_execute(self):
+        df = pd.DataFrame({"val": [10, 20, 30, 40]})
+        lf = LazyFrame(df, name="data")
+        lf = lf.filter(lambda d: d["val"] > 15)
+        result = lf.execute()
+
+        assert list(result["val"]) == [20, 30, 40]
+
+    def test_multiple_filters(self):
+        df = pd.DataFrame({"val": [1, 2, 3, 4, 5]})
+        lf = LazyFrame(df, name="data")
+        lf = lf.filter(lambda d: d["val"] > 1)
+        lf = lf.filter(lambda d: d["val"] < 5)
+        result = lf.execute()
+
+        assert list(result["val"]) == [2, 3, 4]
+
+    def test_filter_combined_with_sem_ops_ast(self):
+        """Verify that mixing sem_* ops and .filter() builds the correct AST."""
+        df = pd.DataFrame({"name": ["a", "b"], "score": [1, 5]})
+        lf = LazyFrame(df, name="data")
+        lf = lf.sem_filter("is interesting")
+        lf = lf.filter(lambda d: d["score"] > 2)
+        lf = lf.sem_map("summarize {name}")
+
+        assert len(lf._ops) == 3
+        assert lf._ops[0][0] == "sem_filter"
+        assert lf._ops[1][0] == "filter"
+        assert lf._ops[2][0] == "sem_map"
+
+        # AST structure: Source -> SemFilter -> PandasFilter -> SemMap
+        assert isinstance(lf._node, SemMapNode)
+        pandas_node = lf._node.parents[0]
+        assert isinstance(pandas_node, PandasFilterNode)
+        sem_filter_node = pandas_node.parents[0]
+        assert isinstance(sem_filter_node, SemFilterNode)
+        source_node = sem_filter_node.parents[0]
+        assert isinstance(source_node, SourceNode)
+
+
+# ------------------------------------------------------------------
+# LazyFrame — execute (pandas-only, no LLM)
+# ------------------------------------------------------------------
+
+
+class TestLazyFrameExecute:
+    def test_execute_no_ops_returns_copy(self):
+        df = pd.DataFrame({"a": [1, 2, 3]})
+        lf = LazyFrame(df, name="src")
+        result = lf.execute()
+
+        pd.testing.assert_frame_equal(result, df)
+        # Should be a copy, not the same object
+        assert result is not df
+
+    def test_execute_filter_only(self):
+        df = pd.DataFrame({"x": [1, 2, 3, 4, 5], "y": ["a", "b", "c", "d", "e"]})
+        lf = LazyFrame(df, name="src")
+        lf = lf.filter(lambda d: d["x"] >= 3)
+        result = lf.execute()
+
+        assert len(result) == 3
+        assert list(result["x"]) == [3, 4, 5]
+        assert list(result["y"]) == ["c", "d", "e"]
+
+    def test_execute_does_not_mutate_source(self):
+        df = pd.DataFrame({"x": [1, 2, 3]})
+        lf = LazyFrame(df, name="src")
+        lf = lf.filter(lambda d: d["x"] > 1)
+        _ = lf.execute()
+
+        # Original DataFrame is untouched
+        assert len(df) == 3
+
+    def test_execute_chained_filters(self):
+        df = pd.DataFrame({"a": range(10)})
+        lf = LazyFrame(df, name="nums")
+        lf = lf.filter(lambda d: d["a"] > 2)
+        lf = lf.filter(lambda d: d["a"] < 7)
+        result = lf.execute()
+
+        assert list(result["a"]) == [3, 4, 5, 6]
+
+
+# ------------------------------------------------------------------
+# LazyFrame — print & repr
+# ------------------------------------------------------------------
+
+
+class TestLazyFramePrint:
+    def test_print_tree(self):
+        df = pd.DataFrame({"a": [1]})
+        lf = LazyFrame(df, name="src")
+        lf = lf.sem_filter("f")
+        lf = lf.sem_map("m")
+
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            lf.print_tree()
+        output = buf.getvalue()
+        assert "SourceNode" in output
+        assert "SemFilterNode" in output
+        assert "SemMapNode" in output
+
+    def test_print_lineage(self):
+        df = pd.DataFrame({"a": [1]})
+        lf = LazyFrame(df, name="src")
+        lf = lf.sem_filter("f")
+
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            lf.print_lineage()
+        output = buf.getvalue()
+        assert "=== Lineage Report ===" in output
+        assert "SourceNode" in output
+        assert "SemFilterNode" in output
+
+    def test_repr_empty(self):
+        df = pd.DataFrame({"a": [1]})
+        lf = LazyFrame(df, name="src")
+        r = repr(lf)
+        assert "LazyFrame" in r
+        assert "SourceNode" in r
+
+    def test_repr_with_ops(self):
+        df = pd.DataFrame({"a": [1]})
+        lf = LazyFrame(df, name="src")
+        lf = lf.sem_filter("keep math")
+        lf = lf.filter(lambda d: d["a"] > 0)
+        lf = lf.sem_map("summarize")
+        r = repr(lf)
+        assert '.sem_filter("keep math")' in r
+        assert ".filter(...)" in r
+        assert '.sem_map("summarize")' in r
+
+    def test_print_tree_with_join(self):
+        left_df = pd.DataFrame({"A": [1]})
+        right_df = pd.DataFrame({"B": [2]})
+        lf_left = LazyFrame(left_df, name="left")
+        lf_right = LazyFrame(right_df, name="right")
+        lf = lf_left.sem_join(lf_right, "join them")
+        lf = lf.sem_map("summarize")
+
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            lf.print_tree()
+        output = buf.getvalue()
+        assert 'SourceNode("left")' in output
+        assert 'SourceNode("right")' in output
+        assert "SemJoinNode" in output
+        assert "SemMapNode" in output
