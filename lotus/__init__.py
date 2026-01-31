@@ -5,6 +5,7 @@ import lotus.vector_store
 import lotus.nl_expression
 import lotus.templates
 import lotus.utils
+import lotus.ast
 from lotus.sem_ops import (
     load_sem_index,
     sem_agg,
@@ -55,4 +56,5 @@ __all__ = [
     "WebSearchCorpus",
     "llm_as_judge",
     "pairwise_judge",
+    "ast",
 ]
