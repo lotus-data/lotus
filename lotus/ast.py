@@ -368,13 +368,75 @@ class LazyFrame:
         return LazyFrame(self._source_df, _node=node, _ops=new_ops)
 
     # ------------------------------------------------------------------
+    # Optimization
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _optimize_ops(
+        ops: list[tuple[str, str | None, dict[str, Any]]],
+    ) -> list[tuple[str, str | None, dict[str, Any]]]:
+        """Return a reordered copy of *ops* with predicate pushdown applied.
+
+        Each ``filter`` op is bubbled backward past any immediately preceding
+        ``sem_filter`` ops.  This is safe because ``sem_filter`` only removes
+        rows — it never adds or renames columns.
+        """
+        ops = list(ops)  # work on a copy
+        for i in range(len(ops)):
+            if ops[i][0] == "filter":
+                j = i
+                while j > 0 and ops[j - 1][0] == "sem_filter":
+                    ops[j], ops[j - 1] = ops[j - 1], ops[j]
+                    j -= 1
+        return ops
+
+    @staticmethod
+    def _build_ast_from_ops(
+        ops: list[tuple[str, str | None, dict[str, Any]]],
+        source_name: str,
+    ) -> ASTNode:
+        """Build a fresh AST node chain from an ops list (for visualization)."""
+        _OP_TO_NODE: dict[str, type[ASTNode]] = {
+            "sem_filter": SemFilterNode,
+            "sem_map": SemMapNode,
+            "sem_extract": SemExtractNode,
+            "sem_agg": SemAggNode,
+            "sem_topk": SemTopKNode,
+            "sem_join": SemJoinNode,
+            "sem_search": SemSearchNode,
+            "sem_sim_join": SemSimJoinNode,
+            "sem_index": SemIndexNode,
+            "sem_cluster_by": SemClusterByNode,
+            "sem_dedup": SemDedupNode,
+            "sem_partition_by": SemPartitionByNode,
+            "filter": PandasFilterNode,
+        }
+        node: ASTNode = SourceNode(source_name)
+        for op_name, instruction, _kwargs in ops:
+            cls = _OP_TO_NODE[op_name]
+            if cls is PandasFilterNode:
+                node = PandasFilterNode(parents=[node])
+            else:
+                node = cls(instruction=instruction or "", parents=[node])
+        return node
+
+    # ------------------------------------------------------------------
     # Execution
     # ------------------------------------------------------------------
 
-    def execute(self) -> pd.DataFrame:
-        """Replay all recorded operations and return the materialised DataFrame."""
+    def execute(self, optimize: bool = True) -> pd.DataFrame:
+        """Replay all recorded operations and return the materialised DataFrame.
+
+        Parameters
+        ----------
+        optimize : bool
+            If *True* (the default), apply predicate-pushdown optimisation
+            before replaying so that pandas filters run before sem_filters
+            where safe.
+        """
+        ops = self._optimize_ops(self._ops) if optimize else self._ops
         df = self._source_df.copy()
-        for op_name, instruction, kwargs in self._ops:
+        for op_name, instruction, kwargs in ops:
             if op_name == "filter":
                 df = df[kwargs["predicate"](df)]
             elif op_name in ("sem_join", "sem_sim_join"):
@@ -393,7 +455,15 @@ class LazyFrame:
     # ------------------------------------------------------------------
 
     def print_tree(self) -> None:
+        """Print the original (logical) AST — unoptimised."""
         self._node.print_tree()
+
+    def print_optimized_tree(self) -> None:
+        """Print the optimised (physical) AST after predicate pushdown."""
+        source_name = self._node._get_roots()[0].instruction if self._node._get_roots() else "source"
+        optimized_ops = self._optimize_ops(self._ops)
+        tip = self._build_ast_from_ops(optimized_ops, source_name)
+        tip.print_tree()
 
     def print_lineage(self) -> None:
         print_lineage(self._node)

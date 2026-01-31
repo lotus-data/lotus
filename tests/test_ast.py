@@ -2,6 +2,7 @@
 
 import io
 import contextlib
+from unittest.mock import patch, MagicMock
 
 import pandas as pd
 
@@ -626,3 +627,163 @@ class TestLazyFramePrint:
         assert 'SourceNode("right")' in output
         assert "SemJoinNode" in output
         assert "SemMapNode" in output
+
+
+# ------------------------------------------------------------------
+# LazyFrame — predicate pushdown optimization
+# ------------------------------------------------------------------
+
+
+class TestLazyFrameOptimization:
+    """Tests for the predicate-pushdown optimisation in LazyFrame."""
+
+    def _op_names(self, ops):
+        return [op[0] for op in ops]
+
+    def test_filter_moved_before_sem_filter(self):
+        """A single filter after sem_filter gets swapped."""
+        df = pd.DataFrame({"a": [1, 2, 3]})
+        lf = LazyFrame(df, name="src")
+        lf = lf.sem_filter("keep important")
+        lf = lf.filter(lambda d: d["a"] > 1)
+
+        optimized = LazyFrame._optimize_ops(lf._ops)
+        assert self._op_names(optimized) == ["filter", "sem_filter"]
+
+    def test_filter_moved_before_multiple_sem_filters(self):
+        """A filter bubbles past consecutive sem_filters."""
+        df = pd.DataFrame({"a": [1, 2, 3]})
+        lf = LazyFrame(df, name="src")
+        lf = lf.sem_filter("f1")
+        lf = lf.sem_filter("f2")
+        lf = lf.filter(lambda d: d["a"] > 1)
+
+        optimized = LazyFrame._optimize_ops(lf._ops)
+        assert self._op_names(optimized) == ["filter", "sem_filter", "sem_filter"]
+
+    def test_filter_not_moved_before_sem_map(self):
+        """Filter stays after sem_map (sem_map may add columns)."""
+        df = pd.DataFrame({"a": [1, 2, 3]})
+        lf = LazyFrame(df, name="src")
+        lf = lf.sem_map("add column")
+        lf = lf.filter(lambda d: d["a"] > 1)
+
+        optimized = LazyFrame._optimize_ops(lf._ops)
+        assert self._op_names(optimized) == ["sem_map", "filter"]
+
+    def test_filter_not_moved_before_sem_extract(self):
+        """Filter stays after sem_extract (sem_extract may add columns)."""
+        df = pd.DataFrame({"a": [1, 2, 3]})
+        lf = LazyFrame(df, name="src")
+        lf = lf.sem_extract("extract stuff")
+        lf = lf.filter(lambda d: d["a"] > 1)
+
+        optimized = LazyFrame._optimize_ops(lf._ops)
+        assert self._op_names(optimized) == ["sem_extract", "filter"]
+
+    def test_multiple_filters_and_sem_filters(self):
+        """Complex interleaving: filters bubble past sem_filters but not other ops."""
+        df = pd.DataFrame({"a": [1, 2, 3, 4, 5]})
+        lf = LazyFrame(df, name="src")
+        lf = lf.sem_filter("sf1")
+        lf = lf.filter(lambda d: d["a"] > 1)       # should move before sf1
+        lf = lf.sem_map("map1")
+        lf = lf.sem_filter("sf2")
+        lf = lf.filter(lambda d: d["a"] < 5)       # should move before sf2 but not past sem_map
+
+        optimized = LazyFrame._optimize_ops(lf._ops)
+        assert self._op_names(optimized) == [
+            "filter", "sem_filter", "sem_map", "filter", "sem_filter",
+        ]
+
+    def test_no_ops_unchanged(self):
+        """Empty pipeline produces empty optimised list."""
+        assert LazyFrame._optimize_ops([]) == []
+
+    def test_only_sem_ops_unchanged(self):
+        """Pipeline with no filters is returned as-is."""
+        ops = [
+            ("sem_filter", "f1", {}),
+            ("sem_map", "m1", {}),
+            ("sem_filter", "f2", {}),
+        ]
+        optimized = LazyFrame._optimize_ops(ops)
+        assert self._op_names(optimized) == ["sem_filter", "sem_map", "sem_filter"]
+
+    def test_filter_before_sem_filter_unchanged(self):
+        """Already-optimal order is preserved."""
+        df = pd.DataFrame({"a": [1, 2, 3]})
+        lf = LazyFrame(df, name="src")
+        lf = lf.filter(lambda d: d["a"] > 1)
+        lf = lf.sem_filter("keep important")
+
+        optimized = LazyFrame._optimize_ops(lf._ops)
+        assert self._op_names(optimized) == ["filter", "sem_filter"]
+
+    def test_execute_uses_optimization(self):
+        """Verify execute applies optimised order (pandas-only, no LLM).
+
+        We build: sem_filter -> filter.  With optimisation the filter runs
+        first, reducing rows before the (mocked) sem_filter sees them.
+        """
+        df = pd.DataFrame({"val": [10, 20, 30, 40, 50]})
+        lf = LazyFrame(df, name="data")
+
+        lf = lf.sem_filter("keep big")
+        lf = lf.filter(lambda d: d["val"] >= 30)
+
+        # Track the number of rows seen by sem_filter
+        rows_seen = []
+
+        def tracking_sem_filter(instruction, **kwargs):
+            # `self` is the DataFrame that sem_filter is called on (bound method)
+            # We access it via the closure by reading the df from the execute loop.
+            # Instead, we use a wrapper approach.
+            raise AssertionError("should not reach here")
+
+        # We need to intercept at the getattr level used by execute().
+        # Easier: just patch and record.
+        original_sem_filter = pd.DataFrame.sem_filter
+
+        def passthrough_sem_filter(self_df, instruction, **kwargs):
+            rows_seen.append(len(self_df))
+            return self_df
+
+        with patch.object(pd.DataFrame, "sem_filter", passthrough_sem_filter):
+            # Optimised: filter runs first (5 -> 3 rows), then sem_filter sees 3
+            result_opt = lf.execute(optimize=True)
+            assert list(result_opt["val"]) == [30, 40, 50]
+            assert rows_seen[-1] == 3
+
+            # Unoptimised: sem_filter runs first (sees all 5), then filter
+            result_no_opt = lf.execute(optimize=False)
+            assert list(result_no_opt["val"]) == [30, 40, 50]
+            assert rows_seen[-1] == 5
+
+    def test_optimized_tree_output(self):
+        """Verify print_optimized_tree shows reordered AST."""
+        df = pd.DataFrame({"a": [1, 2, 3]})
+        lf = LazyFrame(df, name="src")
+        lf = lf.sem_filter("keep important")
+        lf = lf.filter(lambda d: d["a"] > 1)
+
+        # Original tree: Source -> SemFilter -> PandasFilter
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            lf.print_tree()
+        original = buf.getvalue()
+        lines_orig = [l.strip() for l in original.strip().splitlines()]
+        # SemFilter should come before PandasFilter in original
+        sf_idx = next(i for i, l in enumerate(lines_orig) if "SemFilterNode" in l)
+        pf_idx = next(i for i, l in enumerate(lines_orig) if "PandasFilterNode" in l)
+        assert sf_idx < pf_idx
+
+        # Optimised tree: Source -> PandasFilter -> SemFilter
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            lf.print_optimized_tree()
+        optimized = buf.getvalue()
+        lines_opt = [l.strip() for l in optimized.strip().splitlines()]
+        pf_idx_opt = next(i for i, l in enumerate(lines_opt) if "PandasFilterNode" in l)
+        sf_idx_opt = next(i for i, l in enumerate(lines_opt) if "SemFilterNode" in l)
+        assert pf_idx_opt < sf_idx_opt
