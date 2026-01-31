@@ -12,8 +12,12 @@ processes the 10 EECS rows — roughly a 10x reduction in LLM calls.
 """
 
 import time
+import warnings
 
 import pandas as pd
+
+# Suppress noisy Pydantic serialization warnings from litellm internals
+warnings.filterwarnings("ignore", message="Pydantic serializer warnings")
 
 import lotus
 from lotus.models import LM
