@@ -12,3 +12,4 @@ docs/_build
 
 test_env/
 
+.cursor

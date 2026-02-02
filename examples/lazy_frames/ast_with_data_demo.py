@@ -1,19 +1,19 @@
-"""Demo: LazyFrame — build an AST of LOTUS ops, inspect it, then execute.
+"""Demo: LazyFrame — build a LazyFrame of LOTUS ops, inspect it, then execute.
 
-This script wraps a pandas DataFrame in a LazyFrame, chains semantic
-operators (building an AST without calling the LLM), prints the tree,
-then calls ``.execute()`` to run the full pipeline.
+This script builds a LazyFrame, chains semantic operators (building the
+LazyFrame without calling the LLM), prints the LazyFrame, then calls
+``.execute()`` to run the full pipeline.
 
 Usage:
     export OPENAI_API_KEY="sk-..."
-    python examples/op_examples/ast_with_data_demo.py
+    python examples/lazy_frames/ast_with_data_demo.py
 """
 
 import pandas as pd
 
 import lotus
-from lotus.models import LM
 from lotus.ast import LazyFrame
+from lotus.models import LM
 
 # ------------------------------------------------------------------
 # Configure the LM
@@ -40,31 +40,32 @@ print(df)
 print()
 
 # ------------------------------------------------------------------
-# Wrap in LazyFrame and chain operators (no LLM calls yet)
+# Build LazyFrame and chain operators (no LLM calls yet)
 # ------------------------------------------------------------------
-lf = LazyFrame(df, name="courses_df")
-lf = lf.sem_filter("{Course Name} requires a lot of math")
-lf = lf.sem_map("What is a one-sentence summary of {Course Name}?")
-lf = lf.sem_agg("Summarize all {Course Name} into a single paragraph")
+courses_df = (
+    LazyFrame("courses")
+    .sem_filter("{Course Name} requires a lot of math")
+    .sem_map("What is a one-sentence summary of {Course Name}?")
+    .sem_agg("Summarize all {Course Name} into a single paragraph")
+)
 
 # ------------------------------------------------------------------
-# Inspect the AST before execution
+# Inspect the LazyFrame before execution
 # ------------------------------------------------------------------
 print("=" * 60)
-print("AST for the pipeline (before execution)")
+print("LazyFrame (before execution)")
 print("=" * 60)
 print()
-lf.print_tree()
+print(repr(courses_df))
 print()
-lf.print_lineage()
 
 # ------------------------------------------------------------------
-# Execute the full pipeline
+# Execute the full LazyFrame
 # ------------------------------------------------------------------
 print("=" * 60)
-print("Executing pipeline …")
+print("Executing LazyFrame …")
 print("=" * 60)
-result_df = lf.execute()
+result_df = courses_df.execute({"courses": df})
 print()
 print("=== Result ===")
 print(result_df._output[0])
