@@ -247,13 +247,13 @@ class SemJoinNode(BaseNode):
     """Semantic join node.
 
     Supports three modes for specifying the right DataFrame:
-    1. right_pipeline: Pipeline object to execute first
+    1. right_pipeline: LazyFrame object to execute first
     2. right_source_node: Source node to join with
     3. right_df: direct DataFrame reference
     """
 
     right_source_node: SourceNode | None = None
-    right_pipeline: Any = None  # Actually Pipeline, but avoid circular import
+    right_pipeline: Any = None  # Actually LazyFrame, but avoid circular import
     right_df: pd.DataFrame | None = None
 
     join_instruction: str
@@ -269,10 +269,10 @@ class SemJoinNode(BaseNode):
     progress_bar_desc: str = "Join comparisons"
 
     def __call__(self, df: pd.DataFrame, **context: Any) -> pd.DataFrame:
-        # Get right DataFrame from context (resolved by Run)
+        # Get right DataFrame from context (resolved by LazyFrameRun)
         resolved_right_df = context.get("right_df")
         if resolved_right_df is None:
-            raise ValueError("Right DataFrame not provided in context. This should be resolved by Run.")
+            raise ValueError("Right DataFrame not provided in context. This should be resolved by LazyFrameRun.")
 
         lotus.logger.debug(f"SemJoinNode: joining {len(df)} left rows with {len(resolved_right_df)} right rows")
         lotus.logger.debug(f"SemJoinNode: instruction: {self.join_instruction[:50]}...")
@@ -299,12 +299,12 @@ class SemSimJoinNode(BaseNode):
 
     Supports two modes for specifying the right DataFrame:
     1. right_source_node: Source node to join with
-    2. right_pipeline: Pipeline object to execute first
+    2. right_pipeline: LazyFrame object to execute first
     2. right_df: direct DataFrame reference
     """
 
     right_source_node: SourceNode | None = None
-    right_pipeline: Any = None  # Actually Pipeline, but avoid circular import
+    right_pipeline: Any = None  # Actually LazyFrame, but avoid circular import
     right_df: pd.DataFrame | None = None
 
     left_on: str
@@ -316,10 +316,10 @@ class SemSimJoinNode(BaseNode):
     keep_index: bool = False
 
     def __call__(self, df: pd.DataFrame, **context: Any) -> pd.DataFrame:
-        # Get right DataFrame from context (resolved by Run)
+        # Get right DataFrame from context (resolved by LazyFrameRun)
         resolved_right_df = context.get("right_df")
         if resolved_right_df is None:
-            raise ValueError("Right DataFrame not provided in context. This should be resolved by Run.")
+            raise ValueError("Right DataFrame not provided in context. This should be resolved by LazyFrameRun.")
 
         lotus.logger.debug(
             f"SemSimJoinNode: joining {len(df)} left rows with {len(resolved_right_df)} right rows, K={self.K}"
@@ -448,17 +448,17 @@ class PandasFilterNode(BaseNode):
 class PandasOpNode(BaseNode):
     """Generic pandas operation node.
 
-    Supports Pipeline references in arguments via pipeline_args dict.
-    During execution, Run resolves these Pipeline references to DataFrames.
+    Supports LazyFrame references in arguments via pipeline_args dict.
+    During execution, LazyFrameRun resolves these LazyFrame references to DataFrames.
     """
 
     op_name: str
     args: tuple[Any, ...] = ()
     kwargs: dict[str, Any] | None = None
     is_attr: bool = False  # True if this is a property access, not a method call
-    # Pipeline references by arg index: {"_pipeline_arg_0": Pipeline, ...}
+    # LazyFrame references by arg index: {"_pipeline_arg_0": LazyFrame, ...}
     pipeline_args: dict[str, Any] | None = None
-    # Pipeline references in kwargs: {"_pipeline_kwarg_other": Pipeline, ...}
+    # LazyFrame references in kwargs: {"_pipeline_kwarg_other": LazyFrame, ...}
     pipeline_kwargs: dict[str, Any] | None = None
 
     def __call__(self, df: pd.DataFrame, **context: Any) -> pd.DataFrame | Any:
@@ -466,7 +466,7 @@ class PandasOpNode(BaseNode):
             lotus.logger.debug(f"PandasOpNode: accessing attribute '{self.op_name}' on {len(df)} rows")
             return getattr(df, self.op_name)
 
-        # Get resolved args/kwargs from context (resolved by Run)
+        # Get resolved args/kwargs from context (resolved by LazyFrameRun)
         resolved_args = context.get("resolved_args", self.args)
         resolved_kwargs = context.get("resolved_kwargs", self.kwargs or {})
 
@@ -490,9 +490,9 @@ class PandasAssignNode(BaseNode):
     1. Single column assignment: column + value
     2. Multiple assignments: assignments dict (like pandas assign())
 
-    Also supports Pipeline references that are resolved lazily during execution:
-    - value_pipeline: Pipeline for single column mode (resolved by Run)
-    - assignment_pipelines: dict of column -> Pipeline for multi-column mode
+    Also supports LazyFrame references that are resolved lazily during execution:
+    - value_pipeline: LazyFrame for single column mode (resolved by LazyFrameRun)
+    - assignment_pipelines: dict of column -> LazyFrame for multi-column mode
     """
 
     # Single column mode
@@ -500,14 +500,14 @@ class PandasAssignNode(BaseNode):
     value: Any = None
     # Multi-column mode (like pandas assign)
     assignments: dict[str, Any] | None = None
-    # Pipeline references for lazy resolution (resolved by Run before calling)
-    value_pipeline: Any = None  # Pipeline for single column mode
-    assignment_pipelines: dict[str, Any] | None = None  # column -> Pipeline
+    # LazyFrame references for lazy resolution (resolved by LazyFrameRun before calling)
+    value_pipeline: Any = None  # LazyFrame for single column mode
+    assignment_pipelines: dict[str, Any] | None = None  # column -> LazyFrame
 
     def __call__(self, df: pd.DataFrame, **context: Any) -> pd.DataFrame:
         result = df.copy()
 
-        # Get resolved values from context (populated by Run for Pipeline references)
+        # Get resolved values from context (populated by LazyFrameRun for LazyFrame references)
         resolved_value = context.get("resolved_value", self.value)
         resolved_assignments = context.get("resolved_assignments", {})
 
@@ -539,27 +539,27 @@ class PandasAssignNode(BaseNode):
 
 
 class ApplyFnNode(BaseNode):
-    """Node for a callable that takes only Pipeline results (no 'self' DataFrame).
+    """Node for a callable that takes only LazyFrame results (no 'self' DataFrame).
 
-    Used for pd.concat, custom combiners, etc. Run executes each pipeline
+    Used for pd.concat, custom combiners, etc. LazyFrameRun executes each pipeline
     found in args/kwargs recursively, then calls fn with resolved values.
 
-    Args and kwargs may contain Pipeline instances or nested structures (lists, tuples, dicts)
-    containing Pipelines. _resolve_pipeline_structure will recursively detect and execute them.
+    Args and kwargs may contain LazyFrame instances or nested structures (lists, tuples, dicts)
+    containing LazyFrames. _resolve_pipeline_structure will recursively detect and execute them.
     """
 
     fn: Any  # Callable, e.g. pd.concat
-    args: tuple[Any, ...] = ()  # Positional arguments (may contain Pipelines or nested structures)
-    kwargs: dict[str, Any] | None = None  # Keyword arguments (may contain Pipelines or nested structures)
+    args: tuple[Any, ...] = ()  # Positional arguments (may contain LazyFrames or nested structures)
+    kwargs: dict[str, Any] | None = None  # Keyword arguments (may contain LazyFrames or nested structures)
 
     def __call__(self, df: pd.DataFrame | None = None, **context: Any) -> Any:
-        """Execute the function with resolved Pipeline arguments.
+        """Execute the function with resolved LazyFrame arguments.
 
         Args:
             df: Ignored (no 'self' DataFrame for ApplyFnNode)
             **context: Must contain 'resolved_fn_args' and 'resolved_fn_kwargs'
         """
-        # Resolved values injected by Run; df is ignored
+        # Resolved values injected by LazyFrameRun; df is ignored
         resolved = context.get("resolved_fn_args", ())
         resolved_kwargs = context.get("resolved_fn_kwargs", {})
         lotus.logger.debug(

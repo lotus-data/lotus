@@ -1,4 +1,4 @@
-"""Demo: Pipeline with joins and combined semantic + pandas filtering.
+"""Demo: LazyFrame with joins and combined semantic + pandas filtering.
 
 Shows how to:
 1. Chain sem_filter with pandas .filter() predicates

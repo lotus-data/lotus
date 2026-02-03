@@ -20,12 +20,9 @@ from .nodes import (
     SemTopKNode,
     SourceNode,
 )
-from .optimizer import Optimizer
-from .pipeline import Pipeline
-from .run import Run
+from .pipeline import LazyFrame
+from .run import LazyFrameRun
 
-# Alias for convenience
-LazyFrame = Pipeline
 
 __all__ = [
     # Base
@@ -51,11 +48,10 @@ __all__ = [
     "PandasAssignNode",
     "PandasFilterNode",
     "PandasOpNode",
-    # Pipeline
-    "Pipeline",
-    "LazyFrame",  # Alias for Pipeline
+    # LazyFrame
+    "LazyFrame",
     # Execution
-    "Run",
+    "LazyFrameRun",
     # Optimization
     "Optimizer",
 ]

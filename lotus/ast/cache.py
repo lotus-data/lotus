@@ -23,14 +23,14 @@ def hash_dataframe(df: pd.DataFrame) -> str:
 def _hashable_value(value: Any) -> Any:
     """Convert a value to a hashable representation for hashing."""
     from .nodes import BaseNode
-    from .pipeline import Pipeline
+    from .pipeline import LazyFrame
 
     if value is None:
         return None
     if callable(value) and not isinstance(value, type):
         return ("_id", id(value))
-    # Pipeline, DataFrame, and other non-JSON-serializable types
-    if isinstance(value, Pipeline):  # Pipeline
+    # LazyFrame, DataFrame, and other non-JSON-serializable types
+    if isinstance(value, LazyFrame):  # LazyFrame
         return ("_pipeline", id(value))
     if isinstance(value, BaseNode):  # Series-like
         return ("_node", hash_node(value))
@@ -48,7 +48,7 @@ def _hashable_value(value: Any) -> Any:
 def hash_node(node: BaseNode) -> str:
     """Compute a stable hash for a node's configuration.
 
-    Uses field values; callables, Pipeline, and DataFrame are hashed by id()
+    Uses field values; callables, LazyFrame, and DataFrame are hashed by id()
     so that identical references within the same session share cache.
     """
     parts: list[tuple[Any, Any]] = []

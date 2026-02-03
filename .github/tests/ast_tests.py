@@ -1,10 +1,10 @@
-"""Tests for the LOTUS AST module (LazyFrame/Pipeline functionality).
+"""Tests for the LOTUS AST module (LazyFrame/LazyFrame functionality).
 
 Tests cover:
 - LazyFrame construction and basic operations
 - Semantic operations (filter, map, extract, agg, topk, join)
 - Pandas operations integration
-- Pipeline.concat and Pipeline.from_fn
+- LazyFrame.concat and LazyFrame.from_fn
 - Execution and caching
 - Optimization
 - Multi-source pipelines
@@ -16,7 +16,7 @@ import pandas as pd
 import pytest
 
 import lotus
-from lotus.ast import LazyFrame, Optimizer, Pipeline
+from lotus.ast import LazyFrame
 from lotus.models import LM
 
 ################################################################################
@@ -95,7 +95,7 @@ def test_lazyframe_repr():
     """Test LazyFrame string representation."""
     lf = LazyFrame("queries").sem_filter("keep positive")
     repr_str = repr(lf)
-    assert "LazyFrame" in repr_str or "Pipeline" in repr_str
+    assert "LazyFrame" in repr_str or "LazyFrame" in repr_str
     assert "queries" in repr_str
     assert "sem_filter" in repr_str
 
@@ -271,18 +271,18 @@ def test_mixed_semantic_and_pandas():
 
 
 ################################################################################
-# Pipeline.concat and Pipeline.from_fn Tests
+# LazyFrame.concat and LazyFrame.from_fn Tests
 ################################################################################
 
 
 def test_pipeline_concat_basic():
-    """Test basic Pipeline.concat functionality."""
+    """Test basic LazyFrame.concat functionality."""
     df1 = pd.DataFrame({"a": [1, 2], "b": [10, 20]})
     df2 = pd.DataFrame({"a": [3, 4], "b": [30, 40]})
 
     p1 = LazyFrame("data1")
     p2 = LazyFrame("data2")
-    combined = Pipeline.concat([p1, p2])
+    combined = LazyFrame.concat([p1, p2])
 
     result = combined.execute({"data1": df1, "data2": df2})
 
@@ -292,23 +292,23 @@ def test_pipeline_concat_basic():
 
 
 def test_pipeline_concat_single():
-    """Test Pipeline.concat with a single Pipeline."""
+    """Test LazyFrame.concat with a single LazyFrame."""
     df = pd.DataFrame({"a": [1, 2]})
     p = LazyFrame("data")
-    combined = Pipeline.concat(p)
+    combined = LazyFrame.concat(p)
 
     result = combined.execute({"data": df})
     pd.testing.assert_frame_equal(result, df)
 
 
 def test_pipeline_concat_with_kwargs():
-    """Test Pipeline.concat with additional kwargs."""
+    """Test LazyFrame.concat with additional kwargs."""
     df1 = pd.DataFrame({"a": [1, 2]})
     df2 = pd.DataFrame({"a": [3, 4]})
 
     p1 = LazyFrame("data1")
     p2 = LazyFrame("data2")
-    combined = Pipeline.concat([p1, p2], ignore_index=True)
+    combined = LazyFrame.concat([p1, p2], ignore_index=True)
 
     result = combined.execute({"data1": df1, "data2": df2})
 
@@ -317,7 +317,7 @@ def test_pipeline_concat_with_kwargs():
 
 
 def test_pipeline_from_fn_basic():
-    """Test basic Pipeline.from_fn functionality."""
+    """Test basic LazyFrame.from_fn functionality."""
     df1 = pd.DataFrame({"a": [1, 2]})
     df2 = pd.DataFrame({"a": [3, 4]})
 
@@ -326,14 +326,14 @@ def test_pipeline_from_fn_basic():
 
     p1 = LazyFrame("data1")
     p2 = LazyFrame("data2")
-    combined = Pipeline.from_fn(combine, [p1, p2])
+    combined = LazyFrame.from_fn(combine, [p1, p2])
 
     result = combined.execute({"data1": df1, "data2": df2})
     assert len(result) == 4
 
 
 def test_pipeline_from_fn_mixed_args():
-    """Test Pipeline.from_fn with mixed Pipeline and static args."""
+    """Test LazyFrame.from_fn with mixed LazyFrame and static args."""
     df1 = pd.DataFrame({"a": [1, 2]})
     df2 = pd.DataFrame({"a": [3, 4]})
 
@@ -344,7 +344,7 @@ def test_pipeline_from_fn_mixed_args():
 
     p1 = LazyFrame("data1")
     p2 = LazyFrame("data2")
-    combined = Pipeline.from_fn(custom_fn, p1, p2, multiplier=10)
+    combined = LazyFrame.from_fn(custom_fn, p1, p2, multiplier=10)
 
     result = combined.execute({"data1": df1, "data2": df2})
     assert len(result) == 4
@@ -352,7 +352,7 @@ def test_pipeline_from_fn_mixed_args():
 
 
 def test_pipeline_from_fn_nested_structures():
-    """Test Pipeline.from_fn with nested list structures."""
+    """Test LazyFrame.from_fn with nested list structures."""
     df1 = pd.DataFrame({"a": [1]})
     df2 = pd.DataFrame({"a": [2]})
     df3 = pd.DataFrame({"a": [3]})
@@ -369,14 +369,14 @@ def test_pipeline_from_fn_nested_structures():
     p1 = LazyFrame("data1")
     p2 = LazyFrame("data2")
     p3 = LazyFrame("data3")
-    combined = Pipeline.from_fn(process_nested, [p1, [p2, p3]])
+    combined = LazyFrame.from_fn(process_nested, [p1, [p2, p3]])
 
     result = combined.execute({"data1": df1, "data2": df2, "data3": df3})
     assert len(result) == 3
 
 
 def test_pipeline_from_fn_with_dict():
-    """Test Pipeline.from_fn with dict containing Pipeline refs."""
+    """Test LazyFrame.from_fn with dict containing LazyFrame refs."""
     df1 = pd.DataFrame({"a": [1, 2]})
     df2 = pd.DataFrame({"b": [10, 20]})
 
@@ -388,7 +388,7 @@ def test_pipeline_from_fn_with_dict():
 
     p1 = LazyFrame("data1")
     p2 = LazyFrame("data2")
-    combined = Pipeline.from_fn(process_dict, {"source": p1, "other": p2})
+    combined = LazyFrame.from_fn(process_dict, {"source": p1, "other": p2})
 
     result = combined.execute({"data1": df1, "data2": df2})
     assert len(result) == 2
@@ -442,51 +442,10 @@ def test_lazyframe_no_source_execution():
 
     p1 = LazyFrame("data1")
     p2 = LazyFrame("data2")
-    combined = Pipeline.concat([p1, p2])
+    combined = LazyFrame.concat([p1, p2])
 
     result = combined.execute({"data1": df1, "data2": df2})
     assert len(result) == 2
-
-
-################################################################################
-# Optimization Tests
-################################################################################
-
-
-def test_optimizer_predicate_pushdown():
-    """Test optimizer predicate pushdown."""
-    lf = LazyFrame("data").sem_filter("keep important").filter(lambda d: d["a"] > 1)
-
-    optimizer = Optimizer()
-    optimized = optimizer.optimize(lf)
-
-    # Filter should be moved before sem_filter
-    assert len(optimized) == 3
-    assert optimized._nodes[1].__class__.__name__ == "PandasFilterNode"
-    assert optimized._nodes[2].__class__.__name__ == "SemFilterNode"
-
-
-def test_optimizer_inplace():
-    """Test optimizer inplace option."""
-    lf = LazyFrame("data").sem_filter("keep").filter(lambda d: d["a"] > 1)
-
-    optimizer = Optimizer()
-    result = optimizer.optimize(lf, inplace=True)
-
-    assert result is lf
-    assert lf._nodes[1].__class__.__name__ == "PandasFilterNode"
-
-
-def test_optimizer_non_inplace():
-    """Test optimizer non-inplace option."""
-    lf = LazyFrame("data").sem_filter("keep").filter(lambda d: d["a"] > 1)
-
-    optimizer = Optimizer()
-    result = optimizer.optimize(lf, inplace=False)
-
-    assert result is not lf
-    assert lf._nodes[1].__class__.__name__ == "SemFilterNode"
-    assert result._nodes[1].__class__.__name__ == "PandasFilterNode"
 
 
 ################################################################################
@@ -519,7 +478,7 @@ def test_sem_join_with_lazyframe():
 
 
 ################################################################################
-# Complex Pipeline Tests
+# Complex LazyFrame Tests
 ################################################################################
 
 

@@ -1,12 +1,12 @@
-"""Type stubs for Pipeline to provide DataFrame-like type hints.
+"""Type stubs for LazyFrame to provide DataFrame-like type hints.
 
-This file provides IDE autocomplete and type checking support for Pipeline,
+This file provides IDE autocomplete and type checking support for LazyFrame,
 allowing it to be used similarly to pd.DataFrame in terms of type hints.
 """
 
 from __future__ import annotations
 
-from typing import Any, Callable, Hashable, Literal, Mapping, Sequence, overload
+from typing import TYPE_CHECKING, Any, Callable, Hashable, Literal, Mapping, Sequence, overload
 
 import numpy as np
 import pandas as pd
@@ -15,9 +15,12 @@ from pandas._typing import Axis, IndexLabel
 from lotus.types import CascadeArgs, LongContextStrategy, ReasoningStrategy
 
 from .nodes import BaseNode, SourceNode
-from .run import Run
+from .run import LazyFrameRun
 
-class Pipeline:
+if TYPE_CHECKING:
+    from .optimizer.base import BaseOptimizer
+
+class LazyFrame:
     """Lazy DataFrame.
     A LazyFrame is a pipeline of operations that can be executed to produce a DataFrame. It is a wrapper around a pandas DataFrame that allows for lazy execution of operations.
     """
@@ -37,12 +40,12 @@ class Pipeline:
     def key(self) -> str: ...
 
     # ------------------------------------------------------------------
-    # Pipeline construction
+    # LazyFrame construction
     # ------------------------------------------------------------------
 
-    def _append_node(self, node: BaseNode) -> Pipeline: ...
-    def copy(self) -> Pipeline: ...
-    def add_source(self, key: str = "default", df: pd.DataFrame | None = None) -> Pipeline: ...
+    def _append_node(self, node: BaseNode) -> LazyFrame: ...
+    def copy(self) -> LazyFrame: ...
+    def add_source(self, key: str = "default", df: pd.DataFrame | None = None) -> LazyFrame: ...
 
     # ------------------------------------------------------------------
     # Semantic operations
@@ -65,7 +68,7 @@ class Pipeline:
         safe_mode: bool = False,
         progress_bar_desc: str = "Filtering",
         additional_cot_instructions: str = "",
-    ) -> Pipeline: ...
+    ) -> LazyFrame: ...
     def sem_map(
         self,
         user_instruction: str,
@@ -80,7 +83,7 @@ class Pipeline:
         safe_mode: bool = False,
         progress_bar_desc: str = "Mapping",
         **model_kwargs: Any,
-    ) -> Pipeline: ...
+    ) -> LazyFrame: ...
     def sem_extract(
         self,
         input_cols: list[str],
@@ -93,7 +96,7 @@ class Pipeline:
         progress_bar_desc: str = "Extracting",
         return_explanations: bool = False,
         strategy: ReasoningStrategy | None = None,
-    ) -> Pipeline: ...
+    ) -> LazyFrame: ...
     def sem_agg(
         self,
         user_instruction: str,
@@ -104,7 +107,7 @@ class Pipeline:
         safe_mode: bool = False,
         progress_bar_desc: str = "Aggregating",
         long_context_strategy: LongContextStrategy | None = None,
-    ) -> Pipeline: ...
+    ) -> LazyFrame: ...
     def sem_topk(
         self,
         user_instruction: str,
@@ -117,10 +120,10 @@ class Pipeline:
         return_stats: bool = False,
         safe_mode: bool = False,
         return_explanations: bool = False,
-    ) -> Pipeline: ...
+    ) -> LazyFrame: ...
     def sem_join(
         self,
-        right: str | Pipeline | pd.DataFrame,
+        right: str | LazyFrame | pd.DataFrame,
         join_instruction: str,
         *,
         return_explanations: bool = False,
@@ -133,10 +136,10 @@ class Pipeline:
         return_stats: bool = False,
         safe_mode: bool = False,
         progress_bar_desc: str = "Join comparisons",
-    ) -> Pipeline: ...
+    ) -> LazyFrame: ...
     def sem_sim_join(
         self,
-        right: str | Pipeline | pd.DataFrame,
+        right: str | LazyFrame | pd.DataFrame,
         left_on: str,
         right_on: str,
         K: int,
@@ -145,7 +148,7 @@ class Pipeline:
         rsuffix: str = "",
         score_suffix: str = "",
         keep_index: bool = False,
-    ) -> Pipeline: ...
+    ) -> LazyFrame: ...
     def sem_search(
         self,
         col_name: str,
@@ -155,8 +158,8 @@ class Pipeline:
         n_rerank: int | None = None,
         return_scores: bool = False,
         suffix: str = "_sim_score",
-    ) -> Pipeline: ...
-    def sem_index(self, col_name: str, index_dir: str) -> Pipeline: ...
+    ) -> LazyFrame: ...
+    def sem_index(self, col_name: str, index_dir: str) -> LazyFrame: ...
     def sem_cluster_by(
         self,
         col_name: str,
@@ -166,36 +169,36 @@ class Pipeline:
         return_centroids: bool = False,
         niter: int = 20,
         verbose: bool = False,
-    ) -> Pipeline: ...
-    def sem_dedup(self, col_name: str, threshold: float) -> Pipeline: ...
-    def sem_partition_by(self, partition_fn: Callable[[pd.DataFrame], list[int]]) -> Pipeline: ...
+    ) -> LazyFrame: ...
+    def sem_dedup(self, col_name: str, threshold: float) -> LazyFrame: ...
+    def sem_partition_by(self, partition_fn: Callable[[pd.DataFrame], list[int]]) -> LazyFrame: ...
 
     # ------------------------------------------------------------------
     # Pandas filter operations
     # ------------------------------------------------------------------
 
-    def filter(self, predicate: Callable[[pd.DataFrame], pd.Series]) -> Pipeline: ...
+    def filter(self, predicate: Callable[[pd.DataFrame], pd.Series]) -> LazyFrame: ...
 
     # ------------------------------------------------------------------
     # Column access and assignment
     # ------------------------------------------------------------------
 
     @overload
-    def __getitem__(self, key: str) -> Pipeline: ...
+    def __getitem__(self, key: str) -> LazyFrame: ...
     @overload
-    def __getitem__(self, key: list[str]) -> Pipeline: ...
+    def __getitem__(self, key: list[str]) -> LazyFrame: ...
     @overload
-    def __getitem__(self, key: Callable[[pd.DataFrame], pd.Series]) -> Pipeline: ...
-    def __getitem__(self, key: Any) -> Pipeline: ...
+    def __getitem__(self, key: Callable[[pd.DataFrame], pd.Series]) -> LazyFrame: ...
+    def __getitem__(self, key: Any) -> LazyFrame: ...
     def __setitem__(self, key: str, value: Any) -> None: ...
-    def assign(self, **kwargs: Any) -> Pipeline: ...
+    def assign(self, **kwargs: Any) -> LazyFrame: ...
 
     # ------------------------------------------------------------------
-    # Common DataFrame methods (return Pipeline for chaining)
+    # Common DataFrame methods (return LazyFrame for chaining)
     # ------------------------------------------------------------------
 
-    def head(self, n: int = 5) -> Pipeline: ...
-    def tail(self, n: int = 5) -> Pipeline: ...
+    def head(self, n: int = 5) -> LazyFrame: ...
+    def tail(self, n: int = 5) -> LazyFrame: ...
     def sample(
         self,
         n: int | None = None,
@@ -205,7 +208,7 @@ class Pipeline:
         random_state: int | np.random.RandomState | None = None,
         axis: Axis | None = None,
         ignore_index: bool = False,
-    ) -> Pipeline: ...
+    ) -> LazyFrame: ...
     def drop(
         self,
         labels: IndexLabel | None = None,
@@ -216,7 +219,7 @@ class Pipeline:
         level: int | str | None = None,
         inplace: bool = False,
         errors: str = "raise",
-    ) -> Pipeline: ...
+    ) -> LazyFrame: ...
     def drop_duplicates(
         self,
         subset: Hashable | Sequence[Hashable] | None = None,
@@ -224,7 +227,7 @@ class Pipeline:
         keep: Literal["first", "last", False] = "first",
         inplace: bool = False,
         ignore_index: bool = False,
-    ) -> Pipeline: ...
+    ) -> LazyFrame: ...
     def dropna(
         self,
         *,
@@ -234,7 +237,7 @@ class Pipeline:
         subset: IndexLabel | None = None,
         inplace: bool = False,
         ignore_index: bool = False,
-    ) -> Pipeline: ...
+    ) -> LazyFrame: ...
     def fillna(
         self,
         value: Any = None,
@@ -244,7 +247,7 @@ class Pipeline:
         inplace: bool = False,
         limit: int | None = None,
         downcast: dict | None = None,
-    ) -> Pipeline: ...
+    ) -> LazyFrame: ...
     def sort_values(
         self,
         by: str | list[str],
@@ -256,7 +259,7 @@ class Pipeline:
         na_position: str = "last",
         ignore_index: bool = False,
         key: Callable | None = None,
-    ) -> Pipeline: ...
+    ) -> LazyFrame: ...
     def sort_index(
         self,
         *,
@@ -269,7 +272,7 @@ class Pipeline:
         sort_remaining: bool = True,
         ignore_index: bool = False,
         key: Callable | None = None,
-    ) -> Pipeline: ...
+    ) -> LazyFrame: ...
     def reset_index(
         self,
         level: int | str | Sequence[int] | Sequence[str] | None = None,
@@ -280,7 +283,7 @@ class Pipeline:
         col_fill: object = "",
         allow_duplicates: bool = False,
         names: Hashable | Sequence[Hashable] | None = None,
-    ) -> Pipeline: ...
+    ) -> LazyFrame: ...
     def set_index(
         self,
         keys: str | list[str],
@@ -289,7 +292,7 @@ class Pipeline:
         append: bool = False,
         inplace: bool = False,
         verify_integrity: bool = False,
-    ) -> Pipeline: ...
+    ) -> LazyFrame: ...
     def rename(
         self,
         mapper: Mapping | Callable | None = None,
@@ -301,12 +304,12 @@ class Pipeline:
         inplace: bool = False,
         level: int | str | None = None,
         errors: str = "ignore",
-    ) -> Pipeline: ...
+    ) -> LazyFrame: ...
     def explode(
         self,
         column: IndexLabel,
         ignore_index: bool = False,
-    ) -> Pipeline: ...
+    ) -> LazyFrame: ...
     def melt(
         self,
         id_vars: str | list[str] | None = None,
@@ -315,14 +318,14 @@ class Pipeline:
         value_name: str = "value",
         col_level: int | str | None = None,
         ignore_index: bool = True,
-    ) -> Pipeline: ...
+    ) -> LazyFrame: ...
     def pivot(
         self,
         *,
         columns: IndexLabel,
         index: IndexLabel | None = None,
         values: IndexLabel | None = None,
-    ) -> Pipeline: ...
+    ) -> LazyFrame: ...
     def pivot_table(
         self,
         values: str | list[str] | None = None,
@@ -335,7 +338,7 @@ class Pipeline:
         margins_name: str = "All",
         observed: bool = False,
         sort: bool = True,
-    ) -> Pipeline: ...
+    ) -> LazyFrame: ...
     def groupby(
         self,
         by: str | list[str] | Mapping | Callable | None = None,
@@ -346,10 +349,10 @@ class Pipeline:
         group_keys: bool = True,
         observed: bool = False,
         dropna: bool = True,
-    ) -> Pipeline: ...
+    ) -> LazyFrame: ...
     def merge(
         self,
-        right: pd.DataFrame | Pipeline,
+        right: pd.DataFrame | LazyFrame,
         how: Literal["left", "right", "outer", "inner", "cross"] = "inner",
         on: IndexLabel | None = None,
         left_on: IndexLabel | None = None,
@@ -361,17 +364,17 @@ class Pipeline:
         copy: bool | None = None,
         indicator: bool | str = False,
         validate: str | None = None,
-    ) -> Pipeline: ...
+    ) -> LazyFrame: ...
     def join(
         self,
-        other: pd.DataFrame | Pipeline,
+        other: pd.DataFrame | LazyFrame,
         on: IndexLabel | None = None,
         how: Literal["left", "right", "outer", "inner", "cross"] = "left",
         lsuffix: str = "",
         rsuffix: str = "",
         sort: bool = False,
         validate: str | None = None,
-    ) -> Pipeline: ...
+    ) -> LazyFrame: ...
     def apply(
         self,
         func: Callable,
@@ -380,29 +383,34 @@ class Pipeline:
         result_type: Literal["expand", "reduce", "broadcast"] | None = None,
         args: tuple = (),
         **kwargs: Any,
-    ) -> Pipeline: ...
-    def map(self, func: Callable, na_action: str | None = None) -> Pipeline: ...
-    def query(self, expr: str, *, inplace: bool = False, **kwargs: Any) -> Pipeline: ...
-    def eval(self, expr: str, *, inplace: bool = False, **kwargs: Any) -> Pipeline: ...
-    def astype(self, dtype: Any, copy: bool = True, errors: str = "raise") -> Pipeline: ...
+    ) -> LazyFrame: ...
+    def map(self, func: Callable, na_action: str | None = None) -> LazyFrame: ...
+    def query(self, expr: str, *, inplace: bool = False, **kwargs: Any) -> LazyFrame: ...
+    def eval(self, expr: str, *, inplace: bool = False, **kwargs: Any) -> LazyFrame: ...
+    def astype(self, dtype: Any, copy: bool = True, errors: str = "raise") -> LazyFrame: ...
 
     # ------------------------------------------------------------------
     # Execution
     # ------------------------------------------------------------------
 
-    def run(self, inputs: pd.DataFrame | dict[str, pd.DataFrame]) -> Run: ...
+    def run(self, inputs: pd.DataFrame | dict[str, pd.DataFrame]) -> LazyFrameRun: ...
     def execute(
         self,
         inputs: pd.DataFrame | dict[str, pd.DataFrame],
-        *,
-        optimize: bool = True,
     ) -> pd.DataFrame | Any: ...
+    def optimize(
+        self,
+        optimizers: list["BaseOptimizer"],
+        *,
+        inplace: bool = False,
+    ) -> LazyFrame: ...
 
     # ------------------------------------------------------------------
     # Inspection
     # ------------------------------------------------------------------
 
     def __repr__(self) -> str: ...
+    def show(self) -> str: ...
 
 # Alias for backwards compatibility
-LazyFrame = Pipeline
+LazyFrame = LazyFrame
