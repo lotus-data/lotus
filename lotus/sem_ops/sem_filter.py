@@ -591,49 +591,108 @@ class SemFilterDataframe:
                 n_sample=n_sample,
                 ensemble=ensemble,
             )
+        if n_sample > 1:
+            # Multi-sample logic
+            outputs = output.outputs
+            raw_outputs_obj = output._raw_outputs
+
+            if not return_all:
+                ids = [i for i, x in enumerate(outputs) if x]
+                idx_ids = [self._obj.index[i] for i, x in enumerate(outputs) if x]
+                new_df = self._obj.iloc[ids].copy()
+                new_df.attrs["index_dirs"] = self._obj.attrs.get("index_dirs", None)
+            else:
+                new_df = self._obj.copy()
+                
+                def get_out_col_name(df, col_name):
+                    if col_name in df.columns:
+                        i = 1
+                        while f"{col_name}_{i}" in new_df.columns:
+                            i += 1
+                        return f"{col_name}_{i}"
+                    else:
+                        return col_name
+                        
+                new_df[get_out_col_name(new_df, "filter_label")] = outputs
+
+            # Add columns for each sample
+            for i in range(n_sample):
+                # 1-based indexing for columns as requested
+                suffix_i = f"_{i+1}"
+                
+                # Extract data for this sample
+                sample_preds = [preds[i] for preds in raw_outputs_obj.predictions]
+                sample_raw = [raws[i] for raws in raw_outputs_obj.raw_outputs]
+                sample_expl = [expls[i] for expls in raw_outputs_obj.explanations]
+
+                # Filter if needed
+                if not return_all:
+                    sample_preds = [sample_preds[j] for j in ids]
+                    sample_raw = [sample_raw[j] for j in ids]
+                    sample_expl = [sample_expl[j] for j in ids]
+                
+                # Add columns
+                if return_raw_outputs:
+                    new_df[f"raw_output{suffix_i}"] = sample_raw
+                    new_df[f"parsed_output{suffix_i}"] = sample_preds
+                if return_explanations:
+                    new_df[f"explanation{suffix_i}"] = sample_expl
+
+            # Add ensemble answer
+            if return_explanations and return_raw_outputs:
+                 # Usually explanation for ensemble might be aggregate or empty, 
+                 # but current logic returns the chosen/final one.
+                 # The sem_filter function returns `final_outputs` as `outputs`.
+                 # For now, we don't have a separate "ensemble explanation", 
+                 # but we can omit or keep existing behavior if applicable.
+                 # The user request specifically asked for the broken down columns.
+                 pass
+
+        else:
+            # Single sample logic (backward compatibility)
             outputs = output.outputs
             # Access raw_outputs via backward compatibility property
             raw_outputs = output.raw_outputs
             explanations = output.explanations
 
-        if not return_all:
-            # find indices where output is True
-            ids = [i for i, x in enumerate(outputs) if x]
-            idx_ids = [self._obj.index[i] for i, x in enumerate(outputs) if x]
-            lotus.logger.debug(f"ids: {ids}")
-            lotus.logger.debug(f"idx_ids: {idx_ids}")
+            if not return_all:
+                # find indices where output is True
+                ids = [i for i, x in enumerate(outputs) if x]
+                idx_ids = [self._obj.index[i] for i, x in enumerate(outputs) if x]
+                lotus.logger.debug(f"ids: {ids}")
+                lotus.logger.debug(f"idx_ids: {idx_ids}")
 
-            [outputs[i] for i in ids]
-            filtered_explanations = [explanations[i] for i in ids]
-            filtered_raw_outputs = [raw_outputs[i] for i in ids]
-            lotus.logger.debug(f"filtered_raw_outputs: {filtered_raw_outputs}")
+                [outputs[i] for i in ids]
+                filtered_explanations = [explanations[i] for i in ids]
+                filtered_raw_outputs = [raw_outputs[i] for i in ids]
+                lotus.logger.debug(f"filtered_raw_outputs: {filtered_raw_outputs}")
 
-            new_df = self._obj.iloc[ids]
-            new_df.attrs["index_dirs"] = self._obj.attrs.get("index_dirs", None)
-        else:
+                new_df = self._obj.iloc[ids]
+                new_df.attrs["index_dirs"] = self._obj.attrs.get("index_dirs", None)
+            else:
 
-            def get_out_col_name(df, col_name):
-                if col_name in df.columns:
-                    i = 1
-                    while f"{col_name}_{i}" in new_df.columns:
-                        i += 1
-                    return f"{col_name}_{i}"
-                else:
-                    return col_name
+                def get_out_col_name(df, col_name):
+                    if col_name in df.columns:
+                        i = 1
+                        while f"{col_name}_{i}" in new_df.columns:
+                            i += 1
+                        return f"{col_name}_{i}"
+                    else:
+                        return col_name
 
-            new_df = self._obj.copy()
-            new_df[get_out_col_name(new_df, "filter_label")] = outputs
-            filtered_explanations = explanations
-            filtered_raw_outputs = raw_outputs
+                new_df = self._obj.copy()
+                new_df[get_out_col_name(new_df, "filter_label")] = outputs
+                filtered_explanations = explanations
+                filtered_raw_outputs = raw_outputs
 
-        # return rows where output is True
-        if return_explanations and return_raw_outputs:
-            new_df["explanation" + suffix] = filtered_explanations
-            new_df["raw_output" + suffix] = filtered_raw_outputs
-        elif return_explanations:
-            new_df["explanation" + suffix] = filtered_explanations
-        elif return_raw_outputs:
-            new_df["raw_output" + suffix] = filtered_raw_outputs
+            # return rows where output is True
+            if return_explanations and return_raw_outputs:
+                new_df["explanation" + suffix] = filtered_explanations
+                new_df["raw_output" + suffix] = filtered_raw_outputs
+            elif return_explanations:
+                new_df["explanation" + suffix] = filtered_explanations
+            elif return_raw_outputs:
+                new_df["raw_output" + suffix] = filtered_raw_outputs
 
         if return_stats:
             return new_df, stats

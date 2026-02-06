@@ -4,7 +4,7 @@ import pandas as pd
 import pytest
 
 import lotus
-from lotus.dtype_extensions import ImageArray
+from lotus.dtype_extensions import ImageArray, AudioArray
 from lotus.models import LM, SentenceTransformersRM
 from lotus.vector_store import FaissVS
 
@@ -228,3 +228,22 @@ def test_sim_join_operation_text_index(setup_models, model):
         ("https://i.pinimg.com/236x/a4/3a/65/a43a65683a0314f29b66402cebdcf46d.jpg", "bird"),
     ]
     assert expected_result == list(zip(joined_df["image"], joined_df["element"]))
+
+
+@pytest.mark.parametrize("model", get_enabled("gpt-4o-audio-preview"))
+def test_filter_operation_audio(setup_models, model):
+    lm = setup_models[model]
+    lotus.settings.configure(lm=lm)
+
+    # Use a minimal valid base64 wav string (silence)
+    wav_b64 = "data:audio/wav;base64,UklGRgAAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA="
+    
+    audio_data = [wav_b64, wav_b64]
+    df = pd.DataFrame({"audio": AudioArray(audio_data)})
+    user_instruction = "{audio} contains audio"
+    
+    # Just verify it runs without error and returns a dataframe
+    filtered_df = df.sem_filter(user_instruction)
+    assert isinstance(filtered_df, pd.DataFrame)
+
+

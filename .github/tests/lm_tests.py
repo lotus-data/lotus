@@ -8,6 +8,7 @@ from tokenizers import Tokenizer
 import lotus
 from lotus.models import LM, SentenceTransformersRM
 from lotus.types import CascadeArgs
+from lotus.sem_ops.ensembling import Ensemble, EnsembleConfig, EnsembleStrategy
 from lotus.vector_store import FaissVS
 
 ################################################################################
@@ -497,6 +498,44 @@ def test_filter_cascade(setup_models):
     assert "I am really excited to go to class today!" in filtered_df["Text"].values
     assert "I am very sad" not in filtered_df["Text"].values
     assert stats["filters_resolved_by_helper_model"] > 0, stats
+
+
+@pytest.mark.skipif(not ENABLE_OPENAI_TESTS, reason="Skipping test because OpenAI tests are not enabled")
+def test_filter_ensembling(setup_models):
+    models = setup_models
+    lotus.settings.configure(lm=models["gpt-4o-mini"])
+
+    data = {
+        "Text": [
+            "I am really excited to go to class today!",
+            "I am very sad",
+        ]
+    }
+    df = pd.DataFrame(data)
+    user_instruction = "{Text} is a positive sentiment"
+
+    # Test with n_sample=2 and majority vote
+    filtered_df = df.sem_filter(
+        user_instruction,
+        n_sample=2,
+        ensemble=Ensemble(EnsembleConfig(strategy=EnsembleStrategy.MAJORITY_VOTE)),
+        return_raw_outputs=True,
+        return_explanations=True,
+        return_all=True
+    )
+
+    # Check for new columns
+    expected_cols = [
+        "raw_output_1", "parsed_output_1", "explanation_1",
+        "raw_output_2", "parsed_output_2", "explanation_2",
+        "filter_label"  # Ensemble result
+    ]
+    for col in expected_cols:
+        assert col in filtered_df.columns, f"Column {col} missing from dataframe"
+    
+    # Check ensemble logic (both samples should be True for first row)
+    assert filtered_df.iloc[0]["filter_label"] == True
+    assert filtered_df.iloc[1]["filter_label"] == False
 
 
 @pytest.mark.skipif(not ENABLE_OPENAI_TESTS, reason="Skipping test because OpenAI tests are not enabled")
