@@ -20,6 +20,7 @@ ENABLE_LOCAL_TESTS = os.getenv("ENABLE_LOCAL_TESTS", "false").lower() == "true"
 
 MODEL_NAME_TO_ENABLED = {
     "gpt-4o-mini": ENABLE_OPENAI_TESTS,
+    "gpt-4o-audio-preview": ENABLE_OPENAI_TESTS,
     "clip-ViT-B-32": ENABLE_LOCAL_TESTS,
 }
 ENABLED_MODEL_NAMES = set([model_name for model_name, is_enabled in MODEL_NAME_TO_ENABLED.items() if is_enabled])
@@ -27,6 +28,7 @@ ENABLED_MODEL_NAMES = set([model_name for model_name, is_enabled in MODEL_NAME_T
 MODEL_NAME_TO_CLS = {
     "clip-ViT-B-32": SentenceTransformersRM,
     "gpt-4o-mini": LM,
+    "gpt-4o-audio-preview": LM,
 }
 
 
@@ -235,8 +237,11 @@ def test_filter_operation_audio(setup_models, model):
     lm = setup_models[model]
     lotus.settings.configure(lm=lm)
 
-    # Use a minimal valid base64 wav string (silence)
-    wav_b64 = "data:audio/wav;base64,UklGRgAAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA="
+    # Use a real wav file content to ensure valid format
+    import base64
+    with open("test_audio.wav", "rb") as f:
+        wav_bytes = f.read()
+    wav_b64 = "data:audio/wav;base64," + base64.b64encode(wav_bytes).decode("utf-8")
     
     audio_data = [wav_b64, wav_b64]
     df = pd.DataFrame({"audio": AudioArray(audio_data)})
