@@ -92,23 +92,23 @@ class LazyFrame:
     A LazyFrame is a pipeline of operations that can be executed to produce a DataFrame. It is a wrapper around a pandas DataFrame that allows for lazy execution of operations.
 
     Usage:
-        lazy_df = LazyFrame("queries")  # lazy_df name = "queries"
-        lazy_df = lazy_df.sem_filter("...").sem_map("...")
-        result = lazy_df.execute(queries_df)  # or execute({"queries": queries_df})
+        lf = LazyFrame()  # Create a lazy pipeline
+        lf = lf.sem_filter("...").sem_map("...")
+        result = lf.execute(df)  # or execute({lf: df})
 
         # With optional bound DataFrame at construction:
-        lazy_df = LazyFrame("queries", df=queries_df)
+        lf = LazyFrame(df=queries_df)
 
-    For joins, the right side is another LazyFrame (with its own source key):
-        left_lazy_df = LazyFrame("left").sem_join(right_lazy_df, ...)
-        result = left_lazy_df.execute({"left": left_df, "right": right_df})
+    For joins, the right side is another LazyFrame:
+        left_lf = LazyFrame().sem_join(right_lf, ...)
+        result = left_lf.execute({left_lf: left_df, right_lf: right_df})
     """
 
     def __init__(
         self,
-        key: str = "default",
         df: pd.DataFrame | None = None,
         *,
+        schema: dict[str, str] | None = None,
         _nodes: list[BaseNode] | None = None,
         _source: SourceNode | None = None,
     ) -> None:
@@ -120,14 +120,9 @@ class LazyFrame:
                 else (self._nodes[0] if self._nodes and isinstance(self._nodes[0], SourceNode) else None)
             )
         else:
-            source_node = SourceNode(key=key, df=df)
+            source_node = SourceNode(pipeline_ref=self, df=df, expected_schema=schema)
             self._nodes = [source_node]
             self._source = source_node
-
-    @property
-    def key(self) -> str:
-        """LazyFrame name (source key), used to look up input in execute(inputs)."""
-        return self._source.key if self._source is not None else "default"
 
     def _append_node(self, node: BaseNode) -> "LazyFrame":
         """Return a new LazyFrame with the node appended (immutable)."""
@@ -147,12 +142,12 @@ class LazyFrame:
     # Source Management
     # ------------------------------------------------------------------
 
-    def add_source(self, key: str = "default", df: pd.DataFrame | None = None) -> "LazyFrame":
-        """Set the pipeline source (key = pipeline name, optional bound DataFrame).
+    def add_source(self, df: pd.DataFrame | None = None, schema: dict[str, str] | None = None) -> "LazyFrame":
+        """Set the pipeline source (optional bound DataFrame and schema).
 
-        Replaces the single source node. Use this to rename the pipeline or bind a df.
+        Replaces the single source node. Use this to bind a df or add schema validation.
         """
-        source_node = SourceNode(key=key, df=df)
+        source_node = SourceNode(pipeline_ref=self, df=df, expected_schema=schema)
         new_nodes = [source_node] + list(self._nodes[1:]) if len(self._nodes) > 1 else [source_node]
         return LazyFrame(_nodes=new_nodes, _source=source_node)
 
@@ -307,7 +302,7 @@ class LazyFrame:
 
     def sem_join(
         self,
-        right: str | SourceNode | "LazyFrame" | pd.DataFrame,
+        right: "LazyFrame" | pd.DataFrame,
         join_instruction: str,
         *,
         return_explanations: bool = False,
@@ -325,30 +320,23 @@ class LazyFrame:
 
         Args:
             right: The right side of the join. Can be:
-                - str: Key of the right source (must be passed in inputs)
-                - SourceNode: Source node to join with
                 - LazyFrame: Another pipeline to execute first
                 - pd.DataFrame: Direct DataFrame to join with
             join_instruction: Natural language join instruction
         """
         # Determine which mode to use based on the type of right
-        right_source_node: SourceNode | None = None
         right_pipeline: LazyFrame | None = None
         right_df: pd.DataFrame | None = None
 
-        if isinstance(right, str):
-            right_source_node = SourceNode(key=right)
-        elif isinstance(right, SourceNode):
-            right_source_node = right
-        elif isinstance(right, LazyFrame):
+        if isinstance(right, LazyFrame):
             right_pipeline = right
         elif isinstance(right, pd.DataFrame):
             right_df = right
         else:
-            raise TypeError(f"right must be str, LazyFrame, or DataFrame, got {type(right)}")
+            raise TypeError(f"right must be LazyFrame or DataFrame, got {type(right)}")
 
         node = SemJoinNode(
-            right_source_node=right_source_node,
+            right_source_node=None,
             right_pipeline=right_pipeline,
             right_df=right_df,
             join_instruction=join_instruction,
@@ -367,7 +355,7 @@ class LazyFrame:
 
     def sem_sim_join(
         self,
-        right: str | SourceNode | "LazyFrame" | pd.DataFrame,
+        right: "LazyFrame" | pd.DataFrame,
         left_on: str,
         right_on: str,
         K: int,
@@ -381,8 +369,6 @@ class LazyFrame:
 
         Args:
             right: The right side of the join. Can be:
-                - str: Key of the right source (must be passed in inputs)
-                - SourceNode: Source node to join with
                 - LazyFrame: Another pipeline to execute first
                 - pd.DataFrame: Direct DataFrame to join with
             left_on: Column name in left DataFrame for join
@@ -390,23 +376,18 @@ class LazyFrame:
             K: Number of top matches to return
         """
         # Determine which mode to use based on the type of right
-        right_source_node: SourceNode | None = None
         right_pipeline: LazyFrame | None = None
         right_df: pd.DataFrame | None = None
 
-        if isinstance(right, str):
-            right_source_node = SourceNode(key=right)
-        elif isinstance(right, SourceNode):
-            right_source_node = right
-        elif isinstance(right, LazyFrame):
+        if isinstance(right, LazyFrame):
             right_pipeline = right
         elif isinstance(right, pd.DataFrame):
             right_df = right
         else:
-            raise TypeError(f"right must be str, LazyFrame, or DataFrame, got {type(right)}")
+            raise TypeError(f"right must be LazyFrame or DataFrame, got {type(right)}")
 
         node = SemSimJoinNode(
-            right_source_node=right_source_node,
+            right_source_node=None,
             right_pipeline=right_pipeline,
             right_df=right_df,
             left_on=left_on,
@@ -640,29 +621,29 @@ class LazyFrame:
 
     def run(
         self,
-        inputs: pd.DataFrame | dict[str, pd.DataFrame],
+        inputs: pd.DataFrame | dict["LazyFrame", pd.DataFrame],
     ) -> "LazyFrameRun":
         """Create a LazyFrameRun object for this pipeline.
 
         Args:
-            inputs: Single DataFrame (uses this pipeline's key) or
-                   dict mapping pipeline names (source keys) to DataFrames
+            inputs: Single DataFrame (for this pipeline) or
+                   dict mapping LazyFrame objects to DataFrames
         """
         from .run import LazyFrameRun
 
         if not isinstance(inputs, dict):
-            inputs = {self.key: inputs}
+            inputs = {self: inputs}
         return LazyFrameRun(self, inputs)
 
     def execute(
         self,
-        inputs: pd.DataFrame | dict[str, pd.DataFrame],
+        inputs: pd.DataFrame | dict["LazyFrame", pd.DataFrame],
     ) -> pd.DataFrame | Any:
         """Execute the pipeline and return the result.
 
         Args:
-            inputs: Single DataFrame (for this pipeline's key) or
-                   dict of pipeline name (key) -> DataFrame
+            inputs: Single DataFrame (for this pipeline) or
+                   dict of LazyFrame -> DataFrame
         """
         lotus.logger.debug(f"LazyFrame.execute: starting with {len(self._nodes)} nodes")
         result = self.run(inputs).execute()
@@ -677,51 +658,51 @@ class LazyFrame:
         optimizers: list["BaseOptimizer"],
         *,
         inplace: bool = False,
+        train_data: pd.DataFrame | dict["LazyFrame", pd.DataFrame] | None = None,
     ) -> "LazyFrame":
         """Apply optimizations to this pipeline.
 
         Args:
             optimizers: List of optimizers to apply.
             inplace: If True, modify the pipeline in place. If False, return a new pipeline.
+            train_data: Optional training data for optimizers that require it.
+                       Can be a single DataFrame (for this pipeline) or dict of LazyFrame -> DataFrame.
 
         Returns:
             The optimized pipeline (same object if inplace=True, new object otherwise)
 
         Examples:
-            >>> pipeline = LazyFrame("data").sem_filter("test").filter(lambda d: d["a"] > 1)
+            >>> lf = LazyFrame().sem_filter("test").filter(lambda d: d["a"] > 1)
             >>> from lotus.ast.optimizer import PredicatePushdownOptimizer
-            >>> optimized = pipeline.optimize([PredicatePushdownOptimizer()])
+            >>> optimized = lf.optimize([PredicatePushdownOptimizer()])
             >>> # Or in-place:
-            >>> pipeline.optimize([PredicatePushdownOptimizer()], inplace=True)  # Modifies pipeline directly
+            >>> lf.optimize([PredicatePushdownOptimizer()], inplace=True)  # Modifies pipeline directly
+            >>> # With training data:
+            >>> lf.optimize([SomeOptimizer()], train_data=train_df)
         """
         lotus.logger.debug(
             f"LazyFrame.optimize: optimizing pipeline with {len(self._nodes)} nodes, "
             f"{len(optimizers)} optimizer(s), inplace={inplace}"
         )
 
+        # Normalize train_data to dict format
+        train_data_dict: dict[LazyFrame, pd.DataFrame] | None = None
+        if train_data is not None:
+            if isinstance(train_data, dict):
+                train_data_dict = train_data
+            else:
+                train_data_dict = {self: train_data}
+
+        optimized_nodes = self._nodes[:]
+        for optimizer in optimizers:
+            lotus.logger.debug(f"LazyFrame.optimize: applying {optimizer.__class__.__name__} optimizer")
+            optimized_nodes = optimizer.optimize(optimized_nodes, train_data=train_data_dict)
+
         if inplace:
-            self._nodes = self._optimize_nodes(self._nodes, optimizers)
-            lotus.logger.debug("LazyFrame.optimize: in-place optimization complete")
+            self._nodes = optimized_nodes
             return self
         else:
-            optimized_nodes = self._optimize_nodes(list(self._nodes), optimizers)
-            lotus.logger.debug("LazyFrame.optimize: created new optimized pipeline")
             return LazyFrame(_nodes=optimized_nodes, _source=self._source)
-
-    def _optimize_nodes(self, nodes: list[BaseNode], optimizers: list["BaseOptimizer"]) -> list[BaseNode]:
-        """Apply all optimizations to a node list.
-
-        Args:
-            nodes: List of nodes to optimize
-            optimizers: List of optimizers to apply
-
-        Returns:
-            Optimized list of nodes
-        """
-        for optimizer in optimizers:
-            lotus.logger.debug(f"LazyFrame._optimize_nodes: applying {optimizer.get_name()} optimizer")
-            nodes = optimizer.optimize_nodes(nodes)
-        return nodes
 
     # ------------------------------------------------------------------
     # Inspection
@@ -729,7 +710,7 @@ class LazyFrame:
 
     def __repr__(self) -> str:
         """Return a simple representation of the pipeline."""
-        return f"LazyFrame({self.key!r})"
+        return f"LazyFrame(nodes={len(self._nodes)})"
 
     def show(self) -> str:
         """Display the full pipeline structure as a tree.
@@ -755,7 +736,8 @@ class LazyFrame:
         def format_node_signature(node: BaseNode) -> str:
             """Format the node signature (name and args/kwargs)."""
             if isinstance(node, SourceNode):
-                return f"Source({node.key!r})"
+                schema_str = f", schema={len(node.expected_schema)} cols" if node.expected_schema else ""
+                return f"Source(bound={node.df is not None}{schema_str})"
 
             elif isinstance(node, SemFilterNode):
                 instruction = (
@@ -890,7 +872,14 @@ class LazyFrame:
                         lines.append(f"{indent_prefix}{INDENT}{INDENT}{right_line}")
                 elif node.right_source_node:
                     lines.append(f"{indent_prefix}{INDENT}-- right source")
-                    lines.append(f"{indent_prefix}{INDENT}{INDENT}Source({node.right_source_node.key!r})")
+                    schema_str = (
+                        f", schema={len(node.right_source_node.expected_schema)} cols"
+                        if node.right_source_node.expected_schema
+                        else ""
+                    )
+                    lines.append(
+                        f"{indent_prefix}{INDENT}{INDENT}Source(bound={node.right_source_node.df is not None}{schema_str})"
+                    )
                 elif node.right_df is not None:
                     lines.append(f"{indent_prefix}{INDENT}-- right df")
 

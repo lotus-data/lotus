@@ -48,7 +48,7 @@ print()
 
 # Build the LazyFrame — no LLM calls happen here
 courses_lf = (
-    LazyFrame("courses")
+    LazyFrame()
     .sem_filter("{Course Name} is about engineering or computer science")
     .filter(lambda df: df["Units"] >= 3)  # pandas predicate
     .sem_map("What is a one-sentence summary of {Course Name}?")
@@ -59,7 +59,7 @@ print(repr(courses_lf))
 print()
 
 print("\nExecuting LazyFrame ...")
-result = courses_lf.execute({"courses": courses_df})
+result = courses_lf.execute(courses_df)
 print("\nResult:")
 print(result)
 
@@ -82,11 +82,13 @@ courses_df2 = pd.DataFrame(
 )
 skills_df = pd.DataFrame({"Skill": ["Math", "Computer Science"]})
 
-# Build LazyFrame with two sources and a join
-join_df = (
-    LazyFrame("courses")
-    .sem_join("skills", "Taking {Course Name:left} will help me learn {Skill:right}")
-    .sem_map("Explain how {Course Name} relates to {Skill}")
+# Create separate LazyFrames for courses and skills
+courses_lf2 = LazyFrame()
+skills_lf = LazyFrame()
+
+# Build LazyFrame with join between two sources
+join_df = courses_lf2.sem_join(skills_lf, "Taking {Course Name:left} will help me learn {Skill:right}").sem_map(
+    "Explain how {Course Name} relates to {Skill}"
 )
 
 print("\nSource (courses):")
@@ -100,6 +102,6 @@ print(repr(join_df))
 print()
 
 print("\nExecuting join LazyFrame ...")
-join_result = join_df.execute({"courses": courses_df2, "skills": skills_df})
+join_result = join_df.execute({courses_lf2: courses_df2, skills_lf: skills_df})
 print("\nJoin result:")
 print(join_result)

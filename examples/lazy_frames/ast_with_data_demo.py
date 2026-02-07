@@ -42,8 +42,8 @@ print()
 # ------------------------------------------------------------------
 # Build LazyFrame and chain operators (no LLM calls yet)
 # ------------------------------------------------------------------
-courses_df = (
-    LazyFrame("courses")
+courses_lf = (
+    LazyFrame()
     .sem_filter("{Course Name} requires a lot of math")
     .sem_map("What is a one-sentence summary of {Course Name}?")
     .sem_agg("Summarize all {Course Name} into a single paragraph")
@@ -56,7 +56,7 @@ print("=" * 60)
 print("LazyFrame (before execution)")
 print("=" * 60)
 print()
-print(repr(courses_df))
+print(repr(courses_lf))
 print()
 
 # ------------------------------------------------------------------
@@ -65,7 +65,7 @@ print()
 print("=" * 60)
 print("Executing LazyFrame …")
 print("=" * 60)
-result_df = courses_df.execute({"courses": df})
+result_df = courses_lf.execute(df)
 print()
 print("=== Result ===")
 print(result_df._output[0])

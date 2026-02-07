@@ -67,8 +67,7 @@ def print_usage_after_each_test(setup_models):
 
 def test_lazyframe_construction():
     """Test basic LazyFrame construction."""
-    lf = LazyFrame("data")
-    assert lf.key == "data"
+    lf = LazyFrame()
     assert len(lf) == 1  # Source node
     assert lf._source is not None
 
@@ -76,15 +75,14 @@ def test_lazyframe_construction():
 def test_lazyframe_with_bound_df():
     """Test LazyFrame with bound DataFrame."""
     df = pd.DataFrame({"a": [1, 2, 3]})
-    lf = LazyFrame("data", df=df)
-    assert lf.key == "data"
+    lf = LazyFrame(df=df)
     result = lf.execute({})
     pd.testing.assert_frame_equal(result, df)
 
 
 def test_lazyframe_immutability():
     """Test that LazyFrame operations return new instances."""
-    lf1 = LazyFrame("data")
+    lf1 = LazyFrame()
     lf2 = lf1.sem_filter("keep important")
     assert lf1 is not lf2
     assert len(lf1) == 1
@@ -93,11 +91,10 @@ def test_lazyframe_immutability():
 
 def test_lazyframe_repr():
     """Test LazyFrame string representation."""
-    lf = LazyFrame("queries").sem_filter("keep positive")
+    lf = LazyFrame().sem_filter("keep positive")
     repr_str = repr(lf)
-    assert "LazyFrame" in repr_str or "LazyFrame" in repr_str
-    assert "queries" in repr_str
-    assert "sem_filter" in repr_str
+    assert "LazyFrame" in repr_str
+    assert "nodes" in repr_str
 
 
 ################################################################################
@@ -112,7 +109,7 @@ def test_sem_filter_lazyframe(setup_models, model):
     lotus.settings.configure(lm=lm)
 
     df = pd.DataFrame({"Text": ["I am really excited!", "I am very sad"]})
-    lf = LazyFrame("data", df=df).sem_filter("{Text} is a positive sentiment")
+    lf = LazyFrame(df=df).sem_filter("{Text} is a positive sentiment")
     result = lf.execute({})
 
     assert len(result) == 1
@@ -127,7 +124,7 @@ def test_sem_map_lazyframe(setup_models, model):
     lotus.settings.configure(lm=lm)
 
     df = pd.DataFrame({"School": ["UC Berkeley", "Carnegie Mellon"]})
-    lf = LazyFrame("data", df=df).sem_map(
+    lf = LazyFrame(df=df).sem_map(
         "What state is {School} in? Respond only with the two-letter abbreviation.", suffix="State"
     )
     result = lf.execute({})
@@ -154,7 +151,7 @@ def test_sem_extract_lazyframe(setup_models, model):
             ]
         }
     )
-    lf = LazyFrame("data", df=df).sem_extract(
+    lf = LazyFrame(df=df).sem_extract(
         ["Text"], {"Name": None, "Sport": None, "Championships": None}, extract_quotes=True
     )
     result = lf.execute({})
@@ -172,7 +169,7 @@ def test_sem_agg_lazyframe(setup_models, model):
     lotus.settings.configure(lm=lm)
 
     df = pd.DataFrame({"Text": ["My name is John", "My name is Jane", "My name is John"]})
-    lf = LazyFrame("data", df=df).sem_agg("What is the most common name in {Text}?", suffix="output")
+    lf = LazyFrame(df=df).sem_agg("What is the most common name in {Text}?", suffix="output")
     result = lf.execute({})
 
     assert len(result) == 1
@@ -196,7 +193,7 @@ def test_sem_topk_lazyframe(setup_models, model):
             ]
         }
     )
-    lf = LazyFrame("data", df=df).sem_topk("Which {Text} is most related to basketball?", K=2)
+    lf = LazyFrame(df=df).sem_topk("Which {Text} is most related to basketball?", K=2)
     result = lf.execute({})
 
     assert len(result) == 2
@@ -214,8 +211,10 @@ def test_sem_join_lazyframe(setup_models, model):
     df1 = pd.DataFrame({"School": ["UC Berkeley", "Stanford"]})
     df2 = pd.DataFrame({"School Type": ["Public School", "Private School"]})
 
-    lf = LazyFrame("left", df=df1).sem_join(LazyFrame("right", df=df2), "{School} is a {School Type}")
-    result = lf.execute({"left": df1, "right": df2})
+    lf1 = LazyFrame(df=df1)
+    lf2 = LazyFrame(df=df2)
+    lf = lf1.sem_join(lf2, "{School} is a {School Type}")
+    result = lf.execute({lf1: df1, lf2: df2})
 
     joined_pairs = set(zip(result["School"], result["School Type"]))
     expected_pairs = {("UC Berkeley", "Public School"), ("Stanford", "Private School")}
@@ -230,7 +229,7 @@ def test_sem_join_lazyframe(setup_models, model):
 def test_pandas_operations_lazyframe():
     """Test pandas operations on LazyFrame."""
     df = pd.DataFrame({"a": [3, 1, 2, 5, 4]})
-    lf = LazyFrame("data", df=df).sort_values("a").head(3)
+    lf = LazyFrame(df=df).sort_values("a").head(3)
     result = lf.execute({})
 
     assert list(result["a"]) == [1, 2, 3]
@@ -239,7 +238,7 @@ def test_pandas_operations_lazyframe():
 def test_pandas_filter_lazyframe():
     """Test pandas filter on LazyFrame."""
     df = pd.DataFrame({"a": [1, 2, 3, 4, 5]})
-    lf = LazyFrame("data", df=df).filter(lambda d: d["a"] > 2)
+    lf = LazyFrame(df=df).filter(lambda d: d["a"] > 2)
     result = lf.execute({})
 
     assert list(result["a"]) == [3, 4, 5]
@@ -248,7 +247,7 @@ def test_pandas_filter_lazyframe():
 def test_pandas_assign_lazyframe():
     """Test pandas assign on LazyFrame."""
     df = pd.DataFrame({"a": [1, 2, 3]})
-    lf = LazyFrame("data", df=df).assign(b=lambda d: d["a"] * 2)
+    lf = LazyFrame(df=df).assign(b=lambda d: d["a"] * 2)
     result = lf.execute({})
 
     assert "b" in result.columns
@@ -259,7 +258,7 @@ def test_mixed_semantic_and_pandas():
     """Test mixing semantic and pandas operations."""
     df = pd.DataFrame({"a": [1, 2, 3, 4, 5]})
     lf = (
-        LazyFrame("data", df=df)
+        LazyFrame(df=df)
         .head(4)  # pandas
         .filter(lambda d: d["a"] > 1)  # pandas
         .assign(b=lambda d: d["a"] * 2)  # pandas
@@ -280,11 +279,11 @@ def test_pipeline_concat_basic():
     df1 = pd.DataFrame({"a": [1, 2], "b": [10, 20]})
     df2 = pd.DataFrame({"a": [3, 4], "b": [30, 40]})
 
-    p1 = LazyFrame("data1")
-    p2 = LazyFrame("data2")
+    p1 = LazyFrame()
+    p2 = LazyFrame()
     combined = LazyFrame.concat([p1, p2])
 
-    result = combined.execute({"data1": df1, "data2": df2})
+    result = combined.execute({p1: df1, p2: df2})
 
     assert len(result) == 4
     assert list(result["a"]) == [1, 2, 3, 4]
@@ -294,10 +293,10 @@ def test_pipeline_concat_basic():
 def test_pipeline_concat_single():
     """Test LazyFrame.concat with a single LazyFrame."""
     df = pd.DataFrame({"a": [1, 2]})
-    p = LazyFrame("data")
+    p = LazyFrame()
     combined = LazyFrame.concat(p)
 
-    result = combined.execute({"data": df})
+    result = combined.execute({p: df})
     pd.testing.assert_frame_equal(result, df)
 
 
@@ -306,11 +305,11 @@ def test_pipeline_concat_with_kwargs():
     df1 = pd.DataFrame({"a": [1, 2]})
     df2 = pd.DataFrame({"a": [3, 4]})
 
-    p1 = LazyFrame("data1")
-    p2 = LazyFrame("data2")
+    p1 = LazyFrame()
+    p2 = LazyFrame()
     combined = LazyFrame.concat([p1, p2], ignore_index=True)
 
-    result = combined.execute({"data1": df1, "data2": df2})
+    result = combined.execute({p1: df1, p2: df2})
 
     assert len(result) == 4
     assert list(result.index) == [0, 1, 2, 3]
@@ -324,11 +323,11 @@ def test_pipeline_from_fn_basic():
     def combine(dfs):
         return pd.concat(dfs)
 
-    p1 = LazyFrame("data1")
-    p2 = LazyFrame("data2")
+    p1 = LazyFrame()
+    p2 = LazyFrame()
     combined = LazyFrame.from_fn(combine, [p1, p2])
 
-    result = combined.execute({"data1": df1, "data2": df2})
+    result = combined.execute({p1: df1, p2: df2})
     assert len(result) == 4
 
 
@@ -342,11 +341,11 @@ def test_pipeline_from_fn_mixed_args():
         combined["a"] = combined["a"] * multiplier
         return combined
 
-    p1 = LazyFrame("data1")
-    p2 = LazyFrame("data2")
+    p1 = LazyFrame()
+    p2 = LazyFrame()
     combined = LazyFrame.from_fn(custom_fn, p1, p2, multiplier=10)
 
-    result = combined.execute({"data1": df1, "data2": df2})
+    result = combined.execute({p1: df1, p2: df2})
     assert len(result) == 4
     assert all(result["a"] == [10, 20, 30, 40])
 
@@ -366,12 +365,12 @@ def test_pipeline_from_fn_nested_structures():
                 flat.append(item)
         return pd.concat(flat)
 
-    p1 = LazyFrame("data1")
-    p2 = LazyFrame("data2")
-    p3 = LazyFrame("data3")
+    p1 = LazyFrame()
+    p2 = LazyFrame()
+    p3 = LazyFrame()
     combined = LazyFrame.from_fn(process_nested, [p1, [p2, p3]])
 
-    result = combined.execute({"data1": df1, "data2": df2, "data3": df3})
+    result = combined.execute({p1: df1, p2: df2, p3: df3})
     assert len(result) == 3
 
 
@@ -386,11 +385,11 @@ def test_pipeline_from_fn_with_dict():
         combined = pd.concat([p1_result, p2_result], axis=1)
         return combined
 
-    p1 = LazyFrame("data1")
-    p2 = LazyFrame("data2")
+    p1 = LazyFrame()
+    p2 = LazyFrame()
     combined = LazyFrame.from_fn(process_dict, {"source": p1, "other": p2})
 
-    result = combined.execute({"data1": df1, "data2": df2})
+    result = combined.execute({p1: df1, p2: df2})
     assert len(result) == 2
     assert "a" in result.columns
     assert "b" in result.columns
@@ -404,9 +403,9 @@ def test_pipeline_from_fn_with_dict():
 def test_lazyframe_execution_caching():
     """Test that LazyFrame execution results are cached."""
     df = pd.DataFrame({"a": [3, 1, 2]})
-    lf = LazyFrame("data", df=df).sort_values("a")
+    lf = LazyFrame(df=df).sort_values("a")
 
-    run = lf.run({"data": df})
+    run = lf.run(df)
     result1 = run.execute()
     stats1 = run.cache_stats
 
@@ -423,10 +422,12 @@ def test_lazyframe_sub_pipeline_caching():
     left_df = pd.DataFrame({"key": [1, 2], "val": ["a", "b"]})
     right_df = pd.DataFrame({"key": [1, 2], "other": ["x", "y"]})
 
-    right_lf = LazyFrame("right").head(2)
-    main_lf = LazyFrame("left").merge(right_lf, on="key", how="inner")
+    left_lf = LazyFrame()
+    right_lf = LazyFrame()
+    right_lf_with_op = right_lf.head(2)
+    main_lf = left_lf.merge(right_lf_with_op, on="key", how="inner")
 
-    run = main_lf.run({"left": left_df, "right": right_df})
+    run = main_lf.run({left_lf: left_df, right_lf: right_df})
     result = run.execute()
 
     assert len(result) >= 1
@@ -440,11 +441,11 @@ def test_lazyframe_no_source_execution():
     df1 = pd.DataFrame({"a": [1]})
     df2 = pd.DataFrame({"a": [2]})
 
-    p1 = LazyFrame("data1")
-    p2 = LazyFrame("data2")
+    p1 = LazyFrame()
+    p2 = LazyFrame()
     combined = LazyFrame.concat([p1, p2])
 
-    result = combined.execute({"data1": df1, "data2": df2})
+    result = combined.execute({p1: df1, p2: df2})
     assert len(result) == 2
 
 
@@ -458,8 +459,8 @@ def test_multi_source_execution():
     left_df = pd.DataFrame({"key": [1, 2], "val": ["a", "b"]})
     right_df = pd.DataFrame({"key": [1, 2], "other": ["x", "y"]})
 
-    lf = LazyFrame("left").merge(right_df, on="key")
-    result = lf.execute({"left": left_df})
+    lf = LazyFrame().merge(right_df, on="key")
+    result = lf.execute(left_df)
 
     assert "other" in result.columns
     assert len(result) == 2
@@ -470,10 +471,11 @@ def test_sem_join_with_lazyframe():
     left_df = pd.DataFrame({"key": [1, 2], "val": ["a", "b"]})
     right_df = pd.DataFrame({"key": [1, 2], "other": ["x", "y"]})
 
-    right_lf = LazyFrame("right")
-    left_lf = LazyFrame("left").sem_join(right_lf, "{val:left} matches {other:right}")
+    left_lf = LazyFrame()
+    right_lf = LazyFrame()
+    left_lf = left_lf.sem_join(right_lf, "{val:left} matches {other:right}")
 
-    result = left_lf.execute({"left": left_df, "right": right_df})
+    result = left_lf.execute({left_lf._source.pipeline_ref: left_df, right_lf: right_df})
     assert len(result) >= 1
 
 
@@ -502,7 +504,7 @@ def test_complex_pipeline(setup_models, model):
     )
 
     lf = (
-        LazyFrame("courses", df=df)
+        LazyFrame(df=df)
         .sem_filter("{Course Name} is about engineering or computer science")
         .filter(lambda d: d["Units"] >= 3)
         .sem_map("What is a one-sentence summary of {Course Name}?")
@@ -522,7 +524,7 @@ def test_chained_semantic_operations(setup_models, model):
     df = pd.DataFrame({"Text": ["My name is John", "My name is Jane", "My name is John"]})
 
     lf = (
-        LazyFrame("data", df=df)
+        LazyFrame(df=df)
         .sem_filter("{Text} contains a name")
         .sem_map("Extract the name from {Text}")
         .sem_agg("What is the most common name?", suffix="output")

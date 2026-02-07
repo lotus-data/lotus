@@ -210,12 +210,10 @@ All optimizers inherit from ``BaseOptimizer``:
     from lotus.ast.nodes import BaseNode
 
     class MyOptimizer(BaseOptimizer):
-        def optimize_nodes(self, nodes: list[BaseNode]) -> list[BaseNode]:
+        def optimize(self, nodes: list[BaseNode]) -> list[BaseNode]:
             # Transform nodes for better performance
             return optimized_nodes
 
-        def get_name(self) -> str:
-            return "MyOptimizer"
 
 PredicatePushdownOptimizer
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~

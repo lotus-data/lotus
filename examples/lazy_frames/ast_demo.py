@@ -8,7 +8,10 @@ Run:
     python examples/lazy_frames/ast_demo.py
 """
 
-from lotus.ast import LazyFrame, Optimizer
+from lotus.ast import LazyFrame
+
+# sem_filter followed by pandas filter
+from lotus.ast.optimizer import PredicatePushdownOptimizer
 
 # ------------------------------------------------------------------
 # 1. Linear chain: source -> filter -> map
@@ -17,12 +20,12 @@ print("=" * 60)
 print("1. Linear chain")
 print("=" * 60)
 
-courses_df = LazyFrame("courses").sem_filter("{Course Name} requires math").sem_map("Summarize {Course Name}")
+courses_lf = LazyFrame().sem_filter("{Course Name} requires math").sem_map("Summarize {Course Name}")
 
 print("\nLazyFrame:")
-print(repr(courses_df))
+print(repr(courses_lf))
 print()
-print(f"Number of nodes: {len(courses_df)}")
+print(f"Number of nodes: {len(courses_lf)}")
 
 # ------------------------------------------------------------------
 # 2. Chaining multiple operations
@@ -31,10 +34,10 @@ print("\n" + "=" * 60)
 print("2. Complex pipeline with filtering and top-k")
 print("=" * 60)
 
-products_df = LazyFrame("products").sem_filter("price > $100").sem_topk("most popular", K=5)
+products_lf = LazyFrame().sem_filter("price > $100").sem_topk("most popular", K=5)
 
 print("\nLazyFrame:")
-print(repr(products_df))
+print(repr(products_lf))
 
 # ------------------------------------------------------------------
 # 3. Join: two sources merged with sem_join
@@ -43,14 +46,14 @@ print("\n" + "=" * 60)
 print("3. Join of two sources")
 print("=" * 60)
 
-enrollments_df = (
-    LazyFrame("students")
-    .sem_join("enrollments", "match student to enrollment")
-    .sem_map("Summarize enrollment for {Student Name}")
+students_lf = LazyFrame()
+enrollments_lf = LazyFrame()
+enrollments_result = students_lf.sem_join(enrollments_lf, "match student to enrollment").sem_map(
+    "Summarize enrollment for {Student Name}"
 )
 
 print("\nLazyFrame:")
-print(repr(enrollments_df))
+print(repr(enrollments_result))
 
 # ------------------------------------------------------------------
 # 4. Longer pipeline with extract, agg, and cluster
@@ -59,8 +62,8 @@ print("\n" + "=" * 60)
 print("4. Multi-step pipeline")
 print("=" * 60)
 
-articles_df = (
-    LazyFrame("articles")
+articles_lf = (
+    LazyFrame()
     .sem_extract(["Article"], {"topic": "Extract the main topic"})
     .sem_cluster_by("topic", ncentroids=5)
     .sem_dedup("topic", threshold=0.9)
@@ -68,7 +71,7 @@ articles_df = (
 )
 
 print("\nLazyFrame:")
-print(repr(articles_df))
+print(repr(articles_lf))
 
 # ------------------------------------------------------------------
 # 5. Optimization demo
@@ -77,17 +80,15 @@ print("\n" + "=" * 60)
 print("5. Optimization: predicate pushdown")
 print("=" * 60)
 
-# sem_filter followed by pandas filter
-data_df = LazyFrame("data").sem_filter("keep important items").filter(lambda d: d["score"] > 50)
+data_lf = LazyFrame().sem_filter("keep important items").filter(lambda d: d["score"] > 50)
 
 print("\nOriginal LazyFrame:")
-print(repr(data_df))
+print(repr(data_lf))
 
-optimizer = Optimizer()
-optimized_df = optimizer.optimize(data_df)
+optimized_lf = data_lf.optimize([PredicatePushdownOptimizer()])
 
 print("\nOptimized LazyFrame (filter pushed before sem_filter):")
-print(repr(optimized_df))
+print(repr(optimized_lf))
 
 # ------------------------------------------------------------------
 # 6. Mixing pandas and semantic operations
@@ -96,8 +97,8 @@ print("\n" + "=" * 60)
 print("6. Mixed pandas and semantic operations")
 print("=" * 60)
 
-mixed_df = (
-    LazyFrame("data")
+mixed_lf = (
+    LazyFrame()
     .head(100)  # pandas op
     .sem_filter("keep relevant")  # semantic op
     .sort_values("score", ascending=False)  # pandas op
@@ -106,6 +107,6 @@ mixed_df = (
 )
 
 print("\nLazyFrame:")
-print(repr(mixed_df))
+print(repr(mixed_lf))
 print()
-print(f"Total operations: {len(mixed_df)}")
+print(f"Total operations: {len(mixed_lf)}")

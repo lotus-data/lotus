@@ -6,10 +6,17 @@ number of rows processed by expensive semantic operations.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+import pandas as pd
+
 import lotus
 
 from ..nodes import BaseNode, PandasFilterNode, SemFilterNode, SourceNode
 from .base import BaseOptimizer
+
+if TYPE_CHECKING:
+    from ..pipeline import LazyFrame
 
 
 class PredicatePushdownOptimizer(BaseOptimizer):
@@ -23,11 +30,18 @@ class PredicatePushdownOptimizer(BaseOptimizer):
     might depend on.
     """
 
-    def optimize_nodes(self, nodes: list[BaseNode]) -> list[BaseNode]:
+    requires_train_data: bool = False
+
+    def optimize(
+        self,
+        nodes: list[BaseNode],
+        train_data: dict["LazyFrame", pd.DataFrame] | pd.DataFrame | None = None,
+    ) -> list[BaseNode]:
         """Move pandas filter nodes before sem_filter nodes where safe.
 
         Args:
             nodes: List of nodes to optimize
+            train_data: Optional training data (not used by this optimizer)
 
         Returns:
             Optimized list of nodes with filters pushed earlier
@@ -50,10 +64,6 @@ class PredicatePushdownOptimizer(BaseOptimizer):
             lotus.logger.debug("PredicatePushdownOptimizer: no optimizations applied")
 
         return nodes
-
-    def get_name(self) -> str:
-        """Return the name of this optimizer."""
-        return "PredicatePushdown"
 
     def _can_push_past(self, filter_node: PandasFilterNode, other_node: BaseNode) -> bool:
         """Check if a filter can be pushed past another node.

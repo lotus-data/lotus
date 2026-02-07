@@ -5,8 +5,11 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
+import pandas as pd
+
 if TYPE_CHECKING:
     from ..nodes import BaseNode
+    from ..pipeline import LazyFrame
 
 
 class BaseOptimizer(ABC):
@@ -16,23 +19,22 @@ class BaseOptimizer(ABC):
     a list of nodes to improve performance.
     """
 
+    requires_train_data: bool = False
+
     @abstractmethod
-    def optimize_nodes(self, nodes: list[BaseNode]) -> list[BaseNode]:
+    def optimize(
+        self,
+        nodes: list[BaseNode],
+        train_data: dict["LazyFrame", pd.DataFrame] | pd.DataFrame | None = None,
+    ) -> list[BaseNode]:
         """Apply optimization to a list of nodes.
 
         Args:
             nodes: List of nodes to optimize
+            train_data: Optional training data dict (LazyFrame -> DataFrame).
+                       Only provided if requires_train_data is True.
 
         Returns:
             Optimized list of nodes (may be the same list if no changes)
-        """
-        pass
-
-    @abstractmethod
-    def get_name(self) -> str:
-        """Return the name of this optimizer.
-
-        Returns:
-            Human-readable name for logging/debugging
         """
         pass

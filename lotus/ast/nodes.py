@@ -46,19 +46,40 @@ class BaseNode(BaseModel):
 class SourceNode(BaseNode):
     """Source node representing input data."""
 
-    key: str = "default"
+    pipeline_ref: Any = None  # Reference to the parent LazyFrame
     df: pd.DataFrame | None = None
+    expected_schema: dict[str, str] | None = None  # Optional schema for validation (col_name -> dtype)
 
     def __call__(self, df: pd.DataFrame | None = None, **context: Any) -> pd.DataFrame:
         """Return the source DataFrame."""
-        lotus.logger.debug(f"SourceNode: loading source '{self.key}'")
+        lotus.logger.debug("SourceNode: loading source")
         if df is not None:
             lotus.logger.debug(f"SourceNode: loaded {len(df)} rows from provided df")
+            # Validate schema if specified
+            if self.expected_schema is not None:
+                self._validate_schema(df)
             return df
         if self.df is not None:
             lotus.logger.debug(f"SourceNode: loaded {len(self.df)} rows from bound df")
+            # Validate schema if specified
+            if self.expected_schema is not None:
+                self._validate_schema(self.df)
             return self.df
-        raise ValueError(f"No DataFrame provided for source '{self.key}'")
+        raise ValueError("No DataFrame provided for source")
+
+    def _validate_schema(self, df: pd.DataFrame) -> None:
+        """Validate that the DataFrame schema matches the expected schema."""
+        if not self.expected_schema:
+            return
+        for col_name, expected_dtype in self.expected_schema.items():
+            if col_name not in df.columns:
+                raise ValueError(f"Schema validation failed: column '{col_name}' not found in DataFrame")
+            actual_dtype = str(df[col_name].dtype)
+            if actual_dtype != expected_dtype:
+                raise ValueError(
+                    f"Schema validation failed: column '{col_name}' has dtype '{actual_dtype}', "
+                    f"expected '{expected_dtype}'"
+                )
 
 
 # ------------------------------------------------------------------

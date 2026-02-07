@@ -23,12 +23,12 @@ class LazyFrameRun:
     def __init__(
         self,
         pipeline: LazyFrame,
-        inputs: pd.DataFrame | dict[str, pd.DataFrame],
+        inputs: pd.DataFrame | dict[LazyFrame, pd.DataFrame],
         *,
         _shared_cache: dict[str, Any] | None = None,
     ) -> None:
         self._pipeline = pipeline
-        self._inputs: dict[str, pd.DataFrame] = inputs if isinstance(inputs, dict) else {pipeline.key: inputs}
+        self._inputs: dict[LazyFrame, pd.DataFrame] = inputs if isinstance(inputs, dict) else {pipeline: inputs}
         # Content-addressable cache: cache_key -> result (shared with sub-pipelines)
         self._content_cache: dict[str, Any] = _shared_cache if _shared_cache is not None else {}
         self._cache_stats: dict[str, int] = {"hits": 0, "misses": 0}
@@ -96,16 +96,24 @@ class LazyFrameRun:
 
     def _execute_source_node(self, node: SourceNode) -> pd.DataFrame:
         """Execute a source node."""
-        lotus.logger.debug(f"LazyFrameRun._execute_source_node: loading source '{node.key}'")
-        df = self._inputs.get(node.key)
+        lotus.logger.debug("LazyFrameRun._execute_source_node: loading source")
+        # Look up DataFrame by LazyFrame reference
+        df = self._inputs.get(node.pipeline_ref) if node.pipeline_ref else None
+
+        # If not found by reference, and there's only one input, use it
+        if df is None and len(self._inputs) == 1:
+            df = next(iter(self._inputs.values()))
+            lotus.logger.debug("LazyFrameRun._execute_source_node: using single input DataFrame")
+
+        # Call the node to execute it (this triggers schema validation)
         if df is not None:
-            lotus.logger.debug(f"LazyFrameRun._execute_source_node: loaded {len(df)} rows from inputs")
-            return df.copy()
+            lotus.logger.debug(f"LazyFrameRun._execute_source_node: executing source node with {len(df)} rows")
+            return node(df)
         elif node.df is not None:
-            lotus.logger.debug(f"LazyFrameRun._execute_source_node: loaded {len(node.df)} rows from bound df")
-            return node.df.copy()
+            lotus.logger.debug("LazyFrameRun._execute_source_node: executing source node with bound df")
+            return node()
         else:
-            raise ValueError(f"No DataFrame provided for source '{node.key}'")
+            raise ValueError("No DataFrame provided for source")
 
     def _resolve_right_df(self, node: SemJoinNode | SemSimJoinNode) -> pd.DataFrame:
         """Resolve the right DataFrame for a join node.
@@ -129,7 +137,7 @@ class LazyFrameRun:
 
         if node.right_source_node is not None:
             lotus.logger.debug(
-                f"LazyFrameRun._resolve_right_df: using right source node '{node.right_source_node.key}'"
+                f"LazyFrameRun._resolve_right_df: using right source node '{node.right_source_node.pipeline_ref}'"
             )
             return self._execute_source_node(node.right_source_node)
 
