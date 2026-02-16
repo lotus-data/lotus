@@ -9,7 +9,7 @@ from typing import Any, Callable
 
 import numpy as np
 import pandas as pd
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 import lotus
 from lotus.types import (
@@ -25,6 +25,9 @@ class BaseNode(BaseModel):
     """Base class for all AST nodes."""
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    # GEPA optimization: which params to optimize. None = use defaults, empty = exclude.
+    optimizable_params: frozenset[str] | None = None
 
     def __call__(self, df: pd.DataFrame, **context: Any) -> pd.DataFrame | Any:
         """Execute this node on the input DataFrame."""
@@ -88,9 +91,11 @@ class SourceNode(BaseNode):
 
 
 class SemFilterNode(BaseNode):
-    """Semantic filter node."""
+    """Filters rows where a natural language predicate evaluates to true."""
 
-    user_instruction: str
+    user_instruction: str = Field(
+        description="Natural language predicate evaluated per row. Use {ColumnName} to reference columns."
+    )
     return_raw_outputs: bool = False
     return_explanations: bool = False
     return_all: bool = False
@@ -131,10 +136,14 @@ class SemFilterNode(BaseNode):
 
 
 class SemMapNode(BaseNode):
-    """Semantic map node."""
+    """Transforms each row using a natural language instruction, producing a new column."""
 
-    user_instruction: str
-    system_prompt: str | None = None
+    user_instruction: str = Field(
+        description="Natural language transformation instruction applied per row. Use {ColumnName} to reference columns."
+    )
+    system_prompt: str | None = Field(
+        default=None, description="Optional system prompt prepended to every LLM call for this map operation."
+    )
     postprocessor: Callable[[list[str], Any, bool], SemanticMapPostprocessOutput] | None = None
     return_explanations: bool = False
     return_raw_outputs: bool = False
@@ -170,10 +179,12 @@ class SemMapNode(BaseNode):
 
 
 class SemExtractNode(BaseNode):
-    """Semantic extract node."""
+    """Extracts structured attributes from text columns into new columns."""
 
     input_cols: list[str]
-    output_cols: dict[str, str | None]
+    output_cols: dict[str, str | None] = Field(
+        description="Mapping of output column names to natural language descriptions of what to extract."
+    )
     extract_quotes: bool = False
     postprocessor: Callable[[list[str], Any, bool], SemanticExtractPostprocessOutput] | None = None
     return_raw_outputs: bool = False
@@ -204,9 +215,11 @@ class SemExtractNode(BaseNode):
 
 
 class SemAggNode(BaseNode):
-    """Semantic aggregation node."""
+    """Aggregates/summarizes rows using a natural language instruction."""
 
-    user_instruction: str
+    user_instruction: str = Field(
+        description="Natural language aggregation instruction describing how to summarize the rows. Use {ColumnName} to reference columns."
+    )
     all_cols: bool = False
     suffix: str = "_output"
     group_by: list[str] | None = None
@@ -230,9 +243,11 @@ class SemAggNode(BaseNode):
 
 
 class SemTopKNode(BaseNode):
-    """Semantic top-k node."""
+    """Ranks rows by a natural language criterion and returns the top K."""
 
-    user_instruction: str
+    user_instruction: str = Field(
+        description="Natural language ranking criterion. Use {ColumnName} to reference columns."
+    )
     K: int
     method: str = "quick"
     strategy: ReasoningStrategy | None = None
@@ -265,7 +280,7 @@ class SemTopKNode(BaseNode):
 
 
 class SemJoinNode(BaseNode):
-    """Semantic join node.
+    """Joins two DataFrames on a natural language predicate.
 
     Supports three modes for specifying the right DataFrame:
     1. right_pipeline: LazyFrame object to execute first
@@ -277,7 +292,9 @@ class SemJoinNode(BaseNode):
     right_pipeline: Any = None  # Actually LazyFrame, but avoid circular import
     right_df: pd.DataFrame | None = None
 
-    join_instruction: str
+    join_instruction: str = Field(
+        description="Natural language join predicate between left and right DataFrames. Use {ColumnName} to reference columns from either side."
+    )
     return_explanations: bool = False
     how: str = "inner"
     suffix: str = "_join"
@@ -360,10 +377,10 @@ class SemSimJoinNode(BaseNode):
 
 
 class SemSearchNode(BaseNode):
-    """Semantic search node."""
+    """Returns rows most semantically similar to a natural language query."""
 
     col_name: str
-    query: str
+    query: str = Field(description="Natural language query for semantic similarity search.")
     K: int | None = None
     n_rerank: int | None = None
     return_scores: bool = False

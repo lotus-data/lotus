@@ -152,6 +152,35 @@ class LazyFrame:
         return LazyFrame(_nodes=new_nodes, _source=source_node)
 
     # ------------------------------------------------------------------
+    # Optimization Annotations
+    # ------------------------------------------------------------------
+
+    def mark_optimizable(self, node_idx: int, params: list[str]) -> "LazyFrame":
+        """Mark specific parameters on a node for GEPA optimization.
+
+        Args:
+            node_idx: Index of the node in the pipeline's node list.
+            params: List of parameter names to optimize, e.g. ["user_instruction"].
+                    Pass an empty list to explicitly exclude the node from optimization.
+
+        Returns:
+            New LazyFrame with the targeted node annotated.
+        """
+        if node_idx < 0 or node_idx >= len(self._nodes):
+            raise IndexError(f"node_idx {node_idx} out of range for pipeline with {len(self._nodes)} nodes")
+        node = self._nodes[node_idx]
+        updated = node.model_copy(update={"optimizable_params": frozenset(params)})
+        new_nodes = list(self._nodes)
+        new_nodes[node_idx] = updated
+        return LazyFrame(_nodes=new_nodes, _source=self._source)
+
+    def _append_node_with_optimizable(self, node: BaseNode, mark_optimizable: list[str] | None) -> "LazyFrame":
+        """Append a node, optionally setting optimizable_params."""
+        if mark_optimizable is not None:
+            node = node.model_copy(update={"optimizable_params": frozenset(mark_optimizable)})
+        return self._append_node(node)
+
+    # ------------------------------------------------------------------
     # Semantic Operators
     # ------------------------------------------------------------------
 
@@ -172,6 +201,7 @@ class LazyFrame:
         safe_mode: bool = False,
         progress_bar_desc: str = "Filtering",
         additional_cot_instructions: str = "",
+        mark_optimizable: list[str] | None = None,
     ) -> "LazyFrame":
         """Add a semantic filter operation."""
         node = SemFilterNode(
@@ -190,7 +220,7 @@ class LazyFrame:
             progress_bar_desc=progress_bar_desc,
             additional_cot_instructions=additional_cot_instructions,
         )
-        return self._append_node(node)
+        return self._append_node_with_optimizable(node, mark_optimizable)
 
     def sem_map(
         self,
@@ -205,6 +235,7 @@ class LazyFrame:
         strategy: ReasoningStrategy | None = None,
         safe_mode: bool = False,
         progress_bar_desc: str = "Mapping",
+        mark_optimizable: list[str] | None = None,
         **model_kwargs: Any,
     ) -> "LazyFrame":
         """Add a semantic map operation."""
@@ -221,7 +252,7 @@ class LazyFrame:
             progress_bar_desc=progress_bar_desc,
             model_kwargs=model_kwargs if model_kwargs else None,
         )
-        return self._append_node(node)
+        return self._append_node_with_optimizable(node, mark_optimizable)
 
     def sem_extract(
         self,
@@ -235,6 +266,7 @@ class LazyFrame:
         progress_bar_desc: str = "Extracting",
         return_explanations: bool = False,
         strategy: ReasoningStrategy | None = None,
+        mark_optimizable: list[str] | None = None,
     ) -> "LazyFrame":
         """Add a semantic extract operation."""
         node = SemExtractNode(
@@ -248,7 +280,7 @@ class LazyFrame:
             return_explanations=return_explanations,
             strategy=strategy,
         )
-        return self._append_node(node)
+        return self._append_node_with_optimizable(node, mark_optimizable)
 
     def sem_agg(
         self,
@@ -260,6 +292,7 @@ class LazyFrame:
         safe_mode: bool = False,
         progress_bar_desc: str = "Aggregating",
         long_context_strategy: LongContextStrategy | None = LongContextStrategy.CHUNK,
+        mark_optimizable: list[str] | None = None,
     ) -> "LazyFrame":
         """Add a semantic aggregation operation."""
         node = SemAggNode(
@@ -271,7 +304,7 @@ class LazyFrame:
             progress_bar_desc=progress_bar_desc,
             long_context_strategy=long_context_strategy,
         )
-        return self._append_node(node)
+        return self._append_node_with_optimizable(node, mark_optimizable)
 
     def sem_topk(
         self,
@@ -285,6 +318,7 @@ class LazyFrame:
         return_stats: bool = False,
         safe_mode: bool = False,
         return_explanations: bool = False,
+        mark_optimizable: list[str] | None = None,
     ) -> "LazyFrame":
         """Add a semantic top-k operation."""
         node = SemTopKNode(
@@ -298,7 +332,7 @@ class LazyFrame:
             safe_mode=safe_mode,
             return_explanations=return_explanations,
         )
-        return self._append_node(node)
+        return self._append_node_with_optimizable(node, mark_optimizable)
 
     def sem_join(
         self,
@@ -315,6 +349,7 @@ class LazyFrame:
         return_stats: bool = False,
         safe_mode: bool = False,
         progress_bar_desc: str = "Join comparisons",
+        mark_optimizable: list[str] | None = None,
     ) -> "LazyFrame":
         """Add a semantic join operation.
 
@@ -351,7 +386,7 @@ class LazyFrame:
             safe_mode=safe_mode,
             progress_bar_desc=progress_bar_desc,
         )
-        return self._append_node(node)
+        return self._append_node_with_optimizable(node, mark_optimizable)
 
     def sem_sim_join(
         self,
@@ -409,6 +444,7 @@ class LazyFrame:
         n_rerank: int | None = None,
         return_scores: bool = False,
         suffix: str = "_sim_score",
+        mark_optimizable: list[str] | None = None,
     ) -> "LazyFrame":
         """Add a semantic search operation."""
         node = SemSearchNode(
@@ -419,7 +455,7 @@ class LazyFrame:
             return_scores=return_scores,
             suffix=suffix,
         )
-        return self._append_node(node)
+        return self._append_node_with_optimizable(node, mark_optimizable)
 
     def sem_index(self, col_name: str, index_dir: str) -> "LazyFrame":
         """Add a semantic index operation."""
@@ -927,6 +963,10 @@ class LazyFrame:
 
         all_lines = build_tree_lines(len(self._nodes) - 1, indent=0)
         return "\n".join(all_lines)
+
+    def print_tree(self) -> None:
+        """Print the pipeline structure as a tree."""
+        print(self.show())
 
     def __len__(self) -> int:
         return len(self._nodes)
