@@ -353,7 +353,7 @@ class SemFilterDataframe:
                 "The language model must be an instance of LM. Please configure a valid language model using lotus.settings.configure()"
             )
 
-        stats: dict[str, float] = {}
+        stats: dict[str, Any] = {}
         lotus.logger.debug(user_instruction)
         col_li = lotus.nl_expression.parse_cols(user_instruction)
         lotus.logger.debug(col_li)
@@ -379,7 +379,10 @@ class SemFilterDataframe:
             if strategy == ReasoningStrategy.COT and "Reasoning" in examples.columns:
                 cot_reasoning = examples["Reasoning"].tolist()
 
-        pos_cascade_threshold, neg_cascade_threshold = None, None
+        pos_cascade_threshold, neg_cascade_threshold = (
+            cascade_args.filter_pos_cascade_threshold if cascade_args is not None else None,
+            cascade_args.filter_neg_cascade_threshold if cascade_args is not None else None,
+        )
         if cascade_args is not None:
             # Get few-shot examples for small LM
             helper_examples_multimodal_data = None
@@ -394,15 +397,6 @@ class SemFilterDataframe:
 
         if cascade_args:
             proxy_model = cascade_args.proxy_model
-            if (
-                cascade_args.recall_target is None
-                or cascade_args.precision_target is None
-                or cascade_args.failure_probability is None
-            ):
-                raise ValueError(
-                    "Recall target, precision target, and confidence need to be specified for learned thresholds."
-                )
-
             # Get the proxy scores
             if proxy_model == ProxyModel.HELPER_LM:
                 if not lotus.settings.helper_lm:
@@ -440,29 +434,40 @@ class SemFilterDataframe:
                 search_df = self._obj.sem_search(col_li[0], formatted_usr_instr, K=len(self._obj), return_scores=True)
                 proxy_scores = search_df["vec_scores_sim_score"].tolist()
 
-            sample_indices, correction_factors = importance_sampling(proxy_scores, cascade_args)
-            sample_df = self._obj.loc[sample_indices]
-            sample_multimodal_data = task_instructions.df2multimodal_info(sample_df, col_li)
-            sample_proxy_scores = [proxy_scores[i] for i in sample_indices]
-            sample_correction_factors = correction_factors[sample_indices]
+            if pos_cascade_threshold is None or neg_cascade_threshold is None:
+                if (
+                    cascade_args.recall_target is None
+                    or cascade_args.precision_target is None
+                    or cascade_args.failure_probability is None
+                ):
+                    raise ValueError(
+                        "Recall target, precision target, and confidence need to be specified for learned thresholds."
+                    )
 
-            pos_cascade_threshold, neg_cascade_threshold = learn_filter_cascade_thresholds(
-                sample_multimodal_data=sample_multimodal_data,
-                lm=lotus.settings.lm,
-                formatted_usr_instr=formatted_usr_instr,
-                default=default,
-                cascade_args=cascade_args,
-                proxy_scores=sample_proxy_scores,
-                sample_correction_factors=sample_correction_factors,
-                examples_multimodal_data=examples_multimodal_data,
-                examples_answers=examples_answers,
-                cot_reasoning=cot_reasoning,
-                strategy=strategy,
-                additional_cot_instructions=additional_cot_instructions,
-            )
+                sample_indices, correction_factors = importance_sampling(proxy_scores, cascade_args)
+                sample_df = self._obj.loc[sample_indices]
+                sample_multimodal_data = task_instructions.df2multimodal_info(sample_df, col_li)
+                sample_proxy_scores = [proxy_scores[i] for i in sample_indices]
+                sample_correction_factors = correction_factors[sample_indices]
 
-            stats["pos_cascade_threshold"] = pos_cascade_threshold
-            stats["neg_cascade_threshold"] = neg_cascade_threshold
+                pos_cascade_threshold, neg_cascade_threshold = learn_filter_cascade_thresholds(
+                    sample_multimodal_data=sample_multimodal_data,
+                    lm=lotus.settings.lm,
+                    formatted_usr_instr=formatted_usr_instr,
+                    default=default,
+                    cascade_args=cascade_args,
+                    proxy_scores=sample_proxy_scores,
+                    sample_correction_factors=sample_correction_factors,
+                    examples_multimodal_data=examples_multimodal_data,
+                    examples_answers=examples_answers,
+                    cot_reasoning=cot_reasoning,
+                    strategy=strategy,
+                    additional_cot_instructions=additional_cot_instructions,
+                )
+
+            cascade_args.filter_pos_cascade_threshold = pos_cascade_threshold
+            cascade_args.filter_neg_cascade_threshold = neg_cascade_threshold
+            stats["cascade_args"] = cascade_args.model_copy(deep=True)
 
         if pos_cascade_threshold is not None and neg_cascade_threshold is not None:
             stats["filters_resolved_by_helper_model"] = 0
