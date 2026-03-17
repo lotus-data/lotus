@@ -47,6 +47,32 @@ For the latest features:
     $ conda activate lotus
     $ pip install git+https://github.com/lotus-data/lotus.git@main
 
+Optional Subpackages
+--------------------
+
+LOTUS supports optional subpackages for extended functionality. Install them using the ``lotus-ai[<subpackage>]`` syntax:
+
+.. code-block:: console
+
+    $ pip install "lotus-ai[serpapi]"
+
+Or with uv:
+
+.. code-block:: console
+
+    $ uv add "lotus-ai[serpapi]"
+
+Here's a non-exhaustive list of available subpackages:
+
+* ``serpapi`` — Web search via Google and Google Scholar using the SerpAPI
+* ``arxiv`` — Fetching and searching papers from arXiv
+* ``pubmed`` — Searching and extracting biomedical literature via PubMed
+* ``file_extractor`` — Extracting text from PDFs, Word documents, PowerPoint files, and more via DirectoryReader
+* ``weaviate`` — Integration with the Weaviate vector database
+* ``qdrant`` — Integration with the Qdrant vector database
+* ``data_connectors`` — Connecting to SQL databases and AWS S3 via SQLAlchemy and boto3
+* ``web_search`` — Web search support via You.com and Tavily
+
 Running on Mac
 --------------
 
