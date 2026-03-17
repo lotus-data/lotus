@@ -31,6 +31,12 @@ from lotus.types import (
 logging.getLogger("LiteLLM").setLevel(logging.CRITICAL)
 logging.getLogger("httpx").setLevel(logging.CRITICAL)
 
+# Suppress Pydantic serialization warnings emitted by litellm when its ModelResponse
+# Choices/Message types don't exactly match the expected StreamingChoices schema.
+# This is a known upstream litellm issue and the warnings are harmless — the values
+# are still serialized correctly.
+warnings.filterwarnings("ignore", message="Pydantic serializer warnings", category=UserWarning, module="pydantic.*")
+
 
 class LM:
     """
