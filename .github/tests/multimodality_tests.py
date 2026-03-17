@@ -4,7 +4,7 @@ import pandas as pd
 import pytest
 
 import lotus
-from lotus.dtype_extensions import ImageArray
+from lotus.dtype_extensions import ImageArray, AudioArray
 from lotus.models import LM, SentenceTransformersRM
 from lotus.vector_store import FaissVS
 
@@ -20,6 +20,7 @@ ENABLE_LOCAL_TESTS = os.getenv("ENABLE_LOCAL_TESTS", "false").lower() == "true"
 
 MODEL_NAME_TO_ENABLED = {
     "gpt-4o-mini": ENABLE_OPENAI_TESTS,
+    "gpt-4o-audio-preview": ENABLE_OPENAI_TESTS,
     "clip-ViT-B-32": ENABLE_LOCAL_TESTS,
 }
 ENABLED_MODEL_NAMES = set([model_name for model_name, is_enabled in MODEL_NAME_TO_ENABLED.items() if is_enabled])
@@ -27,6 +28,7 @@ ENABLED_MODEL_NAMES = set([model_name for model_name, is_enabled in MODEL_NAME_T
 MODEL_NAME_TO_CLS = {
     "clip-ViT-B-32": SentenceTransformersRM,
     "gpt-4o-mini": LM,
+    "gpt-4o-audio-preview": LM,
 }
 
 
@@ -228,3 +230,25 @@ def test_sim_join_operation_text_index(setup_models, model):
         ("https://i.pinimg.com/236x/a4/3a/65/a43a65683a0314f29b66402cebdcf46d.jpg", "bird"),
     ]
     assert expected_result == list(zip(joined_df["image"], joined_df["element"]))
+
+
+@pytest.mark.parametrize("model", get_enabled("gpt-4o-audio-preview"))
+def test_filter_operation_audio(setup_models, model):
+    lm = setup_models[model]
+    lotus.settings.configure(lm=lm)
+
+    # Use a real wav file content to ensure valid format
+    import base64
+    with open("test_audio.wav", "rb") as f:
+        wav_bytes = f.read()
+    wav_b64 = "data:audio/wav;base64," + base64.b64encode(wav_bytes).decode("utf-8")
+    
+    audio_data = [wav_b64, wav_b64]
+    df = pd.DataFrame({"audio": AudioArray(audio_data)})
+    user_instruction = "{audio} contains audio"
+    
+    # Just verify it runs without error and returns a dataframe
+    filtered_df = df.sem_filter(user_instruction)
+    assert isinstance(filtered_df, pd.DataFrame)
+
+

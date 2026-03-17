@@ -9,15 +9,16 @@ from lotus.cache import operator_cache
 from lotus.templates import task_instructions
 from lotus.types import (
     CascadeArgs,
-    LMOutput,
     LogprobsForFilterCascade,
     ProxyModel,
+    RawOutputs,
     ReasoningStrategy,
     SemanticFilterOutput,
 )
 from lotus.utils import show_safe_mode
 
 from .cascade_utils import calibrate_llm_logprobs, importance_sampling, learn_cascade_thresholds
+from .ensembling import Ensemble, EnsembleConfig, EnsembleStrategy
 from .postprocessors import filter_postprocess
 
 
@@ -35,6 +36,8 @@ def sem_filter(
     show_progress_bar: bool = True,
     progress_bar_desc: str = "Filtering",
     additional_cot_instructions: str = "",
+    n_sample: int = 1,
+    ensemble: Ensemble | None = None,
 ) -> SemanticFilterOutput:
     """
     Filters a list of documents based on a natural language instruction using a language model.
@@ -73,21 +76,30 @@ def sem_filter(
             Defaults to "Filtering".
         additional_cot_instructions (str, optional): Additional instructions for
             chain-of-thought reasoning. Defaults to "".
-
+        n_sample (int, optional): Number of samples to generate for test-time scaling.
+            When > 1, multiple predictions are made and aggregated. Defaults to 1.
+        ensemble (Ensemble | None, optional): The ensemble object to use for aggregation
+            when n_sample > 1. If None and n_sample > 1, defaults to MAJORITY_VOTE.
+    
     Returns:
-        SemanticFilterOutput: An object containing the boolean filter outputs, raw
-            outputs, explanations (if applicable), and log probabilities (if requested).
+        SemanticFilterOutput: An object containing the boolean filter outputs, 
+            per-run rollout data, and stats.
 
     Raises:
-        ValueError: If the model is not properly configured or if there are
-            issues with the input parameters.
+        ValueError: If the model is not properly configured, if n_sample < 1,
+            or if there are issues with the input parameters.
 
     Example:
         >>> docs = [{"text": "Positive review"}, {"text": "Negative review"}]
         >>> model = LM(model="gpt-4o")
         >>> result = sem_filter(docs, model, "Is this a positive sentiment?")
         >>> print(result.outputs)  # [True, False]
+        >>> # With test-time scaling
+        >>> result = sem_filter(docs, model, "Is this positive?", n_sample=3, ensemble=EnsembleStrategy.MAJORITY_VOTE)
     """
+    if n_sample < 1:
+        raise ValueError("n_sample must be at least 1")
+
     inputs = []
     for doc in docs:
         prompt = lotus.templates.task_instructions.filter_formatter(
@@ -102,30 +114,61 @@ def sem_filter(
         )
         lotus.logger.debug(f"input to model: {prompt}")
         inputs.append(prompt)
+    
     kwargs: dict[str, Any] = {"logprobs": logprobs}
-
+    
     if safe_mode:
-        estimated_total_calls = len(docs)
-        estimated_total_cost = sum(model.count_tokens(input) for input in inputs)
+        estimated_total_calls = len(docs) * n_sample
+        estimated_total_cost = sum(model.count_tokens(input) for input in inputs) * n_sample
         show_safe_mode(estimated_total_cost, estimated_total_calls)
 
-    lm_output: LMOutput = model(
-        inputs, show_progress_bar=show_progress_bar, progress_bar_desc=progress_bar_desc, **kwargs
+    # Multi-sample path with ensembling
+    if ensemble is None:
+        ensemble_obj = Ensemble(EnsembleConfig(strategy=EnsembleStrategy.MAJORITY_VOTE))
+    else:
+        ensemble_obj = ensemble
+
+    # Collect all run outputs
+    all_runs_outputs: list[list[bool]] = [[] for _ in range(len(docs))]
+    all_runs_raw_outputs: list[list[str]] = [[] for _ in range(len(docs))]
+    all_runs_explanations: list[list[str | None]] = [[] for _ in range(len(docs))]
+    all_runs_logprobs: list[list[list]] = [[] for _ in range(len(docs))] if logprobs else None
+
+    # Run n_sample times
+    for sample_idx in range(n_sample):
+        desc = f"{progress_bar_desc} (sample {sample_idx + 1}/{n_sample})"
+        lm_output = model(
+            inputs, show_progress_bar=show_progress_bar, progress_bar_desc=desc, **kwargs
+        )
+
+        postprocess_output = filter_postprocess(lm_output.outputs, model, default)
+
+        # Collect outputs for each document
+        for doc_idx in range(len(docs)):
+            all_runs_outputs[doc_idx].append(postprocess_output.outputs[doc_idx])
+            all_runs_raw_outputs[doc_idx].append(postprocess_output.raw_outputs[doc_idx])
+            all_runs_explanations[doc_idx].append(postprocess_output.explanations[doc_idx])
+            if logprobs and lm_output.logprobs:
+                all_runs_logprobs[doc_idx].append(lm_output.logprobs[doc_idx])
+
+    # Aggregate using ensemble strategy
+    final_outputs = ensemble_obj.aggregate_batch(all_runs_outputs)
+
+    raw_outputs_obj = RawOutputs(
+        predictions=all_runs_outputs,
+        raw_outputs=all_runs_raw_outputs,
+        explanations=all_runs_explanations,
+        logprobs=all_runs_logprobs,
     )
 
-    postprocess_output = filter_postprocess(lm_output.outputs, model, default)
-    lotus.logger.debug(f"outputs: {postprocess_output.outputs}")
-    lotus.logger.debug(f"raw_outputs: {postprocess_output.raw_outputs}")
-    lotus.logger.debug(f"explanations: {postprocess_output.explanations}")
-
+    lotus.logger.debug(f"outputs: {final_outputs}")
+    
     if safe_mode:
         model.print_total_usage()
 
     return SemanticFilterOutput(
-        raw_outputs=postprocess_output.raw_outputs,
-        outputs=postprocess_output.outputs,
-        explanations=postprocess_output.explanations,
-        logprobs=lm_output.logprobs if logprobs else None,
+        outputs=final_outputs,
+        _raw_outputs=raw_outputs_obj,
     )
 
 
@@ -347,6 +390,8 @@ class SemFilterDataframe:
         safe_mode: bool = False,
         progress_bar_desc: str = "Filtering",
         additional_cot_instructions: str = "",
+        n_sample: int = 1,
+        ensemble: Ensemble | None = None,
     ) -> pd.DataFrame | tuple[pd.DataFrame, dict[str, Any]]:
         if lotus.settings.lm is None:
             raise ValueError(
@@ -543,49 +588,111 @@ class SemFilterDataframe:
                 show_progress_bar=True,
                 progress_bar_desc=progress_bar_desc,
                 additional_cot_instructions=additional_cot_instructions,
+                n_sample=n_sample,
+                ensemble=ensemble,
             )
+        if n_sample > 1:
+            # Multi-sample logic
             outputs = output.outputs
+            raw_outputs_obj = output._raw_outputs
+
+            if not return_all:
+                ids = [i for i, x in enumerate(outputs) if x]
+                idx_ids = [self._obj.index[i] for i, x in enumerate(outputs) if x]
+                new_df = self._obj.iloc[ids].copy()
+                new_df.attrs["index_dirs"] = self._obj.attrs.get("index_dirs", None)
+            else:
+                new_df = self._obj.copy()
+                
+                def get_out_col_name(df, col_name):
+                    if col_name in df.columns:
+                        i = 1
+                        while f"{col_name}_{i}" in new_df.columns:
+                            i += 1
+                        return f"{col_name}_{i}"
+                    else:
+                        return col_name
+                        
+                new_df[get_out_col_name(new_df, "filter_label")] = outputs
+
+            # Add columns for each sample
+            for i in range(n_sample):
+                # 1-based indexing for columns as requested
+                suffix_i = f"_{i+1}"
+                
+                # Extract data for this sample
+                sample_preds = [preds[i] for preds in raw_outputs_obj.predictions]
+                sample_raw = [raws[i] for raws in raw_outputs_obj.raw_outputs]
+                sample_expl = [expls[i] for expls in raw_outputs_obj.explanations]
+
+                # Filter if needed
+                if not return_all:
+                    sample_preds = [sample_preds[j] for j in ids]
+                    sample_raw = [sample_raw[j] for j in ids]
+                    sample_expl = [sample_expl[j] for j in ids]
+                
+                # Add columns
+                if return_raw_outputs:
+                    new_df[f"raw_output{suffix_i}"] = sample_raw
+                    new_df[f"parsed_output{suffix_i}"] = sample_preds
+                if return_explanations:
+                    new_df[f"explanation{suffix_i}"] = sample_expl
+
+            # Add ensemble answer
+            if return_explanations and return_raw_outputs:
+                 # Usually explanation for ensemble might be aggregate or empty, 
+                 # but current logic returns the chosen/final one.
+                 # The sem_filter function returns `final_outputs` as `outputs`.
+                 # For now, we don't have a separate "ensemble explanation", 
+                 # but we can omit or keep existing behavior if applicable.
+                 # The user request specifically asked for the broken down columns.
+                 pass
+
+        else:
+            # Single sample logic (backward compatibility)
+            outputs = output.outputs
+            # Access raw_outputs via backward compatibility property
             raw_outputs = output.raw_outputs
             explanations = output.explanations
 
-        if not return_all:
-            # find indices where output is True
-            ids = [i for i, x in enumerate(outputs) if x]
-            idx_ids = [self._obj.index[i] for i, x in enumerate(outputs) if x]
-            lotus.logger.debug(f"ids: {ids}")
-            lotus.logger.debug(f"idx_ids: {idx_ids}")
+            if not return_all:
+                # find indices where output is True
+                ids = [i for i, x in enumerate(outputs) if x]
+                idx_ids = [self._obj.index[i] for i, x in enumerate(outputs) if x]
+                lotus.logger.debug(f"ids: {ids}")
+                lotus.logger.debug(f"idx_ids: {idx_ids}")
 
-            [outputs[i] for i in ids]
-            filtered_explanations = [explanations[i] for i in ids]
-            filtered_raw_outputs = [raw_outputs[i] for i in ids]
-            lotus.logger.debug(f"filtered_raw_outputs: {filtered_raw_outputs}")
+                [outputs[i] for i in ids]
+                filtered_explanations = [explanations[i] for i in ids]
+                filtered_raw_outputs = [raw_outputs[i] for i in ids]
+                lotus.logger.debug(f"filtered_raw_outputs: {filtered_raw_outputs}")
 
-            new_df = self._obj.iloc[ids]
-            new_df.attrs["index_dirs"] = self._obj.attrs.get("index_dirs", None)
-        else:
+                new_df = self._obj.iloc[ids]
+                new_df.attrs["index_dirs"] = self._obj.attrs.get("index_dirs", None)
+            else:
 
-            def get_out_col_name(df, col_name):
-                if col_name in df.columns:
-                    i = 1
-                    while f"{col_name}_{i}" in new_df.columns:
-                        i += 1
-                    return f"{col_name}_{i}"
-                else:
-                    return col_name
+                def get_out_col_name(df, col_name):
+                    if col_name in df.columns:
+                        i = 1
+                        while f"{col_name}_{i}" in new_df.columns:
+                            i += 1
+                        return f"{col_name}_{i}"
+                    else:
+                        return col_name
 
-            new_df = self._obj.copy()
-            new_df[get_out_col_name(new_df, "filter_label")] = outputs
-            filtered_explanations = explanations
-            filtered_raw_outputs = raw_outputs
+                new_df = self._obj.copy()
+                new_df[get_out_col_name(new_df, "filter_label")] = outputs
+                filtered_explanations = explanations
+                filtered_raw_outputs = raw_outputs
 
-        # return rows where output is True
-        if return_explanations and return_raw_outputs:
-            new_df["explanation" + suffix] = filtered_explanations
-            new_df["raw_output" + suffix] = filtered_raw_outputs
-        elif return_explanations:
-            new_df["explanation" + suffix] = filtered_explanations
-        elif return_raw_outputs:
-            new_df["raw_output" + suffix] = filtered_raw_outputs
+            # return rows where output is True
+            if return_explanations and return_raw_outputs:
+                new_df["explanation" + suffix] = filtered_explanations
+                new_df["raw_output" + suffix] = filtered_raw_outputs
+            elif return_explanations:
+                new_df["explanation" + suffix] = filtered_explanations
+            elif return_raw_outputs:
+                new_df["raw_output" + suffix] = filtered_raw_outputs
 
         if return_stats:
             return new_df, stats
