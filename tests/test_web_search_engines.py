@@ -73,7 +73,7 @@ class TestWebSearch:
 
 class TestWebExtract:
     def test_arxiv_extract_by_id(self):
-        df = web_extract(WebSearchCorpus.ARXIV, doc_id="2303.08774")
+        df = web_extract(WebSearchCorpus.ARXIV, doc_ids="2303.08774")
         print(df)
         assert isinstance(df, pd.DataFrame)
         assert len(df) == 1
@@ -84,7 +84,7 @@ class TestWebExtract:
         assert "full_text" in df.columns
 
     def test_arxiv_extract_by_url(self):
-        df = web_extract(WebSearchCorpus.ARXIV, url="https://arxiv.org/abs/2303.08774")
+        df = web_extract(WebSearchCorpus.ARXIV, urls="https://arxiv.org/abs/2303.08774")
         print(df)
         assert isinstance(df, pd.DataFrame)
         assert len(df) == 1
@@ -92,7 +92,7 @@ class TestWebExtract:
         assert df["url"].iloc[0] == "https://arxiv.org/abs/2303.08774"
 
     def test_tavily_extract(self):
-        df = web_extract(WebSearchCorpus.TAVILY, url="https://en.wikipedia.org/wiki/Artificial_intelligence")
+        df = web_extract(WebSearchCorpus.TAVILY, urls="https://en.wikipedia.org/wiki/Artificial_intelligence")
         print(df)
         assert isinstance(df, pd.DataFrame)
         assert len(df) == 1
@@ -102,7 +102,7 @@ class TestWebExtract:
     def test_tavily_extract_with_max_length(self):
         df = web_extract(
             WebSearchCorpus.TAVILY,
-            url="https://en.wikipedia.org/wiki/Machine_learning",
+            urls="https://en.wikipedia.org/wiki/Machine_learning",
             max_length=1000,
         )
         print(df)
@@ -113,7 +113,7 @@ class TestWebExtract:
 
     def test_pubmed_extract_by_id(self):
         # Using a known PubMed ID
-        df = web_extract(WebSearchCorpus.PUBMED, doc_id="12345678")
+        df = web_extract(WebSearchCorpus.PUBMED, doc_ids="12345678")
         print(df)
         assert isinstance(df, pd.DataFrame)
         assert len(df) == 1
@@ -122,14 +122,14 @@ class TestWebExtract:
         assert "pubmed.ncbi.nlm.nih.gov" in df["url"].iloc[0]
 
     def test_pubmed_extract_by_url(self):
-        df = web_extract(WebSearchCorpus.PUBMED, url="https://pubmed.ncbi.nlm.nih.gov/12345678/")
+        df = web_extract(WebSearchCorpus.PUBMED, urls="https://pubmed.ncbi.nlm.nih.gov/12345678/")
         print(df)
         assert isinstance(df, pd.DataFrame)
         assert len(df) == 1
         assert all(col in df.columns for col in {"id", "url", "full_text"})
 
     def test_you_extract(self):
-        df = web_extract(WebSearchCorpus.YOU, url="https://en.wikipedia.org/wiki/Deep_learning")
+        df = web_extract(WebSearchCorpus.YOU, urls="https://en.wikipedia.org/wiki/Deep_learning")
         print(df)
         assert isinstance(df, pd.DataFrame)
         assert len(df) == 1
@@ -145,7 +145,7 @@ class TestWebExtract:
 
     def test_extract_requires_only_one(self):
         try:
-            web_extract(WebSearchCorpus.TAVILY, doc_id="test", url="https://example.com")
+            web_extract(WebSearchCorpus.TAVILY, doc_ids="test", urls="https://example.com")
             assert False, "Should have raised ValueError"
         except ValueError as e:
             assert "but not both" in str(e)

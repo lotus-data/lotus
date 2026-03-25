@@ -579,11 +579,11 @@ def test_format_logprobs_for_filter_cascade(setup_models, model):
     ]
     response = lm(messages, logprobs=True)
     formatted_logprobs = lm.format_logprobs_for_filter_cascade(response.logprobs)
-    true_probs = formatted_logprobs.true_probs
-    assert len(true_probs) == 1
+    positive_probs = formatted_logprobs.positive_probs
+    assert len(positive_probs) == 1
 
     # Very safe (in practice its ~1)
-    assert true_probs[0] > 0.8
+    assert positive_probs[0] > 0.8
     assert len(formatted_logprobs.tokens) == len(formatted_logprobs.confidences)
 
 

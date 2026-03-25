@@ -239,7 +239,13 @@ def sem_join_cascade(
     num_large = 0
 
     # Determine the join plan
-    helper_high_conf, helper_low_conf, num_helper_high_conf_neg, join_optimization_cost = join_optimizer(
+    (
+        helper_high_conf,
+        helper_low_conf,
+        num_helper_high_conf_neg,
+        join_optimization_cost,
+        cascade_args,
+    ) = join_optimizer(
         l1,
         l2,
         col1_label,
@@ -322,6 +328,7 @@ def sem_join_cascade(
         "join_resolved_by_large_model": num_large,
         "optimized_join_cost": join_optimization_cost,
         "total_LM_calls": join_optimization_cost + num_large,
+        "cascade_args": cascade_args,
     }
 
     return SemanticJoinOutput(
@@ -429,7 +436,7 @@ def join_optimizer(
     cot_reasoning: list[str] | None = None,
     default: bool = True,
     strategy: ReasoningStrategy | None = None,
-) -> tuple[pd.DataFrame, pd.DataFrame, int, int]:
+) -> tuple[pd.DataFrame, pd.DataFrame, int, int, CascadeArgs]:
     """
     Find most cost-effective join plan between Search-Filter and Map-Search-Filter
     while satisfying the recall and precision target.
@@ -453,55 +460,61 @@ def join_optimizer(
         tuple[pd.DataFrame, pd.DataFrame]: The high confidence and low confidence join results.
         int: The number of high confidence negative results.
         int: The number of LM calls from optimizing join plan.
+        CascadeArgs: The cascade arguments.
     """
 
     # Helper is currently default to similiarity join
     if lotus.settings.helper_lm is not None:
         lotus.logger.debug("Helper model is not supported yet. Default to similarity join.")
 
-    # Learn search-filter thresholds
-    sf_helper_join = run_sem_sim_join(l1, l2, col1_label, col2_label)
-    sf_t_pos, sf_t_neg, sf_learn_cost = learn_join_cascade_threshold(
-        sf_helper_join,
-        col1_label,
-        col2_label,
-        model,
-        user_instruction,
-        cascade_args,
-        examples_multimodal_data=examples_multimodal_data,
-        examples_answers=examples_answers,
-        cot_reasoning=cot_reasoning,
-        default=default,
-        strategy=strategy,
-    )
-    sf_high_conf = sf_helper_join[sf_helper_join["_scores"] >= sf_t_pos]
-    sf_high_conf_neg = len(sf_helper_join[sf_helper_join["_scores"] <= sf_t_neg])
-    sf_low_conf = sf_helper_join[(sf_helper_join["_scores"] < sf_t_pos) & (sf_helper_join["_scores"] > sf_t_neg)]
+    def evaluate_plan(plan_strategy: str) -> tuple[pd.DataFrame, pd.DataFrame, int, int, float, float]:
+        total_cost = 0
+        pos_threshold, neg_threshold = cascade_args.join_cascade_pos_threshold, cascade_args.join_cascade_neg_threshold
+        if plan_strategy == "search_filter":
+            helper_join = run_sem_sim_join(l1, l2, col1_label, col2_label)
+            total_cost = 0
+        else:
+            mapped_l1, mapped_col1_label = map_l1_to_l2(
+                l1, col1_label, col2_label, map_instruction=map_instruction, map_examples=map_examples
+            )
+            helper_join = run_sem_sim_join(mapped_l1, l2, mapped_col1_label, col2_label)
+            total_cost = len(l1)
+
+        if pos_threshold is None or neg_threshold is None:
+            pos_threshold, neg_threshold, learn_cost = learn_join_cascade_threshold(
+                helper_join,
+                col1_label,
+                col2_label,
+                model,
+                user_instruction,
+                cascade_args,
+                examples_multimodal_data=examples_multimodal_data,
+                examples_answers=examples_answers,
+                cot_reasoning=cot_reasoning,
+                default=default,
+                strategy=strategy,
+            )
+            total_cost += learn_cost
+
+        high_conf = helper_join[helper_join["_scores"] >= pos_threshold]
+        high_conf_neg = len(helper_join[helper_join["_scores"] <= neg_threshold])
+        low_conf = helper_join[(helper_join["_scores"] < pos_threshold) & (helper_join["_scores"] > neg_threshold)]
+
+        high_conf = high_conf.sort_values(by="_scores", ascending=False)
+        low_conf = low_conf.sort_values(by="_scores", ascending=False)
+        return high_conf, low_conf, high_conf_neg, total_cost, pos_threshold, neg_threshold
+
+    if cascade_args.join_cascade_strategy is not None:
+        high_conf, low_conf, high_conf_neg, learning_cost, _, _ = evaluate_plan(cascade_args.join_cascade_strategy)
+        return high_conf, low_conf, high_conf_neg, learning_cost, cascade_args
+
+    sf_high_conf, sf_low_conf, sf_high_conf_neg, sf_learn_cost, sf_t_pos, sf_t_neg = evaluate_plan("search_filter")
     sf_cost = len(sf_low_conf)
 
-    # Learn map-search-filter thresholds
-    mapped_l1, mapped_col1_label = map_l1_to_l2(
-        l1, col1_label, col2_label, map_instruction=map_instruction, map_examples=map_examples
+    msf_high_conf, msf_low_conf, msf_high_conf_neg, msf_learn_cost, msf_t_pos, msf_t_neg = evaluate_plan(
+        "map_search_filter"
     )
-    msf_helper_join = run_sem_sim_join(mapped_l1, l2, mapped_col1_label, col2_label)
-    msf_t_pos, msf_t_neg, msf_learn_cost = learn_join_cascade_threshold(
-        msf_helper_join,
-        col1_label,
-        col2_label,
-        model,
-        user_instruction,
-        cascade_args,
-        examples_multimodal_data=examples_multimodal_data,
-        examples_answers=examples_answers,
-        cot_reasoning=cot_reasoning,
-        default=default,
-        strategy=strategy,
-    )
-    msf_high_conf = msf_helper_join[msf_helper_join["_scores"] >= msf_t_pos]
-    msf_high_conf_neg = len(msf_helper_join[msf_helper_join["_scores"] <= msf_t_neg])
-    msf_low_conf = msf_helper_join[(msf_helper_join["_scores"] < msf_t_pos) & (msf_helper_join["_scores"] > msf_t_neg)]
     msf_cost = len(msf_low_conf)
-    msf_learn_cost += len(l1)  # cost from map l1 to l2
 
     # Select the cheaper join plan
     lotus.logger.info("Join Optimizer: plan cost analysis:")
@@ -514,17 +527,21 @@ def join_optimizer(
         f"    Map-Search-Filter: accept {len(msf_high_conf)} helper positive results, {msf_high_conf_neg} helper negative results."
     )
 
+    # Make a deep copy of the cascade arguments to avoid modifying the original object
+    cascade_args = cascade_args.model_copy(deep=True)
     learning_cost = sf_learn_cost + msf_learn_cost
     if sf_cost < msf_cost:
         lotus.logger.info("Proceeding with Search-Filter")
-        sf_high_conf = sf_high_conf.sort_values(by="_scores", ascending=False)
-        sf_low_conf = sf_low_conf.sort_values(by="_scores", ascending=False)
-        return sf_high_conf, sf_low_conf, sf_high_conf_neg, learning_cost
+        cascade_args.join_cascade_strategy = "search_filter"
+        cascade_args.join_cascade_pos_threshold = sf_t_pos
+        cascade_args.join_cascade_neg_threshold = sf_t_neg
+        return sf_high_conf, sf_low_conf, sf_high_conf_neg, learning_cost, cascade_args
     else:
         lotus.logger.info("Proceeding with Map-Search-Filter")
-        msf_high_conf = msf_high_conf.sort_values(by="_scores", ascending=False)
-        msf_low_conf = msf_low_conf.sort_values(by="_scores", ascending=False)
-        return msf_high_conf, msf_low_conf, msf_high_conf_neg, learning_cost
+        cascade_args.join_cascade_strategy = "map_search_filter"
+        cascade_args.join_cascade_pos_threshold = msf_t_pos
+        cascade_args.join_cascade_neg_threshold = msf_t_neg
+        return msf_high_conf, msf_low_conf, msf_high_conf_neg, learning_cost, cascade_args
 
 
 def learn_join_cascade_threshold(
@@ -745,8 +762,12 @@ class SemJoinDataframe:
 
         if (
             (cascade_args is not None)
-            and (cascade_args.recall_target is not None or cascade_args.precision_target is not None)
             and (num_full_join >= cascade_args.min_join_cascade_size)
+            and (
+                cascade_args.recall_target is not None
+                or cascade_args.precision_target is not None
+                or cascade_args.join_cascade_strategy is not None
+            )
         ):
             cascade_args.recall_target = 1.0 if cascade_args.recall_target is None else cascade_args.recall_target
             cascade_args.precision_target = (
@@ -815,6 +836,7 @@ class SemJoinDataframe:
             .join(df2.set_index("_right_id"), how="left", on="_right_id")
             .drop(columns=["_left_id", "_right_id"])
         )
+        joined_df = joined_df.reset_index(drop=True)
 
         if output.stats and return_stats:
             return joined_df, output.stats

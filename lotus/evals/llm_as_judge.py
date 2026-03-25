@@ -79,6 +79,7 @@ def llm_as_judge(
         )
 
     # Disable cache for the judge to prevent caching of the judge's output
+    original_enable_cache = lotus.settings.enable_cache
     lotus.settings.enable_cache = False
     with ThreadPoolExecutor(max_workers=lotus.settings.parallel_groupby_max_threads) as executor:
         sem_map_outputs = list(
@@ -101,7 +102,7 @@ def llm_as_judge(
                 range(n_trials),
             )
         )
-    lotus.settings.enable_cache = True
+    lotus.settings.enable_cache = original_enable_cache
 
     outputs: list[SemanticMapOutput | list[BaseModel]] = []
     for sem_map_output in sem_map_outputs:
@@ -203,6 +204,7 @@ class LLMAsJudgeDataframe:
         progress_bar_desc: str = "Evaluating",
         **model_kwargs: Any,
     ) -> pd.DataFrame:
+        print(f"model args: {model_kwargs}")
         if lotus.settings.lm is None:
             raise ValueError(
                 "The language model must be an instance of LM. Please configure a valid language model using lotus.settings.configure()"

@@ -515,36 +515,36 @@ class LM:
         return LogprobsForCascade(tokens=all_tokens, confidences=all_confidences)
 
     def format_logprobs_for_filter_cascade(
-        self, logprobs: list[list[ChatCompletionTokenLogprob]]
+        self,
+        logprobs: list[list[ChatCompletionTokenLogprob]],
+        output_tokens: tuple[str, str] = ("True", "False"),
     ) -> LogprobsForFilterCascade:
-        # Get base cascade format first
+        positive_token, negative_token = output_tokens
         base_cascade = self.format_logprobs_for_cascade(logprobs)
-        all_true_probs = []
+        all_positive_probs = []
 
-        def get_normalized_true_prob(token_probs: dict[str, float]) -> float | None:
-            if "True" in token_probs and "False" in token_probs:
-                true_prob = token_probs["True"]
-                false_prob = token_probs["False"]
-                return true_prob / (true_prob + false_prob)
+        def get_normalized_positive_prob(token_probs: dict[str, float]) -> float | None:
+            if positive_token in token_probs and negative_token in token_probs:
+                pos_prob = token_probs[positive_token]
+                neg_prob = token_probs[negative_token]
+                return pos_prob / (pos_prob + neg_prob)
             return None
 
-        # Get true probabilities for filter cascade
         for resp_idx, response_logprobs in enumerate(logprobs):
-            true_prob = None
+            pos_prob = None
             for logprob in response_logprobs:
                 token_probs = {top.token: np.exp(top.logprob) for top in logprob.top_logprobs}
-                true_prob = get_normalized_true_prob(token_probs)
-                if true_prob is not None:
+                pos_prob = get_normalized_positive_prob(token_probs)
+                if pos_prob is not None:
                     break
 
-            # Default to 1 if "True" in tokens, 0 if not
-            if true_prob is None:
-                true_prob = 1 if "True" in base_cascade.tokens[resp_idx] else 0
+            if pos_prob is None:
+                pos_prob = 1 if positive_token in base_cascade.tokens[resp_idx] else 0
 
-            all_true_probs.append(true_prob)
+            all_positive_probs.append(pos_prob)
 
         return LogprobsForFilterCascade(
-            tokens=base_cascade.tokens, confidences=base_cascade.confidences, true_probs=all_true_probs
+            tokens=base_cascade.tokens, confidences=base_cascade.confidences, positive_probs=all_positive_probs
         )
 
     def count_tokens(self, messages: list[dict[str, str]] | str) -> int:
