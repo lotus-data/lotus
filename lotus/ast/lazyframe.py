@@ -843,6 +843,7 @@ class LazyFrame:
         *,
         inplace: bool = False,
         train_data: pd.DataFrame | dict["LazyFrame", pd.DataFrame] | None = None,
+        auto_include_default_optimizers: bool = True,
     ) -> "LazyFrame":
         """Apply optimizations to this LazyFrame.
 
@@ -850,16 +851,21 @@ class LazyFrame:
             optimizers: List of optimizers to apply.
             inplace: If True, modify this LazyFrame in place.
             train_data: Optional training data for optimizers that require it.
-
+            auto_include_default_optimizer: If True (default), include the following optimizers:
+                - PredicatePushdownOptimizer
         Returns:
             The optimized LazyFrame (same object if *inplace*, new otherwise).
         """
+        from .optimizer import DEFAULT_OPTIMIZERS
+
+        all_optimizers = (DEFAULT_OPTIMIZERS + optimizers) if auto_include_default_optimizers else optimizers
+
         lotus.logger.debug(
-            f"LazyFrame.optimize: {len(self._nodes)} nodes, " f"{len(optimizers)} optimizer(s), inplace={inplace}"
+            f"LazyFrame.optimize: {len(self._nodes)} nodes, " f"{len(all_optimizers)} optimizer(s), inplace={inplace}"
         )
 
         optimized_nodes = self._nodes[:]
-        for optimizer in optimizers:
+        for optimizer in all_optimizers:
             lotus.logger.debug(f"LazyFrame.optimize: applying {optimizer.__class__.__name__}")
             optimized_nodes = optimizer.optimize(optimized_nodes, train_data=train_data)
 
