@@ -31,10 +31,10 @@ print()
 print("BEFORE OPTIMIZATION:")
 print("-" * 80)
 lf_before = (
-    LazyFrame("data")
-    .sem_filter("person works in Engineering department")
+    LazyFrame()
+    .sem_filter("{name} works in the Engineering department")
     .filter(lambda df: df["age"] > 30)
-    .sem_map("summarize their role and experience")
+    .sem_map("Summarize the role and experience of {name} in the {department} department")
 )
 
 print("LazyFrame structure:")

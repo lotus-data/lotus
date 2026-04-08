@@ -144,7 +144,7 @@ parameters as the DataFrame API:
 Pandas Operations
 -----------------
 
-Standard pandas operations are proxied through LazyFrame:
+LazyFrames support standard pandas operations:
 
 .. code-block:: python
 
@@ -212,6 +212,25 @@ Call ``optimize()`` to apply one or more optimizers before execution:
     optimized = lf.optimize([optimizer1, optimizer2])
     result = optimized.execute(df)
 
+Available optimizers:
+
++------------------------------------+-----------------------------------------------------------+---------------+
+| Optimizer                          | Description                                               | Applied by    |
++====================================+===========================================================+===============+
+| ``PredicatePushdownOptimizer``     | Moves pandas filters before semantic operators to reduce  | Automatically |
+|                                    | the number of rows processed by expensive LLM calls.      |               |
++------------------------------------+-----------------------------------------------------------+---------------+
+| ``GEPAOptimizer``                  | LLM-guided evolutionary search that tunes natural         | Manually      |
+|                                    | language instructions for better task performance.        |               |
++------------------------------------+-----------------------------------------------------------+---------------+
+| ``CascadeOptimizer``               | Saves learned cascade thresholds so subsequent executions  | Manually      |
+|                                    | skip the threshold-learning phase.                        |               |
++------------------------------------+-----------------------------------------------------------+---------------+
+
+``PredicatePushdownOptimizer`` is included in ``DEFAULT_OPTIMIZERS`` and runs
+automatically when ``optimize()`` is called.  Pass
+``auto_include_default_optimizer=False`` to skip it.
+
 GEPA — Automatic Prompt Optimization
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -248,17 +267,19 @@ Control which parameters are optimized per node:
         .sem_map("Clean {text}", mark_optimizable=[])   # excluded
     )
 
-Cascade Threshold Caching
+Saving Optimization State
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Pre-warm cascade thresholds on training data so future runs skip threshold
-learning:
+Use ``CascadeOptimizer`` to learn cascade thresholds on training data and
+save the optimization state.  Subsequent executions reuse the saved
+thresholds, skipping the threshold-learning phase:
 
 .. code-block:: python
 
     from lotus.ast.optimizer import CascadeOptimizer
 
     optimized = lf.optimize([CascadeOptimizer()], train_data=df)
+    optimized.save("optimized_pipeline.pkl")  # state is persisted
 
 
 

@@ -7,7 +7,7 @@ lm = LM(model="gpt-4o-mini")
 lotus.settings.configure(lm=lm)
 
 # Extract full text from a URL
-df = web_extract(WebSearchCorpus.YOU, url="https://en.wikipedia.org/wiki/Machine_learning")
+df = web_extract(WebSearchCorpus.YOU, urls="https://en.wikipedia.org/wiki/Machine_learning")
 print(f"Extracted from URL:\n{df}\n\n")
 
 # Use the extracted full text for semantic operations

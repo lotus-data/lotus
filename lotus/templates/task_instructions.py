@@ -134,7 +134,7 @@ def filter_formatter(
             ex_multimodal_data = examples_multimodal_data[idx]
             ex_ans = examples_answer[idx]
             if isinstance(ex_ans, str):
-                ex_ans_token = ex_ans.lower() in positive_token.lower()
+                ex_ans_token = ex_ans.lower() == positive_token.lower()
             elif isinstance(ex_ans, bool):
                 ex_ans_token = positive_token if ex_ans else negative_token
             else:

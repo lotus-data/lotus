@@ -7,7 +7,7 @@ lm = LM(model="gpt-4o-mini")
 lotus.settings.configure(lm=lm)
 
 # Extract full text from a PubMed article using its ID
-df = web_extract(WebSearchCorpus.PUBMED, doc_id="12345678")
+df = web_extract(WebSearchCorpus.PUBMED, doc_ids="12345678")
 print(f"Extracted from PubMed:\n{df}\n\n")
 
 # Use the extracted full text for semantic operations

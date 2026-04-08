@@ -7,7 +7,7 @@ lm = LM(model="gpt-4o-mini")
 lotus.settings.configure(lm=lm)
 
 # Extract full text from an arXiv paper using its ID
-df = web_extract(WebSearchCorpus.ARXIV, doc_id="2303.08774")
+df = web_extract(WebSearchCorpus.ARXIV, doc_ids="2303.08774")
 print(f"Extracted from ArXiv:\n{df}\n\n")
 
 # Use the extracted full text for semantic operations
