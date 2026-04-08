@@ -311,14 +311,11 @@ class DirectoryReader:
 
                 # Write content to file
                 with open(_file_path, "wb") as f:
-                    # Write what we've already downloaded
                     f.write(content)
-                    # Continue downloading if there's more content
-                    if len(response.content) > len(content):
-                        for chunk in response.iter_content(chunk_size=8192):
-                            if not chunk:  # filter out keep-alive chunks
-                                continue
-                            f.write(chunk)
+                    for chunk in response.iter_content(chunk_size=8192):
+                        if not chunk:
+                            continue
+                        f.write(chunk)
 
             self.add_file(_file_path)
             self.temp_file_to_url_map[_file_path] = str(url)

@@ -224,7 +224,7 @@ class LazyFrame:
         Replaces the single source node. Use this to bind a df or add schema validation.
         """
         source_node = SourceNode(lazyframe_ref=self, df=df, expected_schema=schema)
-        new_nodes = [source_node] + list(self._nodes[1:]) if len(self._nodes) > 1 else [source_node]
+        new_nodes: list[BaseNode] = [source_node] + list(self._nodes[1:]) if len(self._nodes) > 1 else [source_node]
         return LazyFrame(_nodes=new_nodes, _source=source_node, _default_cache=self._default_cache)
 
     # ------------------------------------------------------------------

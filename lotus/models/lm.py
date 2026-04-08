@@ -118,7 +118,7 @@ class LM:
         self.physical_usage_limit = physical_usage_limit
         self.virtual_usage_limit = virtual_usage_limit
 
-        self.cache = cache or CacheFactory.create_default_cache()
+        self.cache = cache if cache is not None else CacheFactory.create_default_cache()
 
     def __call__(
         self,

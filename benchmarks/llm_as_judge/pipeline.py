@@ -50,8 +50,7 @@ def optimize_pipeline(
                     "The task is to judge the quality of two answers given a question and supporting quotes. "
                     "The pipeline is a simple LLM call where the LLM is given the question and two answers "
                     "(col_A and col_B), each with supporting web quotes, and asked to decide which is the better answer. "
-                    "The output of this LLM call should be True if and only if col_A is better than col_B. "
-                    "raw_output is the raw output of the LLM call, ideally it should be a boolean value."
+                    "raw_output is the raw output of the LLM call, ideally it should be just col_A or col_B."
                 ),
                 gepa_config=GEPAConfig(
                     engine=EngineConfig(
@@ -73,7 +72,7 @@ def configure_models(
     helper_model: str = "gpt-4.1-mini",
 ) -> tuple[LM, LM]:
     """Configure LOTUS with oracle and helper LMs."""
-    oracle_lm = LM(oracle_model, max_batch_size=256)
-    helper_lm = LM(helper_model, max_batch_size=256)
+    oracle_lm = LM(oracle_model)
+    helper_lm = LM(helper_model)
     lotus.settings.configure(lm=oracle_lm, helper_lm=helper_lm)
     return oracle_lm, helper_lm

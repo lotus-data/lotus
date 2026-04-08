@@ -8,8 +8,9 @@ from gepa.optimize_anything import EngineConfig, GEPAConfig
 import lotus
 from lotus.ast import LazyFrame
 from lotus.ast.optimizer import CascadeOptimizer, GEPAOptimizer
-from lotus.models import LM
+from lotus.models import LM, LiteLLMRM
 from lotus.types import CascadeArgs
+from lotus.vector_store import FaissVS
 
 SUPPORTS_CASCADE = True
 
@@ -83,17 +84,8 @@ def configure_models(
     """Configure LOTUS with oracle/helper LMs and optional vector store."""
     lm = LM(oracle_model)
     helper_lm = LM(helper_model)
-
-    try:
-        from qdrant_client import QdrantClient
-
-        from lotus.models import LiteLLMRM
-        from lotus.vector_store import QdrantVS
-
-        rm = LiteLLMRM(model=embedding_model)
-        vs = QdrantVS(client=QdrantClient(url="http://localhost:6333"))
-        lotus.settings.configure(lm=lm, rm=rm, vs=vs, helper_lm=helper_lm)
-    except Exception:
-        lotus.settings.configure(lm=lm, helper_lm=helper_lm)
+    rm = LiteLLMRM(model=embedding_model)
+    vs = FaissVS()
+    lotus.settings.configure(lm=lm, rm=rm, vs=vs, helper_lm=helper_lm)
 
     return lm, helper_lm

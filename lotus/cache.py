@@ -38,7 +38,7 @@ def operator_cache(func: Callable) -> Callable:
         model = lotus.settings.lm
         use_operator_cache = lotus.settings.enable_cache
 
-        if use_operator_cache and model.cache:
+        if use_operator_cache and model.cache is not None:
 
             def serialize(value: Any) -> Any:
                 """
@@ -255,6 +255,9 @@ class InMemoryCache(Cache):
 
     def __len__(self) -> int:
         return len(self.cache)
+
+    def __bool__(self) -> bool:
+        return True
 
     def get(self, key: str) -> Any | None:
         if key in self.cache:
