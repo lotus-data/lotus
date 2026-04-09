@@ -52,6 +52,7 @@ pubmed = [
 ]
 file_extractor = [
     "llama-index==0.10.53",
+    "llama-index-readers-file",
     "pymupdf",
     "docx2txt",
     "python-pptx",
