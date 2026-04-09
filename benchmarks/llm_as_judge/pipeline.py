@@ -12,8 +12,7 @@ from lotus.types import CascadeArgs
 SUPPORTS_CASCADE = True
 
 BASE_JUDGE_INSTRUCTION = (
-    "For the given question {question}, which answer is better given the supporting quotes: "
-    "{col_A} or {col_B}? True if {col_A} is the better answer than {col_B}, False otherwise."
+    "For the given question {question}, which answer is better given the supporting quotes: {col_A} or {col_B}?"
 )
 
 
@@ -50,7 +49,6 @@ def optimize_pipeline(
                     "The task is to judge the quality of two answers given a question and supporting quotes. "
                     "The pipeline is a simple LLM call where the LLM is given the question and two answers "
                     "(col_A and col_B), each with supporting web quotes, and asked to decide which is the better answer. "
-                    "raw_output is the raw output of the LLM call, ideally it should be just col_A or col_B."
                 ),
                 gepa_config=GEPAConfig(
                     engine=EngineConfig(
