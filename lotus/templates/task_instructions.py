@@ -93,12 +93,16 @@ def filter_formatter(
     cot_reasoning: list[str] | None = None,
     strategy: ReasoningStrategy | None = None,
     reasoning_instructions: str = "",
+    system_prompt: str | None = None,
+    output_tokens: tuple[str, str] = ("True", "False"),
 ) -> list[dict[str, str]]:
-    answer_instructions = "The answer should be either True or False"
+    positive_token, negative_token = output_tokens
+    answer_instructions = f"The answer should be either {positive_token} or {negative_token}"
 
-    sys_instruction = """The user will provide a claim and some relevant context.
+    default_sys_instruction = """The user will provide a claim and some relevant context.
     Your job is to determine whether the claim is true for the given context.
      """
+    sys_instruction = system_prompt or default_sys_instruction
 
     if strategy == ReasoningStrategy.COT:
         sys_instruction += cot_prompt_formatter(
@@ -129,16 +133,20 @@ def filter_formatter(
         for idx in range(len(examples_multimodal_data)):
             ex_multimodal_data = examples_multimodal_data[idx]
             ex_ans = examples_answer[idx]
+            if isinstance(ex_ans, str):
+                ex_ans_token = ex_ans.lower() == positive_token.lower()
+            elif isinstance(ex_ans, bool):
+                ex_ans_token = positive_token if ex_ans else negative_token
+            else:
+                raise ValueError(f"Invalid example answer type: {type(ex_ans)}")
             content = ""
 
-            # if cot reasoning is provided, use it. Otherwise, supply a default
-            # reasoning as filler if the user wants cot reasoning
             if cot_reasoning:
-                content = cot_formatter(cot_reasoning[idx], str(ex_ans))
+                content = cot_formatter(cot_reasoning[idx], ex_ans_token)
             elif strategy == ReasoningStrategy.COT:
-                content = cot_formatter("Reasoning omitted", str(ex_ans))
+                content = cot_formatter("Reasoning omitted", ex_ans_token)
             else:
-                content = answer_only_formatter(str(ex_ans))
+                content = answer_only_formatter(ex_ans_token)
 
             messages.extend(
                 [

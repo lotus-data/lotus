@@ -60,10 +60,14 @@ jobs:
             file: .github/tests/multimodality_tests.py
             timeout: 10
             requires-openai: true
+          - test-suite: ast
+            file: .github/tests/ast_tests.py
+            timeout: 10
+            requires-openai: true
           - test-suite: utility_operators
             file: .github/tests/utility_operators_tests.py
             timeout: 25
-            extra-deps: pymupdf llama-index docx2txt python-pptx python-magic
+            extra-deps: pymupdf llama-index docx2txt python-pptx python-magic llama-index-readers-file
           - test-suite: cache
             file: .github/tests/cache_tests.py
             timeout: 10

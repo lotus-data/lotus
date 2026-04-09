@@ -183,6 +183,7 @@ def filter_postprocess(
     llm_answers: list[str],
     model: lotus.models.LM,
     default: bool = True,
+    output_tokens: tuple[str, str] = ("True", "False"),
 ) -> SemanticFilterPostprocessOutput:
     """
     Postprocess the output of the filter operator.
@@ -190,21 +191,23 @@ def filter_postprocess(
     Args:
         llm_answers (list[str]): The list of llm answers.
         default (bool): The default value to use if we fail to parse the answer.
-        cot_reasoning (bool): Whether there is CoT reasoning.
+        output_tokens (tuple[str, str]): The positive and negative output tokens.
 
     Returns:
         SemanticFilterPostprocessOutput
 
     """
+    positive_token, negative_token = output_tokens
 
     def process_outputs(answer):
         if answer is None:
             lotus.logger.info(f"\t Failed to parse {answer}: defaulting to {default}")
             return default
 
-        if "True" in answer:
+        answer_lower = answer.lower()
+        if positive_token.lower() in answer_lower:
             return True
-        elif "False" in answer:
+        elif negative_token.lower() in answer_lower:
             return False
         else:
             lotus.logger.info(f"\t Failed to parse {answer}: defaulting to {default}")

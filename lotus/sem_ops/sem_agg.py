@@ -1,6 +1,8 @@
+import json
 from typing import Any
 
 import pandas as pd
+from pydantic import BaseModel
 
 import lotus.models
 from lotus.cache import operator_cache
@@ -64,6 +66,7 @@ def sem_agg(
     partition_ids: list[int],
     safe_mode: bool = False,
     progress_bar_desc: str = "Aggregating",
+    response_format: Any = None,
 ) -> SemanticAggOutput:
     """
     Aggregates multiple documents into a single answer using a language model.
@@ -89,6 +92,8 @@ def sem_agg(
             implemented. Defaults to False.
         progress_bar_desc (str, optional): Description for the progress bar.
             Defaults to "Aggregating".
+        response_format (BaseModel|dict|None, optional): Expected response format, either as
+            a Pydantic BaseModel subclass or JSON schema dict.
 
     Returns:
         SemanticAggOutput: An object containing the aggregated outputs as a list
@@ -165,7 +170,6 @@ def sem_agg(
         cur_partition_id = partition_ids[0]
         do_fold = len(partition_ids) == len(set(partition_ids))
         context_str = ""
-        # prompt = ""
         batch = []
         if tree_level == 0:
             template = leaf_instr_template
@@ -208,7 +212,15 @@ def sem_agg(
             batch.append([{"role": "user", "content": prompt}])
             new_partition_ids.append(cur_partition_id)
 
-        lm_output: LMOutput = model(batch, progress_bar_desc=progress_bar_desc)
+        # Detect if this is the final (last) pass: we only need response_format for last call
+        is_final_pass = len(batch) == 1
+
+        # Only pass response_format on last completion
+        model_kwargs = {}
+        if is_final_pass and response_format is not None:
+            model_kwargs["response_format"] = response_format  # type: ignore
+
+        lm_output: LMOutput = model(batch, progress_bar_desc=progress_bar_desc, **model_kwargs)  # type: ignore
 
         summaries = lm_output.outputs
         partition_ids = new_partition_ids
@@ -250,6 +262,10 @@ class SemAggDataframe:
         long_context_strategy (LongContextStrategy, optional): Strategy to use when documents
             exceed the model's context length. TRUNCATE simply truncates documents,
             while CHUNK intelligently splits the largest column. Defaults to TRUNCATE.
+        response_format (BaseModel|dict|None, optional): Output format as Pydantic BaseModel
+            or JSON schema.
+        split_fields_into_cols (bool, optional): Whether to split fields into separate columns when using response_format.
+            Defaults to True.
 
     Returns:
         pd.DataFrame: A DataFrame containing the aggregated results. The output
@@ -333,12 +349,22 @@ class SemAggDataframe:
 
         Args:
             args (tuple): A tuple containing (group_name, group, user_instruction,
-                         all_cols, group_by, suffix, progress_bar_desc, long_context_strategy).
+                         all_cols, group_by, suffix, progress_bar_desc, long_context_strategy, response_format).
 
         Returns:
             pd.DataFrame: The aggregated result for the group with group identifier.
         """
-        group_name, group, user_instruction, all_cols, group_by, suffix, progress_bar_desc, long_context_strategy = args
+        (
+            group_name,
+            group,
+            user_instruction,
+            all_cols,
+            group_by,
+            suffix,
+            progress_bar_desc,
+            long_context_strategy,
+            response_format,
+        ) = args
         result = group.sem_agg(
             user_instruction,
             all_cols,
@@ -346,6 +372,7 @@ class SemAggDataframe:
             None,
             progress_bar_desc=progress_bar_desc,
             long_context_strategy=long_context_strategy,
+            response_format=response_format,
         )
         result[group_by] = group_name
         return result
@@ -360,6 +387,8 @@ class SemAggDataframe:
         safe_mode: bool = False,
         progress_bar_desc: str = "Aggregating",
         long_context_strategy: LongContextStrategy | None = LongContextStrategy.CHUNK,
+        split_fields_into_cols: bool = True,
+        response_format: type[BaseModel] | dict | None = None,
     ) -> pd.DataFrame:
         if lotus.settings.lm is None:
             raise ValueError(
@@ -390,6 +419,7 @@ class SemAggDataframe:
                     suffix,
                     progress_bar_desc,
                     long_context_strategy,
+                    response_format,
                 )
                 for group_name, group in grouped
             ]
@@ -435,7 +465,22 @@ class SemAggDataframe:
             partition_ids,
             safe_mode=safe_mode,
             progress_bar_desc=progress_bar_desc,
+            response_format=response_format,
         )
 
-        # Return results as DataFrame
-        return pd.DataFrame(answer.outputs, columns=[suffix])
+        output: str | dict = answer.outputs[0]
+        if response_format is not None and split_fields_into_cols:
+            if isinstance(response_format, type) and issubclass(response_format, BaseModel):
+                output = response_format.model_validate_json(answer.outputs[0]).model_dump()
+            else:
+                try:
+                    output = json.loads(answer.outputs[0])
+                except json.JSONDecodeError:
+                    lotus.logger.warning(f"Failed to parse response format: {answer.outputs[0]}")
+
+        if isinstance(output, dict):
+            output = pd.DataFrame([output])
+        else:
+            output = pd.DataFrame([output], columns=[suffix])
+
+        return output

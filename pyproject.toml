@@ -52,6 +52,7 @@ pubmed = [
 ]
 file_extractor = [
     "llama-index==0.10.53",
+    "llama-index-readers-file",
     "pymupdf",
     "docx2txt",
     "python-pptx",
@@ -78,7 +79,12 @@ dev = [
     "pytest>=8.3.3",
     "pre-commit>=4.0.1",
 ]
+gepa = [
+    "gepa @ git+https://github.com/gepa-ai/gepa.git"
+]
 
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [tool.ruff]
 line-length = 120

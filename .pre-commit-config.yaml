@@ -10,7 +10,8 @@ repos:
     rev: v1.13.0
     hooks:
       - id: mypy
-        args: ["--config-file", "mypy.ini"]
+        args: ["--config-file", "mypy.ini", "--explicit-package-bases"]
+        exclude: \.pyi$
         additional_dependencies:
           - types-setuptools
           - pydantic>=2.11.7

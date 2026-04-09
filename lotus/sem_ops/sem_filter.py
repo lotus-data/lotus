@@ -35,6 +35,9 @@ def sem_filter(
     show_progress_bar: bool = True,
     progress_bar_desc: str = "Filtering",
     additional_cot_instructions: str = "",
+    system_prompt: str | None = None,
+    output_tokens: tuple[str, str] = ("True", "False"),
+    **model_kwargs: Any,
 ) -> SemanticFilterOutput:
     """
     Filters a list of documents based on a natural language instruction using a language model.
@@ -73,6 +76,8 @@ def sem_filter(
             Defaults to "Filtering".
         additional_cot_instructions (str, optional): Additional instructions for
             chain-of-thought reasoning. Defaults to "".
+        system_prompt (str | None, optional): Optional system prompt to use
+            instead of the default filter instruction. Defaults to None.
 
     Returns:
         SemanticFilterOutput: An object containing the boolean filter outputs, raw
@@ -99,6 +104,8 @@ def sem_filter(
             cot_reasoning,
             strategy,
             reasoning_instructions=additional_cot_instructions,
+            system_prompt=system_prompt,
+            output_tokens=output_tokens,
         )
         lotus.logger.debug(f"input to model: {prompt}")
         inputs.append(prompt)
@@ -110,10 +117,10 @@ def sem_filter(
         show_safe_mode(estimated_total_cost, estimated_total_calls)
 
     lm_output: LMOutput = model(
-        inputs, show_progress_bar=show_progress_bar, progress_bar_desc=progress_bar_desc, **kwargs
+        inputs, show_progress_bar=show_progress_bar, progress_bar_desc=progress_bar_desc, **kwargs, **model_kwargs
     )
 
-    postprocess_output = filter_postprocess(lm_output.outputs, model, default)
+    postprocess_output = filter_postprocess(lm_output.outputs, model, default, output_tokens=output_tokens)
     lotus.logger.debug(f"outputs: {postprocess_output.outputs}")
     lotus.logger.debug(f"raw_outputs: {postprocess_output.raw_outputs}")
     lotus.logger.debug(f"explanations: {postprocess_output.explanations}")
@@ -142,6 +149,9 @@ def learn_filter_cascade_thresholds(
     cot_reasoning: list[str] | None = None,
     strategy: ReasoningStrategy | None = None,
     additional_cot_instructions: str = "",
+    system_prompt: str | None = None,
+    output_tokens: tuple[str, str] = ("True", "False"),
+    **model_kwargs: Any,
 ) -> tuple[float, float]:
     """
     Automatically learns optimal cascade thresholds for filter operations.
@@ -205,6 +215,9 @@ def learn_filter_cascade_thresholds(
             safe_mode=False,
             progress_bar_desc="Running oracle for threshold learning",
             additional_cot_instructions=additional_cot_instructions,
+            system_prompt=system_prompt,
+            output_tokens=output_tokens,
+            **model_kwargs,
         ).outputs
 
         best_combination, _ = learn_cascade_thresholds(
@@ -265,6 +278,8 @@ class SemFilterDataframe:
             Defaults to "Filtering".
         additional_cot_instructions (str, optional): Additional instructions
             for chain-of-thought reasoning. Defaults to "".
+        system_prompt (str | None, optional): Optional system prompt to use
+            instead of the default filter instruction. Defaults to None.
 
     Returns:
         pd.DataFrame | tuple[pd.DataFrame, dict[str, Any]]: A DataFrame
@@ -347,75 +362,90 @@ class SemFilterDataframe:
         safe_mode: bool = False,
         progress_bar_desc: str = "Filtering",
         additional_cot_instructions: str = "",
+        system_prompt: str | None = None,
+        output_tokens: tuple[str, str] = ("True", "False"),
+        **model_kwargs: Any,
     ) -> pd.DataFrame | tuple[pd.DataFrame, dict[str, Any]]:
         if lotus.settings.lm is None:
             raise ValueError(
                 "The language model must be an instance of LM. Please configure a valid language model using lotus.settings.configure()"
             )
 
-        stats: dict[str, float] = {}
+        stats: dict[str, Any] = {}
         lotus.logger.debug(user_instruction)
-        col_li = lotus.nl_expression.parse_cols(user_instruction)
-        lotus.logger.debug(col_li)
+        main_col_li = lotus.nl_expression.parse_cols(user_instruction)
+        lotus.logger.debug(main_col_li)
         helper_strategy = strategy
 
-        # check that column exists
-        for column in col_li:
+        # Check that all columns in the main instruction exist.
+        for column in main_col_li:
             if column not in self._obj.columns:
                 raise ValueError(f"Column {column} not found in DataFrame")
 
-        multimodal_data = task_instructions.df2multimodal_info(self._obj, col_li)
-        lotus.logger.debug(multimodal_data)
-        formatted_usr_instr = lotus.nl_expression.nle2str(user_instruction, col_li)
+        main_multimodal_data = task_instructions.df2multimodal_info(self._obj, main_col_li)
+        lotus.logger.debug(main_multimodal_data)
+        formatted_main_usr_instr = lotus.nl_expression.nle2str(user_instruction, main_col_li)
+
+        helper_col_li = main_col_li
+        helper_multimodal_data = main_multimodal_data
+        helper_instruction = user_instruction
+        formatted_helper_usr_instr = formatted_main_usr_instr
+
+        if cascade_args is not None and cascade_args.proxy_model == ProxyModel.HELPER_LM:
+            helper_instruction = cascade_args.helper_filter_instruction or user_instruction
+            helper_col_li = lotus.nl_expression.parse_cols(helper_instruction)
+
+            # Check that all columns in the helper instruction exist.
+            for column in helper_col_li:
+                if column not in self._obj.columns:
+                    raise ValueError(f"Column {column} not found in DataFrame")
+
+            helper_multimodal_data = task_instructions.df2multimodal_info(self._obj, helper_col_li)
+            formatted_helper_usr_instr = lotus.nl_expression.nle2str(helper_instruction, helper_col_li)
 
         examples_multimodal_data = None
         examples_answers = None
         cot_reasoning = None
         if examples is not None:
             assert "Answer" in examples.columns, "Answer must be a column in examples dataframe"
-            examples_multimodal_data = task_instructions.df2multimodal_info(examples, col_li)
+            examples_multimodal_data = task_instructions.df2multimodal_info(examples, main_col_li)
             examples_answers = examples["Answer"].tolist()
 
             if strategy == ReasoningStrategy.COT and "Reasoning" in examples.columns:
                 cot_reasoning = examples["Reasoning"].tolist()
 
-        pos_cascade_threshold, neg_cascade_threshold = None, None
-        if cascade_args is not None:
-            # Get few-shot examples for small LM
-            helper_examples_multimodal_data = None
-            helper_examples_answers = None
-            helper_cot_reasoning = None
+        pos_cascade_threshold, neg_cascade_threshold = (
+            cascade_args.filter_pos_cascade_threshold if cascade_args is not None else None,
+            cascade_args.filter_neg_cascade_threshold if cascade_args is not None else None,
+        )
+        # Few-shot data for helper LM calls, when a helper-LM cascade is active.
+        helper_examples_multimodal_data = None
+        helper_examples_answers = None
+        helper_cot_reasoning = None
+        if cascade_args is not None and cascade_args.proxy_model == ProxyModel.HELPER_LM:
             if helper_examples is not None:
                 assert "Answer" in helper_examples.columns, "Answer must be a column in examples dataframe"
-                helper_examples_multimodal_data = task_instructions.df2multimodal_info(helper_examples, col_li)
+                helper_examples_multimodal_data = task_instructions.df2multimodal_info(helper_examples, helper_col_li)
                 helper_examples_answers = helper_examples["Answer"].tolist()
                 if helper_strategy == ReasoningStrategy.COT and "Reasoning" in helper_examples.columns:
                     helper_cot_reasoning = helper_examples["Reasoning"].tolist()
 
+        proxy_model: ProxyModel | None = None
+        helper_output: SemanticFilterOutput | None = None
         if cascade_args:
             proxy_model = cascade_args.proxy_model
-            if (
-                cascade_args.recall_target is None
-                or cascade_args.precision_target is None
-                or cascade_args.failure_probability is None
-            ):
-                raise ValueError(
-                    "Recall target, precision target, and confidence need to be specified for learned thresholds."
-                )
-
             # Get the proxy scores
             if proxy_model == ProxyModel.HELPER_LM:
                 if not lotus.settings.helper_lm:
                     raise ValueError("Helper LM must be set in settings")
 
-                if helper_strategy == ReasoningStrategy.COT:
+                if helper_strategy == ReasoningStrategy.COT or helper_strategy == ReasoningStrategy.ZS_COT:
                     raise ValueError("CoT not supported for helper models in cascades.")
 
-                # Run small LM and get logits
                 helper_output = sem_filter(
-                    multimodal_data,
+                    helper_multimodal_data,
                     lotus.settings.helper_lm,
-                    formatted_usr_instr,
+                    formatted_helper_usr_instr,
                     default=default,
                     examples_multimodal_data=helper_examples_multimodal_data,
                     examples_answers=helper_examples_answers,
@@ -425,51 +455,74 @@ class SemFilterDataframe:
                     safe_mode=safe_mode,
                     show_progress_bar=True,
                     progress_bar_desc="Running helper LM",
+                    system_prompt=system_prompt,
+                    output_tokens=output_tokens,
+                    **model_kwargs,
                 )
                 _, helper_logprobs = helper_output.outputs, helper_output.logprobs
                 assert helper_logprobs is not None
                 formatted_helper_logprobs: LogprobsForFilterCascade = (
-                    lotus.settings.helper_lm.format_logprobs_for_filter_cascade(helper_logprobs)
+                    lotus.settings.helper_lm.format_logprobs_for_filter_cascade(
+                        helper_logprobs, output_tokens=output_tokens
+                    )
                 )
-                proxy_scores = calibrate_llm_logprobs(formatted_helper_logprobs.true_probs, cascade_args)
+                proxy_scores = calibrate_llm_logprobs(formatted_helper_logprobs.positive_probs, cascade_args)
             elif proxy_model == ProxyModel.EMBEDDING_MODEL:
                 if not lotus.settings.rm:
                     raise ValueError("RM must be set in settings")
 
                 # TODO: How to handle multiple columns?
-                search_df = self._obj.sem_search(col_li[0], formatted_usr_instr, K=len(self._obj), return_scores=True)
+                search_df = self._obj.sem_search(
+                    main_col_li[0],
+                    formatted_main_usr_instr,
+                    K=len(self._obj),
+                    return_scores=True,
+                )
                 proxy_scores = search_df["vec_scores_sim_score"].tolist()
 
-            sample_indices, correction_factors = importance_sampling(proxy_scores, cascade_args)
-            sample_df = self._obj.loc[sample_indices]
-            sample_multimodal_data = task_instructions.df2multimodal_info(sample_df, col_li)
-            sample_proxy_scores = [proxy_scores[i] for i in sample_indices]
-            sample_correction_factors = correction_factors[sample_indices]
+            if pos_cascade_threshold is None or neg_cascade_threshold is None:
+                if (
+                    cascade_args.recall_target is None
+                    or cascade_args.precision_target is None
+                    or cascade_args.failure_probability is None
+                ):
+                    raise ValueError(
+                        "Recall target, precision target, and confidence need to be specified for learned thresholds."
+                    )
 
-            pos_cascade_threshold, neg_cascade_threshold = learn_filter_cascade_thresholds(
-                sample_multimodal_data=sample_multimodal_data,
-                lm=lotus.settings.lm,
-                formatted_usr_instr=formatted_usr_instr,
-                default=default,
-                cascade_args=cascade_args,
-                proxy_scores=sample_proxy_scores,
-                sample_correction_factors=sample_correction_factors,
-                examples_multimodal_data=examples_multimodal_data,
-                examples_answers=examples_answers,
-                cot_reasoning=cot_reasoning,
-                strategy=strategy,
-                additional_cot_instructions=additional_cot_instructions,
-            )
+                sample_indices, correction_factors = importance_sampling(proxy_scores, cascade_args)
+                sample_df = self._obj.loc[sample_indices]
+                sample_multimodal_data = task_instructions.df2multimodal_info(sample_df, main_col_li)
+                sample_proxy_scores = [proxy_scores[i] for i in sample_indices]
+                sample_correction_factors = correction_factors[sample_indices]
 
-            stats["pos_cascade_threshold"] = pos_cascade_threshold
-            stats["neg_cascade_threshold"] = neg_cascade_threshold
+                pos_cascade_threshold, neg_cascade_threshold = learn_filter_cascade_thresholds(
+                    sample_multimodal_data=sample_multimodal_data,
+                    lm=lotus.settings.lm,
+                    formatted_usr_instr=formatted_main_usr_instr,
+                    default=default,
+                    cascade_args=cascade_args,
+                    proxy_scores=sample_proxy_scores,
+                    sample_correction_factors=sample_correction_factors,
+                    examples_multimodal_data=examples_multimodal_data,
+                    examples_answers=examples_answers,
+                    cot_reasoning=cot_reasoning,
+                    strategy=strategy,
+                    additional_cot_instructions=additional_cot_instructions,
+                    system_prompt=system_prompt,
+                    output_tokens=output_tokens,
+                    **model_kwargs,
+                )
+            stats["cascade_args"] = cascade_args.model_copy(deep=True)
+            stats["cascade_args"].filter_pos_cascade_threshold = pos_cascade_threshold
+            stats["cascade_args"].filter_neg_cascade_threshold = neg_cascade_threshold
 
         if pos_cascade_threshold is not None and neg_cascade_threshold is not None:
             stats["filters_resolved_by_helper_model"] = 0
             stats["filters_resolved_by_large_model"] = 0
 
             high_conf_idxs = set()
-            proxy_outputs = [False] * len(multimodal_data)
+            proxy_outputs = [False] * len(main_multimodal_data)
 
             # Set proxy_outputs where confidence is high
             for idx_i in range(len(proxy_scores)):
@@ -487,15 +540,16 @@ class SemFilterDataframe:
             lotus.logger.info(f"Num routed to smaller model: {len(high_conf_idxs)}")
             stats["num_routed_to_helper_model"] = len(high_conf_idxs)
 
-            outputs: list[bool] = [False] * len(multimodal_data)
-            raw_outputs: list[str] = [""] * len(multimodal_data)
-            explanations: list[str | None] = [None] * len(multimodal_data)
+            outputs: list[bool] = [False] * len(main_multimodal_data)
+            raw_outputs: list[str] = [""] * len(main_multimodal_data)
+            explanations: list[str | None] = [None] * len(main_multimodal_data)
 
             for idx in high_conf_idxs:
                 outputs[idx] = proxy_outputs[idx]
 
             # If using helper LM, get raw outputs and explanations
             if proxy_model == ProxyModel.HELPER_LM:
+                assert helper_output is not None
                 assert all(isinstance(x, str) for x in helper_output.explanations) or all(
                     x is None for x in helper_output.explanations
                 )
@@ -505,12 +559,12 @@ class SemFilterDataframe:
 
             # Send low confidence samples to large LM if any
             low_conf_idxs = sorted([i for i in range(len(proxy_outputs)) if i not in high_conf_idxs])
-            low_conf_multimodal_data = [multimodal_data[idx] for idx in low_conf_idxs]
+            low_conf_multimodal_data = [main_multimodal_data[idx] for idx in low_conf_idxs]
             if low_conf_idxs:
                 large_output = sem_filter(
                     low_conf_multimodal_data,
                     lotus.settings.lm,
-                    formatted_usr_instr,
+                    formatted_main_usr_instr,
                     default=default,
                     examples_multimodal_data=examples_multimodal_data,
                     examples_answers=examples_answers,
@@ -519,6 +573,9 @@ class SemFilterDataframe:
                     safe_mode=safe_mode,
                     progress_bar_desc="Running predicate evals with oracle LM",
                     additional_cot_instructions=additional_cot_instructions,
+                    system_prompt=system_prompt,
+                    output_tokens=output_tokens,
+                    **model_kwargs,
                 )
 
                 for idx, large_idx in enumerate(low_conf_idxs):
@@ -531,9 +588,9 @@ class SemFilterDataframe:
 
         else:
             output = sem_filter(
-                multimodal_data,
+                main_multimodal_data,
                 lotus.settings.lm,
-                formatted_usr_instr,
+                formatted_main_usr_instr,
                 default=default,
                 examples_multimodal_data=examples_multimodal_data,
                 examples_answers=examples_answers,
@@ -543,6 +600,9 @@ class SemFilterDataframe:
                 show_progress_bar=True,
                 progress_bar_desc=progress_bar_desc,
                 additional_cot_instructions=additional_cot_instructions,
+                system_prompt=system_prompt,
+                output_tokens=output_tokens,
+                **model_kwargs,
             )
             outputs = output.outputs
             raw_outputs = output.raw_outputs
@@ -574,7 +634,7 @@ class SemFilterDataframe:
                     return col_name
 
             new_df = self._obj.copy()
-            new_df[get_out_col_name(new_df, "filter_label")] = outputs
+            new_df[get_out_col_name(new_df, suffix)] = outputs
             filtered_explanations = explanations
             filtered_raw_outputs = raw_outputs
 

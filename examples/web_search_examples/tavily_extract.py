@@ -7,7 +7,7 @@ lm = LM(model="gpt-4o-mini")
 lotus.settings.configure(lm=lm)
 
 # Extract full text from a URL using Tavily
-df = web_extract(WebSearchCorpus.TAVILY, url="https://en.wikipedia.org/wiki/Artificial_intelligence")
+df = web_extract(WebSearchCorpus.TAVILY, urls="https://en.wikipedia.org/wiki/Artificial_intelligence")
 print(f"Extracted from Tavily:\n{df}\n\n")
 
 # Use the extracted full text for semantic operations

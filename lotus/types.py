@@ -1,10 +1,10 @@
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import Any
+from typing import Any, Literal
 
 import pandas as pd
 from litellm.types.utils import ChatCompletionTokenLogprob
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 
 ################################################################################
@@ -74,9 +74,17 @@ class LogprobsForCascade:
 
 @dataclass
 class LogprobsForFilterCascade:
-    true_probs: list[float]
+    positive_probs: list[float]
     tokens: list[list[str]]
     confidences: list[list[float]]
+
+    # @deprecated("Use positive_probs instead")
+    @property
+    def true_probs(self) -> list[float]:
+        import lotus
+
+        lotus.logger.warning("true_probs is deprecated. Use positive_probs instead")
+        return self.positive_probs
 
 
 ################################################################################
@@ -162,17 +170,52 @@ class CascadeArgs(BaseModel):
     proxy_model: ProxyModel = ProxyModel.HELPER_LM
 
     # Filter cascade args
+    # Optional helper-model instruction for sem_filter cascades. If unset,
+    # helper-model calls default to the main sem_filter user instruction.
+    helper_filter_instruction: str | None = None
     cascade_IS_weight: float = 0.9
     cascade_num_calibration_quantiles: int = 50
+    filter_pos_cascade_threshold: float | None = None
+    filter_neg_cascade_threshold: float | None = None
 
     # Join cascade args
     min_join_cascade_size: int = 100
     cascade_IS_max_sample_range: int = 200
     cascade_IS_random_seed: int | None = None
+    join_cascade_strategy: Literal["search_filter", "map_search_filter"] | None = None
+    join_cascade_pos_threshold: float | None = None
+    join_cascade_neg_threshold: float | None = None
 
     # to enable pandas
     class Config:
         arbitrary_types_allowed = True
+
+    @model_validator(mode="after")
+    def check_filter_cascade_thresholds(self):
+        # Both must be set together or both unset
+        if (self.filter_pos_cascade_threshold is None) != (self.filter_neg_cascade_threshold is None):
+            raise ValueError(
+                "Both filter_cascade_threshold_high and filter_cascade_threshold_low must be provided together."
+            )
+        # If both are set, high must be >= low
+        if (
+            self.filter_pos_cascade_threshold is not None
+            and self.filter_neg_cascade_threshold is not None
+            and self.filter_pos_cascade_threshold < self.filter_neg_cascade_threshold
+        ):
+            raise ValueError("filter_cascade_threshold_high must be >= filter_cascade_threshold_low.")
+        return self
+
+    @model_validator(mode="after")
+    def check_join_cascade_thresholds(self):
+        if self.join_cascade_strategy is not None:
+            if (self.join_cascade_pos_threshold is None) or (self.join_cascade_neg_threshold is None):
+                raise ValueError(
+                    "join_cascade_strategy is provided but join_cascade_threshold_pos or join_cascade_threshold_neg are not provided."
+                )
+            if self.join_cascade_pos_threshold < self.join_cascade_neg_threshold:
+                raise ValueError("join_cascade_threshold_pos must be >= join_cascade_threshold_neg.")
+        return self
 
 
 @dataclass
