@@ -102,6 +102,7 @@ def filter_formatter(
     default_sys_instruction = """The user will provide a claim and some relevant context.
     Your job is to determine whether the claim is true for the given context.
      """
+    sys_instruction = system_prompt or default_sys_instruction
 
     if system_prompt:
         sys_instruction = system_prompt
