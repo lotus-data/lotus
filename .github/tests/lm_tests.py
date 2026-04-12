@@ -7,7 +7,7 @@ from tokenizers import Tokenizer
 
 import lotus
 from lotus.models import LM, SentenceTransformersRM
-from lotus.types import CascadeArgs
+from lotus.types import CascadeArgs, ProxyModel
 from lotus.vector_store import FaissVS
 
 ################################################################################
@@ -712,3 +712,23 @@ def test_pairwise_judge(setup_models, model):
     )
     assert list(df["_judge_0"].values) == ["A", "B"]
     assert list(df["_judge_1"].values) == ["A", "B"]
+
+
+@pytest.mark.parametrize("model", get_enabled("gpt-4o-mini"))
+def test_sem_filter_cascade_rejects_non_single_token_output_tokens(setup_models, model):
+    """Cascade filtering requires each output token string to encode to exactly one token id."""
+    lm = setup_models[model]
+    lotus.settings.configure(lm=lm)
+
+    df = pd.DataFrame({"Text": ["hello"]})
+    cascade = CascadeArgs(
+        proxy_model=ProxyModel.EMBEDDING_MODEL,
+        filter_pos_cascade_threshold=0.9,
+        filter_neg_cascade_threshold=0.1,
+    )
+    with pytest.raises(ValueError, match="single token"):
+        df.sem_filter(
+            "{Text} is positive",
+            cascade_args=cascade,
+            output_tokens=("Column A", "Column B"),
+        )
