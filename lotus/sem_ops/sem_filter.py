@@ -433,11 +433,27 @@ class SemFilterDataframe:
         proxy_model: ProxyModel | None = None
         helper_output: SemanticFilterOutput | None = None
         if cascade_args:
+            for token_str in output_tokens:
+                token_ids = lotus.settings.lm.encode_text(token_str)
+                if len(token_ids) != 1:
+                    raise ValueError(
+                        f"Output token '{token_str}' encodes to {len(token_ids)} tokens with the main LM. "
+                        f"Cascade requires each output token to be a single token."
+                    )
+
             proxy_model = cascade_args.proxy_model
             # Get the proxy scores
             if proxy_model == ProxyModel.HELPER_LM:
                 if not lotus.settings.helper_lm:
                     raise ValueError("Helper LM must be set in settings")
+
+                for token_str in output_tokens:
+                    token_ids = lotus.settings.helper_lm.encode_text(token_str)
+                    if len(token_ids) != 1:
+                        raise ValueError(
+                            f"Output token '{token_str}' encodes to {len(token_ids)} tokens with the helper LM. "
+                            f"Cascade requires each output token to be a single token."
+                        )
 
                 if helper_strategy == ReasoningStrategy.COT or helper_strategy == ReasoningStrategy.ZS_COT:
                     raise ValueError("CoT not supported for helper models in cascades.")

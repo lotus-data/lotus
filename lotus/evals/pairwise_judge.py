@@ -11,14 +11,14 @@ from lotus.types import CascadeArgs, ReasoningStrategy
 
 
 def _unique_col_names(existing_columns: pd.Index) -> tuple[str, str]:
-    """Pick col_A / col_B names that don't collide with existing columns."""
-    base_a, base_b = "col_A", "col_B"
+    """Pick A / B names that don't collide with existing columns."""
+    base_a, base_b = "A", "B"
     if base_a not in existing_columns and base_b not in existing_columns:
         return base_a, base_b
     i = 1
     while True:
-        candidate_a = f"{base_a}_{i}"
-        candidate_b = f"{base_b}_{i}"
+        candidate_a = f"{base_a}{i}"
+        candidate_b = f"{base_b}{i}"
         if candidate_a not in existing_columns and candidate_b not in existing_columns:
             return candidate_a, candidate_b
         i += 1
@@ -240,6 +240,8 @@ class PairwiseJudgeDataframe:
                 output_df = output
             output_df = output_df.drop(columns=[c for c in renamed_columns if c in output_df.columns])
             for col_name in output_df.columns:
+                if col_name.startswith("raw_output") or col_name.startswith("explanation"):
+                    continue
                 output_df[col_name] = output_df[col_name].map({True: "A", False: "B"})
             all_output_df.append(output_df)
         new_df = self._obj.copy()
