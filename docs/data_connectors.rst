@@ -1,23 +1,23 @@
 Database Connectors
-=================
+===================
 
 Overview
 ---------
 LOTUS' data connectors let you seamlessly load data from external stores (e.g. a SQL database) so that you can run LOTUS programs over them.
-Current data connections include SQL databases supported by `SQLAlchemy`_ and any S3 serivice.
+Current data connections include SQL databases supported by `SQLAlchemy`_ and any S3 service.
 
 
 .. _SQLAlchemy: https://docs.sqlalchemy.org/en/14/dialects/
 
-Intstallation
---------
+Installation
+------------
 To get started, you will need to install the lotus submodule as follows::
 
     pip install lotus[data_connectors]
 
 
 Example: Loading from SQLite
------------
+----------------------------
 .. code-block:: python
 
     import lotus
@@ -35,7 +35,7 @@ Example: Loading from SQLite
     print(df)
 
 Example: Loading from Postgres
-------------
+------------------------------
 .. code-block:: python
 
     import lotus
@@ -53,7 +53,7 @@ Example: Loading from Postgres
     print(df)
 
 Example: Loading from Snowflake
----------------
+-------------------------------
 .. code-block:: python
 
     import lotus
@@ -71,7 +71,7 @@ Example: Loading from Snowflake
     print(df)
 
 Example: Loading from Google Big Query
---------------------------
+--------------------------------------
 .. code-block:: python
 
     import lotus
@@ -89,7 +89,7 @@ Example: Loading from Google Big Query
     print(df)
 
 Example: Loading from S3
------------
+------------------------
 .. code-block:: python
 
     import lotus
@@ -136,8 +136,8 @@ Required DB Parameters
 - **connection_url** : The connection url for the database
 - **query** : The query to execute
 
-Required s3 Paramaters
------------------------
+Required s3 Parameters
+----------------------
 - **aws_access_key** : The AWS access key (None for Public Access)
 - **aws_secret_key** : The AWS secret key (None for Public Access)
 - **region** : The AWS region
@@ -145,4 +145,3 @@ Required s3 Paramaters
 - **file_path** : The path to the file in S3
 - **endpoint_url** : The Minio endpoint URL. Default is None for AWS s3
 - **protocol** : The protocol to use (http for Minio and https for R2). Default is "s3"
-

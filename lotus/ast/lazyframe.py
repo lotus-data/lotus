@@ -839,7 +839,7 @@ class LazyFrame:
 
     def optimize(
         self,
-        optimizers: list["BaseOptimizer"],
+        optimizers: list["BaseOptimizer"] = [],
         *,
         inplace: bool = False,
         train_data: pd.DataFrame | dict["LazyFrame", pd.DataFrame] | None = None,
@@ -859,6 +859,10 @@ class LazyFrame:
         from .optimizer import DEFAULT_OPTIMIZERS
 
         all_optimizers = (DEFAULT_OPTIMIZERS + optimizers) if auto_include_default_optimizers else optimizers
+
+        if not all_optimizers:
+            lotus.logger.warning("LazyFrame.optimize: no optimizers provided, returning original LazyFrame")
+            return
 
         lotus.logger.debug(
             f"LazyFrame.optimize: {len(self._nodes)} nodes, " f"{len(all_optimizers)} optimizer(s), inplace={inplace}"

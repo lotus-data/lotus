@@ -1,25 +1,25 @@
 Tracking LM Usage
-=======
+=================
 
-Print and Reseet LM Usage Stats
----------
+Print and Reset LM Usage Stats
+------------------------------
 To track usage of the LLM you've configured, you can simply access the built-in ``print_total_usage``
 
 .. code-block:: python
 
-lotus.settings.lm.print_total_usage()
+    lotus.settings.lm.print_total_usage()
 
 
 You can also reset the LLM usage stats as follows:
 
 .. code-block:: python
 
-lotus.settings.lm.reset_stats()
+    lotus.settings.lm.reset_stats()
 
 
 
 Setting Usage Limits
------------
+--------------------
 As a safety measure, the LM class supports setting usage limits to control costs and token consumption. You can set limits on:
 
 - Prompt tokens

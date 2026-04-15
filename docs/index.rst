@@ -8,7 +8,7 @@
    :height: 170px
    :align: center
 
-LOTUS Makes LLM-Powerd Data Processing Fast, Easy and Robust
+LOTUS Makes LLM-Powered Data Processing Fast, Easy and Robust
 =================================================================================
 
 LOTUS implements the semantic operator programming model and provides an optimized query engine for serving AI-based query pipelines over your data.
@@ -46,11 +46,31 @@ LOTUS implements the semantic operator programming model and provides an optimiz
    sem_index
    sem_dedup
    web_search
+   web_extract
 
 .. toctree::
    :hidden:
    :maxdepth: 1
-   :caption: Models   
+   :caption: LazyFrame
+
+   lazyframe
+   lazyframe_optimizations
+   lazyframe_api
+
+.. toctree::
+   :hidden:
+   :maxdepth: 1
+   :caption: Evaluation Suite
+
+   evaluation
+   llm_as_judge
+   pairwise_judge
+   evaluation_advanced
+
+.. toctree::
+   :hidden:
+   :maxdepth: 1
+   :caption: Models
 
    llm
    retriever_models
@@ -68,8 +88,6 @@ LOTUS implements the semantic operator programming model and provides an optimiz
    prompt_strategies
    configurations
    reasoning_models
-   evals
-   ast
 
 .. toctree::
    :hidden:
@@ -78,5 +96,3 @@ LOTUS implements the semantic operator programming model and provides an optimiz
 
    data_connectors
    DirectoryReader
-
-

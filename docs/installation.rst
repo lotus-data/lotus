@@ -14,7 +14,7 @@ Install with uv (Recommended)
 
 For the latest stable release:
 
-.. code-block:: console
+.. code-block:: bash
 
     # Install uv if you haven't already
     $ curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -24,7 +24,7 @@ For the latest stable release:
 
 For the latest features:
 
-.. code-block:: console
+.. code-block:: bash
 
     $ uv add git+https://github.com/lotus-data/lotus.git@main
 
@@ -33,7 +33,7 @@ Install with pip
 
 For the latest stable release:
 
-.. code-block:: console
+.. code-block:: bash
 
     $ conda create -n lotus python=3.10 -y
     $ conda activate lotus
@@ -41,7 +41,7 @@ For the latest stable release:
 
 For the latest features:
 
-.. code-block:: console
+.. code-block:: bash
 
     $ conda create -n lotus python=3.10 -y
     $ conda activate lotus
@@ -52,13 +52,13 @@ Optional Subpackages
 
 LOTUS supports optional subpackages for extended functionality. Install them using the ``lotus-ai[<subpackage>]`` syntax:
 
-.. code-block:: console
+.. code-block:: bash
 
     $ pip install "lotus-ai[serpapi]"
 
 Or with uv:
 
-.. code-block:: console
+.. code-block:: bash
 
     $ uv add "lotus-ai[serpapi]"
 

@@ -3,14 +3,14 @@ Setting Configurations
 
 Overview
 ---------
-The Settings module let's you manage application-wide configurations. 
-In most examples seen, we have used the settings to configured our LM.
+The Settings module lets you manage application-wide configurations.
+Most examples use settings to configure the active LM.
 
 Using the Settings module
 --------------------------
 .. code-block:: python
     
-    from lotus
+    import lotus
     from lotus.models import LM
 
     lm = LM(model="gpt-4o-mini")
@@ -19,14 +19,11 @@ Using the Settings module
 Configurable Parameters
 --------------------------
 
-1. enable_cache: 
-    * Description: Enables or Disables caching mechanisms
-    * Default: False
-    * Parameters: 
-        - cache_type: Type of caching (SQLITE or In_MEMORY)
-        - max_size: maximum size of cache
-        - cache_dir: Directory for where DB file is stored. Default: "~/.lotus/cache"
-    * Note: It is recommended to enable caching
+``enable_cache``
+    Enables or disables caching mechanisms. Default: ``False``.
+    Cache parameters include ``cache_type``, ``max_size``, and ``cache_dir``.
+    It is recommended to enable caching.
+
 .. code-block:: python
 
     import pandas as pd
@@ -41,17 +38,18 @@ Configurable Parameters
     lm = LM(model='gpt-4o-mini', cache=cache)
     lotus.settings.configure(lm=lm, enable_cache=True)
 
-2. setting RM:
-    * Description: Configures the retrieval model
-    * Default: None
+``rm``
+    Configures the retrieval model. Default: ``None``.
+
 .. code-block:: python
 
     rm = SentenceTransformersRM(model="intfloat/e5-base-v2")
     lotus.settings.configure(rm=rm)
 
-3. setting helper_lm:
-    * Descriptions: Configures secondary helper LM often set along with primary LM
-    * Default: None
+``helper_lm``
+    Configures a secondary helper LM, often used with cascades. Default:
+    ``None``.
+
 .. code-block:: python
 
     gpt_4o_mini = LM("gpt-4o-mini")
@@ -162,4 +160,3 @@ are invisible to others.
 
     ``configure()`` mutates the global settings object and is **not** thread-safe.
     Use ``context()`` whenever settings need to differ across concurrent execution paths.
-

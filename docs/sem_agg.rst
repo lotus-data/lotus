@@ -1,118 +1,100 @@
 sem_agg
-======================
+========
 
-Overview
----------
-This operator performs an aggregation over the input relation, with
-a langex signature that provides a commutative and associative aggregation function
+``sem_agg`` aggregates many rows into one answer. It is useful for
+summarization, synthesis, and reasoning across text-heavy DataFrames.
 
 Motivation
------------
-Semantic aggregations are useful for tasks, such as summarization and reasoning across multiple rows of the dataset. 
+----------
 
+Traditional aggregations compute values such as sums, counts, and averages.
+Many language-heavy tasks need a different kind of aggregation: read many
+rows, identify the shared themes, and produce one synthesized answer.
 
+Use ``sem_agg`` when the output depends on the dataset as a whole rather than
+one row at a time. Common uses include summarizing a collection of documents,
+writing a cross-record report, identifying themes across tickets, or producing
+one structured summary per group.
 
-Examples
----------
+Article Summary Example
+-----------------------
+
 .. code-block:: python
 
     import pandas as pd
-
     import lotus
-
     from lotus.models import LM
 
-    lm = LM(model="gpt-4o-mini")
-    lotus.settings.configure(lm=lm)
+    lotus.settings.configure(lm=LM(model="gpt-4o-mini"))
 
-    data = {
+    articles = pd.DataFrame({
         "ArticleTitle": [
             "Advancements in Quantum Computing",
             "Climate Change and Renewable Energy",
             "The Rise of Artificial Intelligence",
-            "A Journey into Deep Space Exploration"
+            "A Journey into Deep Space Exploration",
         ],
         "ArticleContent": [
-            """Quantum computing harnesses the properties of quantum mechanics 
-            to perform computations at speeds unimaginable with classical machines. 
-            As research and development progress, emerging quantum algorithms show 
-            great promise in solving previously intractable problems.""",
-            
-            """Global temperatures continue to rise, and societies worldwide 
-            are turning to renewable resources like solar and wind power to mitigate 
-            climate change. The shift to green technology is expected to reshape 
-            economies and significantly reduce carbon footprints.""",
-            
-            """Artificial Intelligence (AI) has grown rapidly, integrating 
-            into various industries. Machine learning models now enable systems to 
-            learn from massive datasets, improving efficiency and uncovering hidden 
-            patterns. However, ethical concerns about privacy and bias must be addressed.""",
-            
-            """Deep space exploration aims to understand the cosmos beyond 
-            our solar system. Recent missions focus on distant exoplanets, black holes, 
-            and interstellar objects. Advancements in propulsion and life support systems 
-            may one day enable human travel to far-off celestial bodies."""
-        ]
-    }
+            (
+                "Quantum computing harnesses the properties of quantum mechanics "
+                "to perform computations at speeds unimaginable with classical "
+                "machines. Emerging quantum algorithms show promise in solving "
+                "previously intractable problems."
+            ),
+            (
+                "Global temperatures continue to rise, and societies worldwide "
+                "are turning to renewable resources like solar and wind power. "
+                "The shift to green technology is expected to reshape economies."
+            ),
+            (
+                "Artificial Intelligence has grown rapidly across industries. "
+                "Machine learning models improve efficiency and uncover hidden "
+                "patterns, while privacy and bias concerns remain important."
+            ),
+            (
+                "Deep space exploration studies the cosmos beyond our solar "
+                "system. Recent missions focus on exoplanets, black holes, and "
+                "interstellar objects."
+            ),
+        ],
+    })
 
-    df = pd.DataFrame(data)
-
-    df = df.sem_agg("Provide a concise summary of all {ArticleContent} in a single paragraph, highlighting the key technological progress and its implications for the future.")
-    print(df._output[0])
-
-Output:
-
-.. code-block:: text
-    
-    "Recent technological advancements are reshaping various fields and have significant implications for the future. 
-    Quantum computing is emerging as a powerful tool capable of solving complex problems at unprecedented speeds, while the 
-    global shift towards renewable energy sources like solar and wind power aims to combat climate change and transform economies. 
-    In the realm of Artificial Intelligence, rapid growth and integration into industries are enhancing efficiency and revealing 
-    hidden data patterns, though ethical concerns regarding privacy and bias persist. Additionally, deep space exploration is 
-    advancing with missions targeting exoplanets and black holes, potentially paving the way for human travel beyond our solar 
-    system through improved propulsion and life support technologies."
-
-Example with group-by
----------------------
-.. code-block:: python
-
-    import pandas as pd
-    import lotus
-    from lotus.models import LM
-
-    lm = LM(model="gpt-4o-mini")
-    lotus.settings.configure(lm=lm)
-
-    # Example DataFrame
-    data = {
-        "Category": ["Tech", "Env", "Tech", "Env"],
-        "ArticleContent": [
-            "Quantum computing shows promise in solving complex problems.",
-            "Renewable energy helps mitigate climate change.",
-            "AI improves efficiency but raises ethical concerns.",
-            "New holes in the ozone layer have been found."
-        ]
-    }
-
-    df = pd.DataFrame(data)
-
-    # Perform semantic aggregation with groupby
-    df = df.sem_agg(
-        "Summarize the {ArticleContent} for each {Category}.",
-        group_by=["Category"]
+    summary = articles.sem_agg(
+        "Provide a concise summary of all {ArticleContent} in a single "
+        "paragraph, highlighting key technological progress and implications "
+        "for the future."
     )
 
-    print(df._output)
+    print(summary["_output"].iloc[0])
 
 Output:
 
 .. code-block:: text
 
-    0    The "Env" category features two key points: re...
-    0    In the Tech category, two key developments are...
+    Recent technological advances are reshaping computation, energy, AI, and
+    space exploration. Quantum computing may unlock new classes of algorithms,
+    renewable energy can reduce climate impact and reshape economies, AI is
+    improving data-driven decision making while raising governance concerns,
+    and deep-space research is expanding what future missions may make possible.
+
+The result is a one-row DataFrame. The default output column is ``_output``.
 
 
+Grouped Aggregation
+-------------------
 
+Use ``group_by`` to produce one aggregation per group.
+
+.. code-block:: python
+
+    grouped = articles.assign(
+        Category=["Tech", "Env", "Tech", "Space"]
+    ).sem_agg(
+        "Summarize the {ArticleContent} for this category.",
+        group_by=["Category"],
+    )
+
+``grouped`` has one output row per category.
 
 Long Context Handling
 ------------------
@@ -120,24 +102,7 @@ When documents exceed the language model's context length, sem_agg supports auto
 
 .. code-block:: python
 
-    import pandas as pd
-    import lotus
-    from lotus.models import LM
     from lotus.types import LongContextStrategy
-
-    # Configure model with smaller context for demonstration
-    lm = LM(model="gpt-4o-mini", max_ctx_len=2000, max_tokens=200)
-    lotus.settings.configure(lm=lm)
-
-    # Create DataFrame with potentially large documents
-    data = {
-        "title": ["Research Paper", "Blog Post"],
-        "content": [
-            "Very long research content..." * 500,  # Exceeds context
-            "Regular blog post content"
-        ]
-    }
-    df = pd.DataFrame(data)
 
     # Use TRUNCATE strategy (default) - simply cuts off excess content
     result_truncate = df.sem_agg(
@@ -161,13 +126,56 @@ When documents exceed the language model's context length, sem_agg supports auto
 - Use **TRUNCATE** when the most important information is at the beginning of documents
 - Use **CHUNK** when all parts of the document are potentially important and you need to preserve complete information
 
+Structured Output
+-----------------
+
+Pass ``response_format`` when the final answer should follow a Pydantic model
+or JSON schema. By default, ``split_fields_into_cols=True`` turns structured
+fields into separate DataFrame columns.
+
+.. code-block:: python
+
+    from pydantic import BaseModel, Field
+
+    class ArticleSummary(BaseModel):
+        theme: str = Field(description="Main theme across the articles")
+        future_impact: str = Field(description="Likely future implication")
+
+    structured = articles.sem_agg(
+        "Summarize the shared theme and future impact of {ArticleContent}.",
+        response_format=ArticleSummary,
+    )
+
+Set ``split_fields_into_cols=False`` if you want the structured model response
+to stay in the output column instead of becoming separate fields.
+
+Return Value
+------------
+
+``sem_agg`` returns one row for the full DataFrame or one row per group. With
+plain text output, the result column is ``suffix``. With structured output and
+``split_fields_into_cols=True``, fields become individual columns.
+
 Required Parameters
---------------------
-- **user_instructions** : Prompt to pass into LM
+-------------------
+
+- ``user_instruction``: Natural language aggregation instruction. Reference
+  columns with ``{column_name}``.
 
 Optional Parameters
---------------------
-- **all_cols** : Whether to use all columns in the dataframe. 
-- **suffix** : The suffix for the new column
-- **group_by** : The columns to group by before aggregation. Each group will be aggregated separately.
-- **long_context_strategy** : Strategy for handling documents that exceed context length (LongContextStrategy.TRUNCATE or LongContextStrategy.CHUNK)
+-------------------
+
+- ``all_cols``: Use all DataFrame columns instead of only columns referenced in
+  ``user_instruction``.
+- ``suffix``: Output column name for plain text output. Defaults to
+  ``"_output"``.
+- ``group_by``: Columns to group by before aggregation. Produces one output row
+  per group.
+- ``safe_mode``: Accepted for API consistency; aggregation safe mode is not
+  fully implemented.
+- ``progress_bar_desc``: Progress bar label.
+- ``long_context_strategy``: Strategy for long inputs. Defaults to
+  ``LongContextStrategy.CHUNK``.
+- ``split_fields_into_cols``: Split structured output fields into columns when
+  ``response_format`` is provided.
+- ``response_format``: Pydantic model or JSON schema for structured output.

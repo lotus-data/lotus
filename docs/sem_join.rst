@@ -1,9 +1,8 @@
 sem_join
-=================
+========
 
-Overview
-----------
-The sem_join operator in joins to datasets according to the langex, which specifies a predicate in natural language. 
+``sem_join`` joins two DataFrames, or a DataFrame and a named Series, using a
+natural language predicate instead of an equality condition.
 
 Motivation
 -----------
@@ -17,14 +16,12 @@ Join Example
 .. code-block:: python
 
     import pandas as pd
-
     import lotus
     from lotus.models import LM
 
-    lm = LM(model="gpt-4o-mini")
+    lotus.settings.configure(lm=LM(model="gpt-4o-mini"))
 
-    lotus.settings.configure(lm=lm)
-    data = {
+    courses = pd.DataFrame({
         "Course Name": [
             "History of the Atlantic World",
             "Riemannian Geometry",
@@ -33,127 +30,147 @@ Join Example
             "Compilers",
             "Intro to computer science",
         ]
-    }
+    })
 
-    data2 = {"Skill": ["Math", "Computer Science"]}
+    skills = pd.DataFrame({
+        "Skill": ["Math", "Computer Science"],
+    })
 
-    df1 = pd.DataFrame(data)
-    df2 = pd.DataFrame(data2)
-    join_instruction = "Taking {Course Name:left} will help me learn {Skill:right}"
-    res = df1.sem_join(df2, join_instruction)
-    print(res)
+    joined = courses.sem_join(
+        skills,
+        "Taking {Course Name:left} will help me learn {Skill:right}",
+    )
+
+    print(joined)
 
 Output:
 
-+---+----------------------------+-------------------+
-|   |      Course Name           |       Skill       |
-+---+----------------------------+-------------------+                
-| 1 |  Riemannian Geometry       |       Math        |
-+---+----------------------------+-------------------+
-| 2 |   Operating Systems        |  Computer Science |
-+---+----------------------------+-------------------+
-| 4 |      Compilers             |  Computer Science |
-+---+----------------------------+-------------------+
-| 5 | Intro to computer science  |  Computer Science |
-+---+----------------------------+-------------------+
++---+---------------------------+------------------+
+|   | Course Name               | Skill            |
++===+===========================+==================+
+| 0 | Riemannian Geometry       | Math             |
++---+---------------------------+------------------+
+| 1 | Operating Systems         | Computer Science |
++---+---------------------------+------------------+
+| 2 | Compilers                 | Computer Science |
++---+---------------------------+------------------+
+| 3 | Intro to computer science | Computer Science |
++---+---------------------------+------------------+
 
+The result contains the matched course-skill pairs.
 
+Column Disambiguation
+---------------------
 
-Example of Join with Approximation
-----------------------
+Use ``:left`` and ``:right`` when a join instruction references columns from
+both sides.
+
 .. code-block:: python
 
-    import pandas as pd
+    joined = left.sem_join(
+        right,
+        "{title:left} and {title:right} describe the same task",
+    )
 
-    import lotus
-    from lotus.models import LM, SentenceTransformersRM
+If there is no ambiguity, LOTUS can infer the left and right columns from the
+DataFrame schemas. If a referenced column exists in both DataFrames, use
+explicit ``:left`` and ``:right`` suffixes.
+
+Join Semantics
+--------------
+
+``sem_join`` currently supports inner joins. ``other`` can be a DataFrame or a
+named Series. For each candidate pair, LOTUS evaluates the natural language
+predicate and keeps the pairs judged true.
+
+Set ``return_explanations=True`` to add an ``explanation{suffix}`` column for
+the pairs that matched.
+
+.. code-block:: python
+
+    joined = courses.sem_join(
+        skills,
+        "Taking {Course Name:left} will help me learn {Skill:right}",
+        return_explanations=True,
+        suffix="_match",
+    )
+
+Cascades
+--------
+
+Cascades reduce cost by using cheaper helper plans before routing uncertain
+pairs to the main LM. See :doc:`approximation_cascades` for the full details.
+
+.. code-block:: python
+
     from lotus.types import CascadeArgs
-    from lotus.vector_store import FaissVS
 
-    lm = LM(model="gpt-4o-mini")
-    rm = SentenceTransformersRM(model="intfloat/e5-base-v2")
-    vs = FaissVS()  
+    cascade_args = CascadeArgs(
+        recall_target=0.7,
+        precision_target=0.7,
+        sampling_percentage=0.2,
+        failure_probability=0.2,
+    )
 
-    lotus.settings.configure(lm=lm, rm=rm, vs=vs)
-    data = {
-        "Course Name": [
-            "Digital Design and Integrated Circuits",
-            "Data Structures and Algorithms",
-            "The History of Art",
-            "Natural Language Processing",
-        ]
-    }
+    joined, stats = courses.sem_join(
+        skills,
+        "Taking {Course Name:left} will help me learn {Skill:right}",
+        cascade_args=cascade_args,
+        return_stats=True,
+    )
 
-    skills = [
-        "Math", "Computer Science", "Management", "Creative Writing", "Data Analysis", "Machine Learning", "Project Management",
-        "Problem Solving", "Singing", "Critical Thinking", "Public Speaking", "Teamwork", "Adaptability", "Programming",
-        "Leadership", "Time Management", "Negotiation", "Decision Making", "Networking", "Painting",
-        "Customer Service", "Marketing", "Graphic Design", "Nursery", "SEO", "Content Creation", "Video Editing", "Sales",
-        "Financial Analysis", "Accounting", "Event Planning", "Foreign Languages", "Software Development", "Cybersecurity",
-        "Social Media Management", "Photography", "Writing & Editing", "Technical Support", "Database Management", "Web Development",
-        "Business Strategy", "Operations Management", "UI/UX Design", "Reinforcement Learning", "Data Visualization",
-        "Product Management", "Cloud Computing", "Agile Methodology", "Blockchain", "IT Support", "Legal Research", "Supply Chain Management",
-        "Copywriting", "Human Resources", "Quality Assurance", "Medical Research", "Healthcare Management", "Sports Coaching",
-        "Editing & Proofreading", "Legal Writing", "Human Anatomy", "Chemistry", "Physics", "Biology",
-        "Psychology", "Sociology", "Anthropology", "Political Science", "Public Relations", "Fashion Design", "Interior Design",
-        "Automotive Repair", "Plumbing", "Carpentry", "Electrical Work", "Welding", "Electronics", "Hardware Engineering",
-        "Circuit Design", "Robotics", "Environmental Science", "Marine Biology", "Urban Planning", "Geography",
-        "Agricultural Science", "Animal Care", "Veterinary Science", "Zoology", "Ecology", "Botany", "Landscape Design",
-        "Baking & Pastry", "Culinary Arts", "Bartending", "Nutrition", "Dietary Planning", "Physical Training", "Yoga",
-    ]
-    data2 = pd.DataFrame({"Skill": skills})
+For join cascades, ``CascadeArgs`` can also include ``map_instruction`` and
+``map_examples``.
 
+Few-Shot Examples
+-----------------
 
-    df1 = pd.DataFrame(data)
-    df2 = pd.DataFrame(data2)
-    join_instruction = "By taking {Course Name:left} I will learn {Skill:right}"
+Use ``examples`` when the join relationship is domain-specific. The examples
+DataFrame should contain the referenced left and right columns plus an
+``Answer`` column with boolean labels.
 
-    cascade_args = CascadeArgs(recall_target=0.7, precision_target=0.7)
-    res, stats = df1.sem_join(df2, join_instruction, cascade_args=cascade_args, return_stats=True)
+.. code-block:: python
 
+    examples = pd.DataFrame({
+        "Course Name": ["Operating Systems"],
+        "Skill": ["Computer Science"],
+        "Answer": [True],
+    })
 
-    print(f"Joined {df1.shape[0]} rows from df1 with {df2.shape[0]} rows from df2")
-    print(f"    Join cascade took {stats['join_resolved_by_large_model']} LM calls")
-    print(f"    Helper resolved {stats['join_resolved_by_helper_model']} LM calls")
-    print(f"Join cascade used {stats['total_LM_calls']} LM calls in total")
-    print(f"Naive join would require {df1.shape[0]*df2.shape[0]} LM calls")
-    print(res)
+    joined = courses.sem_join(
+        skills,
+        "Taking {Course Name:left} will help me learn {Skill:right}",
+        examples=examples,
+    )
 
-Output:
+Return Value
+------------
 
-+---+----------------------------------------+----------------------+
-|   |            Course Name                 |        Skill         |
-+---+----------------------------------------+----------------------+
-| 0 | Digital Design and Integrated Circuits | Circuit Design       |
-+---+----------------------------------------+----------------------+
-| 3 | Natural Language Processing            | Machine Learning     |
-+---+----------------------------------------+----------------------+
-| 1 | Data Structures and Algorithms         | Computer Science     |
-+---+----------------------------------------+----------------------+
-| 0 | Digital Design and Integrated Circuits | Electronics          |
-+---+----------------------------------------+----------------------+
-| 0 | Digital Design and Integrated Circuits | Hardware Engineering |
-+---+----------------------------------------+----------------------+
-
+``sem_join`` returns an inner-join DataFrame containing the matched left and
+right rows. Columns that exist on both sides are renamed with ``:left`` and
+``:right``. With ``return_stats=True`` and a cascade, it returns
+``(joined_df, stats)``.
 
 Required Parameters
-----------------------
-- **other** : The other dataframe or series to join with.
-- **join_instruction** : The user instruction for join.
+-------------------
+
+- ``other``: Right-hand DataFrame or named Series.
+- ``join_instruction``: Natural language predicate over left and right rows.
+  Use ``:left`` and ``:right`` to disambiguate columns when needed.
 
 Optional Parameters
-----------------------
-- **return_explanations** : Whether to return explanations. Defaults to False.
-- **how** : The type of join to perform. Defaults to "inner".
-- **suffix** : The suffix for the new columns. Defaults to "_join".
-- **examples** : The examples dataframe. Defaults to None.
-- **strategy** : The reasoning strategy. Defaults to None.
-- **default** : The default value for the join in case of parsing errors. Defaults to True.
-- **cascade_args**: The arguments for join cascade. Defaults to None.
-    recall_target : The target recall. Defaults to None.
-    precision_target : The target precision when cascading. Defaults to None.
-    sampling_percentage : The percentage of the data to sample when cascading. Defaults to 0.1.
-    failure_probability : The failure probability when cascading. Defaults to 0.2.
-    map_instruction : The map instruction when cascading. Defaults to None.
-    map_examples : The map examples when cascading. Defaults to None.
-- **return_stats** : Whether to return stats. Defaults to False.
+-------------------
+
+- ``return_explanations``: Add an ``explanation{suffix}`` column for matched
+  pairs.
+- ``how``: Join type. Only ``"inner"`` is currently supported.
+- ``suffix``: Suffix for explanation columns.
+- ``examples``: Few-shot examples with referenced columns and an ``Answer``
+  column.
+- ``strategy``: Optional reasoning strategy.
+- ``default``: Boolean decision to use when output parsing is uncertain.
+- ``cascade_args``: Optional join cascade configuration.
+- ``return_stats``: Return ``(DataFrame, stats)`` when cascade stats are
+  available.
+- ``safe_mode``: Estimate cost before execution.
+- ``progress_bar_desc``: Progress bar label.

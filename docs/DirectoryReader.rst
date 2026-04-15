@@ -1,10 +1,10 @@
 File Loading with DirectoryReader
-========================
+=================================
 
 Overview
 ---------
 The `DirectoryReader` class provides an enhanced, flexible way to ingest and process various document types, including local files, directories, and URLs. 
-It supports incremental file addition, automatic type detection, URL downloads, and efficient metadata handling, making it seemless to integrate files with LOTUS.
+It supports incremental file addition, automatic type detection, URL downloads, and efficient metadata handling, making it seamless to integrate files with LOTUS.
 
 Supported File Types
 --------------------
@@ -15,15 +15,15 @@ Supported File Types
 - Word files (DOCX, DOC): `per_page` mode is not supported for such files.
 - Text-based files (`.txt`, `.py`, `.md`, etc.): `per_page` mode is not supported for such files.
 
-Intstallation
---------
+Installation
+------------
 To get started, you will need to install the lotus submodule as follows::
 
     pip install lotus-ai[file_extractor]
     
 
 PDF Example
---------
+-----------
 .. code-block:: python
 
     import pathlib
@@ -46,7 +46,7 @@ PDF Example
     print(top_motivating_poems["content"].values[0])
 
 Remote PDF Example
---------
+------------------
 You can directly download PDFs from URLs and process them seamlessly:
 
 .. code-block:: python
@@ -62,7 +62,7 @@ You can directly download PDFs from URLs and process them seamlessly:
     print(f"Loaded PDFs:\n{df[['file_path', 'content']]}")
 
 PowerPoint (PPT) Example
---------
+------------------------
 The `DirectoryReader` class also supports PPT files, downloading and extracting each slide's content into a structured format:
 
 .. code-block:: python
@@ -76,7 +76,7 @@ The `DirectoryReader` class also supports PPT files, downloading and extracting 
 
 Chunking
 --------
-You aslo have the option to chunk the documents. This is useful when you have a large document and you want to process it in smaller chunks.
+You also have the option to chunk the documents. This is useful when you have a large document and you want to process it in smaller chunks.
 You can specify the chunk size and the overlap between the chunks or use the default values of 1000 and 50 respectively.
 
 .. code-block:: python
@@ -90,7 +90,7 @@ You can specify the chunk size and the overlap between the chunks or use the def
 
 
 Optional Parameters for initializing DirectoryReader
---------------------------------
+----------------------------------------------------
 - **recursive (bool)**: Whether to recursively search subdirectories. Default is `False`.
 - **custom_reader_configs (dict)**: Configuration for custom file readers based on file extensions. Currently supports PPT, PPTX and PPTM
 - **exclude (List[str])**: Patterns of files to exclude.
@@ -130,7 +130,7 @@ Available Methods
 
 
 Integration with LOTUS Semantic Operators
---------------------
+-----------------------------------------
 Once you've loaded your data files, you can proceed to seamlessly use LOTUS' semantic operators!
 
 .. code-block:: python
@@ -138,4 +138,3 @@ Once you've loaded your data files, you can proceed to seamlessly use LOTUS' sem
     filtered_df = df.sem_filter(user_instruction="Filter instruction here", cascade_args=cascade_args)
     ranked_df = filtered_df.sem_topk("Ranking instruction here", K=3)
     print(f"Top Ranked Results:\n{ranked_df[['content']]}")
-
