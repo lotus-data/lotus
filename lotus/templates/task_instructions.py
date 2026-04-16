@@ -102,9 +102,8 @@ def filter_formatter(
     default_sys_instruction = """The user will provide a claim and some relevant context.
     Your job is to determine whether the claim is true for the given context.
      """
-    sys_instruction = system_prompt or default_sys_instruction
 
-    sys_instruction = default_sys_instruction
+    sys_instruction = system_prompt or default_sys_instruction
     if strategy == ReasoningStrategy.COT:
         sys_instruction += cot_prompt_formatter(
             reasoning_instructions=reasoning_instructions, answer_instructions=answer_instructions
@@ -113,11 +112,8 @@ def filter_formatter(
         sys_instruction += cot_prompt_formatter(
             reasoning_instructions=reasoning_instructions, answer_instructions=answer_instructions
         )
-    else:
-        if system_prompt:
-            sys_instruction = system_prompt
-        else:
-            sys_instruction = non_cot_prompt_formatter(answer_instructions=answer_instructions)
+    elif not system_prompt:
+        sys_instruction += non_cot_prompt_formatter(answer_instructions=answer_instructions)
 
     messages = [
         {"role": "system", "content": sys_instruction},
