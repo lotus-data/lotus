@@ -692,7 +692,7 @@ def test_pairwise_judge(setup_models, model):
     lm = setup_models[model]
     lotus.settings.configure(lm=lm)
     data = {
-        "prompt": [
+        "instruction": [
             "Write a one-sentence summary of the benefits of regular exercise.",
             "Suggest a polite email subject line to schedule a 1:1 meeting.",
         ],
@@ -706,7 +706,7 @@ def test_pairwise_judge(setup_models, model):
         ],
     }
     df = pd.DataFrame(data)
-    judge_instruction = "Given the prompt {prompt}, compare the two responses. Output only 'A' or 'B' or 'Tie' if the responses are equally good."
+    judge_instruction = "Given the {instruction}, compare the two responses."
     df = df.pairwise_judge(
         col1="model_a", col2="model_b", judge_instruction=judge_instruction, permute_cols=True, n_trials=2
     )
