@@ -1,267 +1,139 @@
 web_search
-========================
+===========
 
-Overview
----------
-The `web_search` function allows you to load documents from the web, then process that data with LOTUS.
+``web_search`` loads web search results into a pandas DataFrame. Use it when
+you need a tabular set of search results before applying semantic operators,
+pandas transformations, or a LazyFrame pipeline.
 
-Different search engines are supported, including Google, Google Scholar, Arxiv, You.com and Tavily.
+Use :doc:`web_extract` when you already have URLs or corpus-specific document
+IDs and want the full text.
 
-Arxiv Example
---------
-To get started, you will need to install the lotus submodule as follows:
-.. code-block:: shell
-    pip install lotus[arxiv]
+Supported corpora are:
 
-Then you can run your lotus program:
+- ``WebSearchCorpus.GOOGLE``
+- ``WebSearchCorpus.GOOGLE_SCHOLAR``
+- ``WebSearchCorpus.ARXIV``
+- ``WebSearchCorpus.YOU``
+- ``WebSearchCorpus.TAVILY``
+- ``WebSearchCorpus.PUBMED``
+- ``WebSearchCorpus.BING``; Bing is discontinued and raises a deprecation
+  warning in the current implementation.
 
-.. code-block:: python
+Basic Search
+------------
 
-    import lotus
-    from lotus import WebSearchCorpus, web_search
-    from lotus.models import LM
-
-    lm = LM(model="gpt-4o-mini")
-
-    lotus.settings.configure(lm=lm)
-
-    df = web_search(WebSearchCorpus.ARXIV, "deep learning", 5)[["title", "abstract"]]
-    print(f"Results from Arxiv\n{df}\n\n")
-
-    most_interesting_articles = df.sem_topk("Which {abstract} is most exciting?", K=1)
-    print(f"Most interesting article: \n{most_interesting_articles.iloc[0]}")
-
-Google Example
---------
-Before running the following example, you need to set the `SERPAPI_API_KEY` environment variable. You will also need to install the lotus submodule as follows:
-.. code-block:: shell
-    pip install lotus[serpapi]
-
-Then you can run your lotus program:
+``web_search`` accepts one query or a list of queries and returns one DataFrame
+with a ``query`` column.
 
 .. code-block:: python
 
-    import lotus
     from lotus import WebSearchCorpus, web_search
-    from lotus.models import LM
 
-    lm = LM(model="gpt-4o-mini")
+    df = web_search(
+        WebSearchCorpus.ARXIV,
+        query="lazy dataframe query optimization",
+        K=5,
+    )
 
-    lotus.settings.configure(lm=lm)
+    print(df[["title", "abstract", "query"]])
 
-    df = web_search(WebSearchCorpus.GOOGLE, "deep learning research", 5)[["title", "snippet"]]
-    print(f"Results from Google\n{df}")
-    most_interesting_articles = df.sem_topk("Which {snippet} is the most exciting?", K=1)
-    print(f"Most interesting articles\n{most_interesting_articles}")
-
-You.com Example
---------
-Before running the following example, you need to set the `YOU_API_KEY` environment variable. You will also need to install the lotus submodule as follows:
-.. code-block:: shell
-    pip install lotus[you]
-
-Then you can run your lotus program:
+Search Multiple Queries
+-----------------------
 
 .. code-block:: python
 
-    import lotus
-    from lotus import WebSearchCorpus, web_search
-    from lotus.models import LM
+    df = web_search(
+        WebSearchCorpus.PUBMED,
+        query=[
+            "large language models clinical summarization",
+            "retrieval augmented generation medicine",
+        ],
+        K=3,
+    )
 
-    lm = LM(model="gpt-4o-mini")
+Date Filtering
+--------------
 
-    lotus.settings.configure(lm=lm)
-
-    df = web_search(WebSearchCorpus.YOU, "latest AI breakthroughs", 10)[["title", "snippet"]]
-    print(f"Results from You.com:\n{df}\n")
-    top_you_articles = df.sem_topk("Which {snippet} is the most groundbreaking?", K=3)
-    print(f"Top 3 most interesting articles from You.com:\n{top_you_articles}")
-
-
-Tavily Example
---------
-Before running the following example, you need to set the `TAVILY_API_KEY` environment variable. You will also need to install the lotus submodule as follows:
-.. code-block:: shell
-    pip install lotus[tavily]
-
-Then you can run your lotus program:
-
-.. code-block:: python
-
-    import lotus
-    from lotus import WebSearchCorpus, web_search
-    from lotus.models import LM
-
-    lm = LM(model="gpt-4o-mini")
-
-    lotus.settings.configure(lm=lm)
-
-    df = web_search(WebSearchCorpus.TAVILY, "AI ethics in 2025", 10)[["title", "summary"]]
-    print(f"Results from Tavily:\n{df}\n")
-    top_tavily_articles = df.sem_topk("Which {summary} best explains ethical concerns in AI?", K=3)
-    print(f"Top 3 articles from Tavily on AI ethics:\n{top_tavily_articles}")
-
-
-Date Filtering Example
---------------------
-You can filter search results by date range using the ``start_date`` and ``end_date`` parameters:
+``start_date`` and ``end_date`` filter results for Google, Google Scholar,
+arXiv, You.com, Tavily, and PubMed. ``sort_by_date`` is supported for arXiv.
 
 .. code-block:: python
 
     from datetime import datetime
     from lotus import WebSearchCorpus, web_search
 
-    # Search for papers published in 2024
-    start = datetime(2024, 1, 1)
-    end = datetime(2024, 12, 31)
-    
     df = web_search(
-        WebSearchCorpus.ARXIV, 
-        "transformer architecture", 
+        WebSearchCorpus.ARXIV,
+        "transformer architecture",
         10,
-        start_date=start,
-        end_date=end
+        sort_by_date=True,
+        start_date=datetime(2024, 1, 1),
+        end_date=datetime(2024, 12, 31),
     )
-    
-    # Search for recent news from the past month
-    from datetime import timedelta
-    one_month_ago = datetime.now() - timedelta(days=30)
-    
+
+Select Columns
+--------------
+
+Use ``cols`` to request a subset of result fields.
+
+.. code-block:: python
+
     df = web_search(
         WebSearchCorpus.TAVILY,
-        "AI developments",
-        10,
-        start_date=one_month_ago
+        "AI safety evaluations",
+        5,
+        cols=["title", "url", "content"],
     )
 
+Common default columns include:
 
-Required Parameters
---------------------
-- **corpus** : The search corpus to use. Available options:
-  - ``WebSearchCorpus.ARXIV``: Search academic papers on arxiv.org
-  - ``WebSearchCorpus.GOOGLE``: Search the web using Google Search
-  - ``WebSearchCorpus.GOOGLE_SCHOLAR``: Search academic papers using Google Scholar
-  - ``WebSearchCorpus.YOU``: Search the web using You.com
-  - ``WebSearchCorpus.TAVILY``: Search the web using Tavily
-- **query** : The query to search for
-- **K** : The number of results to return
+- arXiv: ``id``, ``title``, ``link``, ``abstract``, ``published``,
+  ``authors``, ``categories``
+- Google and Google Scholar: ``title``, ``link``, ``snippet``, ``date``,
+  ``publication_info``
+- You.com: ``title``, ``url``, ``snippets``, ``description``
+- Tavily: ``title``, ``url``, ``content``
+- PubMed: ``id``, ``title``, ``link``, ``abstract``, ``published``,
+  ``authors``, ``journal``, ``doi``, ``methods``, ``results``,
+  ``conclusions``
 
-Optional Parameters
---------------------
-- **cols** : The columns to take from the API search results. Default values should be sufficient for most use cases. To see available columns, enable logging:
+Required Setup
+--------------
 
-  .. code-block:: python
+- Google and Google Scholar require ``SERPAPI_API_KEY`` and the ``serpapi``
+  extra.
+- arXiv requires the ``arxiv`` extra.
+- PubMed requires the ``pubmed`` extra.
+- You.com requires ``YOU_API_KEY`` and the ``web_search`` extra.
+- Tavily requires ``TAVILY_API_KEY`` and the ``web_search`` extra.
 
-      import logging
-      logging.basicConfig(level=logging.INFO)
+.. code-block:: console
 
-- **start_date** : Optional start date for filtering results (as a ``datetime`` object). 
-  Returns only results created or published on or after this date. 
+    $ pip install "lotus-ai[serpapi]"
+    $ pip install "lotus-ai[arxiv]"
+    $ pip install "lotus-ai[pubmed]"
+    $ pip install "lotus-ai[web_search]"
 
-- **end_date** : Optional end date for filtering results (as a ``datetime`` object). 
-  Returns only results created or published on or before this date. 
-
-
-web_extract
-========================
-
-Overview
----------
-The `web_extract` function allows you to extract full text content from specific URLs or document IDs across different search engines. This is useful when you already know the URL or ID of a document and want to extract its full content for processing with LOTUS.
-
-The function returns a simple DataFrame with three columns: ``id``, ``url``, and ``full_text``.
-
-Arxiv Extract Example
---------
-To get started, you will need to install the lotus submodule as follows:
-.. code-block:: shell
-    pip install lotus[arxiv]
-
-Then you can run your lotus program:
+Parameters
+----------
 
 .. code-block:: python
 
-    import lotus
-    from lotus import WebSearchCorpus, web_extract
-    from lotus.models import LM
+    web_search(
+        corpus,
+        query,
+        K,
+        cols=None,
+        sort_by_date=False,
+        start_date=None,
+        end_date=None,
+        delay=0.1,
+    )
 
-    lm = LM(model="gpt-4o-mini")
+API Reference
+-------------
 
-    lotus.settings.configure(lm=lm)
+.. autoclass:: lotus.web_search.WebSearchCorpus
+   :members:
 
-    # Extract full text from an arXiv paper using its ID
-    df = web_extract(WebSearchCorpus.ARXIV, doc_id="2303.08774")
-    print(f"Extracted from ArXiv:\n{df}\n\n")
-
-    # Use the extracted full text for semantic operations
-    if df["full_text"].iloc[0]:
-        print(f"Full text length: {len(df['full_text'].iloc[0])} characters")
-
-
-Tavily Extract Example
---------
-Before running the following example, you need to set the `TAVILY_API_KEY` environment variable. You will also need to install the lotus submodule as follows:
-.. code-block:: shell
-    pip install lotus[tavily]
-
-Then you can run your lotus program:
-
-.. code-block:: python
-
-    import lotus
-    from lotus import WebSearchCorpus, web_extract
-    from lotus.models import LM
-
-    lm = LM(model="gpt-4o-mini")
-
-    lotus.settings.configure(lm=lm)
-
-    # Extract full text from a URL using Tavily Extract API
-    df = web_extract(WebSearchCorpus.TAVILY, url="https://en.wikipedia.org/wiki/Artificial_intelligence")
-    print(f"Extracted from Tavily:\n{df}\n\n")
-
-    # Use the extracted full text for semantic operations
-    if df["full_text"].iloc[0]:
-        print(f"Full text length: {len(df['full_text'].iloc[0])} characters")
-
-
-PubMed Extract Example
---------
-To get started, you will need to install the lotus submodule as follows:
-.. code-block:: shell
-    pip install lotus[pubmed]
-
-Then you can run your lotus program:
-
-.. code-block:: python
-
-    import lotus
-    from lotus import WebSearchCorpus, web_extract
-    from lotus.models import LM
-
-    lm = LM(model="gpt-4o-mini")
-
-    lotus.settings.configure(lm=lm)
-
-    # Extract full text from a PubMed article using its ID
-    df = web_extract(WebSearchCorpus.PUBMED, doc_id="12345678")
-    print(f"Extracted from PubMed:\n{df}\n\n")
-
-    # Use the extracted full text for semantic operations
-    if df["full_text"].iloc[0]:
-        print(f"Full text length: {len(df['full_text'].iloc[0])} characters")
-
-web_extract Required Parameters
---------------------
-- **corpus** : The search corpus to use. Available options:
-  - ``WebSearchCorpus.ARXIV``: Extract from academic papers on arxiv.org
-  - ``WebSearchCorpus.GOOGLE``: Extract from URLs using standard HTTP fetching
-  - ``WebSearchCorpus.GOOGLE_SCHOLAR``: Extract from URLs using standard HTTP fetching
-  - ``WebSearchCorpus.YOU``: Extract from URLs using standard HTTP fetching
-  - ``WebSearchCorpus.TAVILY``: Extract from URLs using Tavily Extract API
-  - ``WebSearchCorpus.PUBMED``: Extract from PubMed articles
-- **doc_id** or **url** : Either a corpus-specific identifier (required for ARXIV/PUBMED if url not provided) or a URL to fetch. You must provide exactly one of these parameters.
-
-web_extract Optional Parameters
---------------------
-- **max_length** : Optional maximum character length for extracted full text. If provided, the extracted text will be truncated to this length.
+.. autofunction:: lotus.web_search.web_search

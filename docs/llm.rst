@@ -106,7 +106,7 @@ Example setting token rate limits:
     )
 
 Usage Limits
------------
+------------
 The LM class supports setting usage limits to control costs and token consumption. You can set limits on:
 
 - Prompt tokens

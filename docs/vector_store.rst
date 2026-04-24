@@ -1,10 +1,10 @@
 Vector Stores
-=====================
+=============
 
 Lotus supports multiple vector store backends for efficient semantic indexing and search. This document describes how to use and configure the available vector stores, including Qdrant, Faiss, and Weaviate.
 
 Supported Vector Stores
-----------------------
+-----------------------
 - QdrantVS
 - FaissVS
 - WeaviateVS
