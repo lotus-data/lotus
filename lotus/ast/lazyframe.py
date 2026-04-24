@@ -862,7 +862,7 @@ class LazyFrame:
 
         if not all_optimizers:
             lotus.logger.warning("LazyFrame.optimize: no optimizers provided, returning original LazyFrame")
-            return
+            return self if inplace else self.copy()
 
         lotus.logger.debug(
             f"LazyFrame.optimize: {len(self._nodes)} nodes, " f"{len(all_optimizers)} optimizer(s), inplace={inplace}"
