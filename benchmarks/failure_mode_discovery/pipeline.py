@@ -36,14 +36,12 @@ def build_pipeline(cascade_args: CascadeArgs | None = None) -> LazyFrame:
         LazyFrame()
         .sem_filter(
             "the agent failed in {agent_trace}",
-            mark_optimizable=["user_instruction"],
             cascade_args=cascade_args,
         )
         .sem_agg(
             "given each agent's {agent_trace}, create a bullet point list of failure modes. "
             "each failure mode should be a few words. Only output the list, no other text.",
             suffix="_output",
-            mark_optimizable=["user_instruction"],
         )
     )
     lf["_output"] = lf["_output"].map(parse_failure_modes)
@@ -62,11 +60,17 @@ def optimize_pipeline(
         [
             GEPAOptimizer(
                 eval_fn=eval_fn,
-                objective="Optimize for coverage of failure modes",
+                objective=(
+                    "Optimize this failure mode discovery pipeline for multi-agent AI systems. "
+                    "the pipeline is sem_filter to filter traces where the agent failed to complete its task. "
+                    "then sem_agg to aggregate the failed traces into a list of failure modes."
+                    "the goal is to generate a generic list of failure modes that can cover a large variety of agent failures"
+                    "the failure modes should not be trace or task specific."
+                ),
                 gepa_config=GEPAConfig(
                     engine=EngineConfig(
                         max_metric_calls=max_metric_calls,
-                        run_dir="failure_mode_gepa",
+                        run_dir="agent_trace_analysis",
                     ),
                 ),
             ),

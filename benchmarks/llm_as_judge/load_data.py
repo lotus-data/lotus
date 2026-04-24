@@ -44,53 +44,42 @@ def load_webgpt_dataset(cache_path: str = _CACHE_PATH) -> pd.DataFrame:
     return webgpt_df
 
 
-def _format_answer(answer: str, quotes: object) -> str:
-    """Combine answer text with supporting quotes for judging."""
-    if isinstance(quotes, str):
-        try:
-            quotes = ast.literal_eval(quotes)
-        except Exception:
-            quotes = []
-    if not isinstance(quotes, list):
-        quotes = []
-    quote_text = "\n".join(f"[{q.get('title', '')}]: {q.get('extract', '')}" for q in quotes if isinstance(q, dict))
-    return f"{answer}\n\nSupporting quotes:\n{quote_text}" if quote_text else answer
+def _format_col(answer: str, quotes: object) -> str:
+    """Format an answer with its supporting quotes."""
+    return f"Answer: {answer}\n\nSupporting quotes:\n{quotes}"
+
+
+def _get_question(row: pd.Series) -> str:
+    """Extract full question text from the question field."""
+    try:
+        r = ast.literal_eval(row["question"])
+        return r["full_text"] if isinstance(r, dict) else str(r)
+    except Exception:
+        return str(row["question"])
 
 
 def prepare_eval_dataset(
     webgpt_df: pd.DataFrame,
     max_rows: int = 200,
-    random_state: int = 42,
 ) -> pd.DataFrame:
-    """Build col_A / col_B / true_score evaluation DataFrame.
+    """Build answer_A / answer_B / true_score evaluation DataFrame.
 
-    Rows where score_0 > score_1 are kept as-is (true_score=True, col_A preferred).
-    Rows where score_1 > score_0 are swapped so col_A is always the preferred answer
-    where true_score=True, and randomly sampled non-preferred rows get true_score=False.
+    Drops ties (score_0 == score_1), then maps true_score to 'A' or 'B'
+    based on which answer was preferred by human raters.
     """
-    df = webgpt_df.copy()
+    filtered_df = webgpt_df[webgpt_df["score_0"] != webgpt_df["score_1"]].reset_index(drop=True)
 
-    preferred = df[df["score_0"] > df["score_1"]].copy()
-    preferred["col_A"] = preferred.apply(lambda r: _format_answer(r["answer_0"], r["quotes_0"]), axis=1)
-    preferred["col_B"] = preferred.apply(lambda r: _format_answer(r["answer_1"], r["quotes_1"]), axis=1)
-    preferred["true_score"] = True
+    eval_df = pd.DataFrame(
+        {
+            "id": filtered_df["id"],
+            "question": filtered_df.apply(_get_question, axis=1),
+            "answer_A": filtered_df.apply(lambda r: _format_col(r["answer_0"], r["quotes_0"]), axis=1),
+            "answer_B": filtered_df.apply(lambda r: _format_col(r["answer_1"], r["quotes_1"]), axis=1),
+            "true_score": (filtered_df["score_0"] > filtered_df["score_1"]).map({True: "A", False: "B"}),
+        }
+    )
 
-    non_preferred = df[df["score_1"] > df["score_0"]].copy()
-    non_preferred["col_A"] = non_preferred.apply(lambda r: _format_answer(r["answer_0"], r["quotes_0"]), axis=1)
-    non_preferred["col_B"] = non_preferred.apply(lambda r: _format_answer(r["answer_1"], r["quotes_1"]), axis=1)
-    non_preferred["true_score"] = False
-
-    ties = df[df["score_0"] == df["score_1"]].copy()
-    ties["col_A"] = ties.apply(lambda r: _format_answer(r["answer_0"], r["quotes_0"]), axis=1)
-    ties["col_B"] = ties.apply(lambda r: _format_answer(r["answer_1"], r["quotes_1"]), axis=1)
-    ties["true_score"] = False
-
-    eval_df = pd.concat([preferred, non_preferred, ties], ignore_index=True)
-    eval_df = eval_df[["id", "question", "col_A", "col_B", "true_score"]]
-
-    if len(eval_df) > max_rows:
-        eval_df = eval_df.sample(n=max_rows, random_state=random_state).reset_index(drop=True)
-
+    eval_df = eval_df.iloc[:max_rows].reset_index(drop=True)
     return eval_df
 
 
