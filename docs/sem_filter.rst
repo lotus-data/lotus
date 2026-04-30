@@ -1,9 +1,8 @@
 sem_filter
-=================
+==========
 
-Overview
----------
-sem_filter take a langex predicate, and returns data records that pass the predicate. 
+``sem_filter`` keeps rows whose contents satisfy a natural language predicate.
+Reference DataFrame columns with ``{column_name}``.
 
 Motivation
 -----------
@@ -17,198 +16,161 @@ Filter Example
 .. code-block:: python
 
     import pandas as pd
-
     import lotus
     from lotus.models import LM
 
-    lm = LM(model="gpt-4o-mini")
+    lotus.settings.configure(lm=LM(model="gpt-4o-mini"))
 
-    lotus.settings.configure(lm=lm)
-    data = {
+    courses = pd.DataFrame({
         "Course Name": [
             "Probability and Random Processes",
             "Optimization Methods in Engineering",
             "Digital Design and Integrated Circuits",
             "Computer Security",
         ]
-    }
-    df = pd.DataFrame(data)
-    user_instruction = "{Course Name} requires a lot of math"
-    df = df.sem_filter(user_instruction)
-    print(df)
+    })
+
+    math_heavy = courses.sem_filter(
+        "{Course Name} requires a lot of math"
+    )
+
+    print(math_heavy)
 
 Output:
 
-+---+---------------------------------------------+
-|   |                Course Name                  |
-+---+---------------------------------------------+
-| 0 | Probability and Random Processes            |
-+---+---------------------------------------------+
-| 1 | Optimization Methods in Engineering         |
-+---+---------------------------------------------+
-| 2 | Digital Design and Integrated Circuits      |
-+---+---------------------------------------------+
++---+----------------------------------------+
+|   | Course Name                            |
++===+========================================+
+| 0 | Probability and Random Processes       |
++---+----------------------------------------+
+| 1 | Optimization Methods in Engineering    |
++---+----------------------------------------+
+| 2 | Digital Design and Integrated Circuits |
++---+----------------------------------------+
 
+The result contains only the rows that the model judged as satisfying the
+predicate.
 
+Returning Decisions for Every Row
+---------------------------------
 
-Example of Filter with Approximation
------------------------
+By default, ``sem_filter`` drops rows that do not pass. Set
+``return_all=True`` when you want to keep every row and add the model's boolean
+decision as a new column.
+
 .. code-block:: python
 
-    import pandas as pd
+    judged = courses.sem_filter(
+        "{Course Name} requires a lot of math",
+        return_all=True,
+        suffix="_math_heavy",
+    )
 
-    import lotus
-    from lotus.models import LM
-    from lotus.types import CascadeArgs
+``judged`` keeps the original rows and adds ``_math_heavy``.
 
+Explanations and Raw Outputs
+----------------------------
 
-    gpt_4o_mini = LM("gpt-4o-mini")
-    gpt_4o = LM("gpt-4o")
+Use ``return_explanations=True`` while developing a predicate or auditing the
+model's decisions.
 
-    lotus.settings.configure(lm=gpt_4o, helper_lm=gpt_4o_mini)
-    data = {
-        "Course Name": [
-            "Probability and Random Processes", "Optimization Methods in Engineering", "Digital Design and Integrated Circuits",
-            "Computer Security", "Data Structures and Algorithms", "Machine Learning", "Artificial Intelligence", "Natural Language Processing",
-            "Introduction to Robotics", "Control Systems", "Linear Algebra and Differential Equations", "Database Systems", "Cloud Computing",
-            "Software Engineering", "Operating Systems", "Discrete Mathematics", "Numerical Methods", "Wireless Communication Systems",
-            "Embedded Systems", "Advanced Computer Architecture", "Graph Theory", "Cryptography and Network Security",
-            "Big Data Analytics", "Deep Learning", "Organic Chemistry", "Molecular Biology", "Environmental Science",
-            "Genetics and Evolution", "Human Physiology", "Introduction to Anthropology", "Cultural Studies", "Political Theory",
-            "Macroeconomics", "Microeconomics", "Introduction to Sociology", "Developmental Psychology", "Cognitive Science",
-            "Introduction to Philosophy", "Ethics and Moral Philosophy", "History of Western Civilization", "Art History: Renaissance to Modern",
-            "World Literature", "Introduction to Journalism", "Public Speaking and Communication", "Creative Writing", "Music Theory",
-            "Introduction to Theater", "Film Studies", "Environmental Policy and Law", "Sustainability and Renewable Energy",
-            "Urban Planning and Design", "International Relations", "Marketing Principles", "Organizational Behavior",
-            "Financial Accounting", "Corporate Finance", "Business Law", "Supply Chain Management", "Operations Research",
-            "Entrepreneurship and Innovation", "Introduction to Psychology", "Health Economics", "Biostatistics",
-            "Social Work Practice", "Public Health Policy", "Environmental Ethics", "History of Political Thought", "Quantitative Research Methods",
-            "Comparative Politics", "Urban Economics", "Behavioral Economics", "Sociology of Education", "Social Psychology",
-            "Gender Studies", "Media and Communication Studies", "Advertising and Brand Strategy",
-            "Sports Management", "Introduction to Archaeology", "Ecology and Conservation Biology", "Marine Biology",
-            "Geology and Earth Science", "Astronomy and Astrophysics", "Introduction to Meteorology",
-            "Introduction to Oceanography", "Quantum Physics", "Thermodynamics", "Fluid Mechanics", "Solid State Physics",
-            "Classical Mechanics", "Introduction to Civil Engineering", "Material Science and Engineering", "Structural Engineering",
-            "Environmental Engineering", "Energy Systems Engineering", "Aerodynamics", "Heat Transfer",
-            "Renewable Energy Systems", "Transportation Engineering", "Water Resources Management", "Principles of Accounting",
-            "Project Management", "International Business", "Business Analytics",
-        ]
-    }
-    df = pd.DataFrame(data)
-    user_instruction = "{Course Name} requires a lot of math"
+.. code-block:: python
 
-    cascade_args = CascadeArgs(recall_target=0.9, precision_target=0.9, sampling_percentage=0.5, failure_probability=0.2)
+    judged = courses.sem_filter(
+        "{Course Name} requires a lot of math",
+        return_all=True,
+        return_explanations=True,
+        return_raw_outputs=True,
+    )
 
-    df, stats = df.sem_filter(user_instruction=user_instruction, cascade_args=cascade_args, return_stats=True)
-    print(df)
-    print(stats)
+When ``return_all=False``, explanations and raw outputs are returned only for
+the rows that pass. When ``return_all=True``, they are returned for all rows.
 
-Output:
+Reasoning and Custom Instructions
+---------------------------------
 
-+-----+---------------------------------------------+
-|     |                Course Name                  |
-+-----+---------------------------------------------+
-|   0 | Probability and Random Processes            |
-+-----+---------------------------------------------+
-|   1 | Optimization Methods in Engineering         |
-+-----+---------------------------------------------+
-|   2 | Digital Design and Integrated Circuits      |
-+-----+---------------------------------------------+
-|   5 | Machine Learning                            |
-+-----+---------------------------------------------+
-|   6 | Artificial Intelligence                     |
-+-----+---------------------------------------------+
-|   7 | Natural Language Processing                 |
-+-----+---------------------------------------------+
-|   8 | Introduction to Robotics                    |
-+-----+---------------------------------------------+
-|   9 | Control Systems                             |
-+-----+---------------------------------------------+
-|  10 | Linear Algebra and Differential Equations   |
-+-----+---------------------------------------------+
-|  15 | Discrete Mathematics                        |
-+-----+---------------------------------------------+
-|  16 | Numerical Methods                           |
-+-----+---------------------------------------------+
-|  17 | Wireless Communication Systems              |
-+-----+---------------------------------------------+
-|  19 | Advanced Computer Architecture              |
-+-----+---------------------------------------------+
-|  20 | Graph Theory                                |
-+-----+---------------------------------------------+
-|  21 | Cryptography and Network Security           |
-+-----+---------------------------------------------+
-|  22 | Big Data Analytics                          |
-+-----+---------------------------------------------+
-|  23 | Deep Learning                               |
-+-----+---------------------------------------------+
-|  33 | Microeconomics                              |
-+-----+---------------------------------------------+
-|  55 | Corporate Finance                           |
-+-----+---------------------------------------------+
-|  58 | Operations Research                         |
-+-----+---------------------------------------------+
-|  61 | Health Economics                            |
-+-----+---------------------------------------------+
-|  62 | Biostatistics                               |
-+-----+---------------------------------------------+
-|  67 | Quantitative Research Methods               |
-+-----+---------------------------------------------+
-|  69 | Urban Economics                             |
-+-----+---------------------------------------------+
-|  81 | Astronomy and Astrophysics                  |
-+-----+---------------------------------------------+
-|  84 | Quantum Physics                             |
-+-----+---------------------------------------------+
-|  85 | Thermodynamics                              |
-+-----+---------------------------------------------+
-|  86 | Fluid Mechanics                             |
-+-----+---------------------------------------------+
-|  87 | Solid State Physics                         |
-+-----+---------------------------------------------+
-|  88 | Classical Mechanics                         |
-+-----+---------------------------------------------+
-|  89 | Introduction to Civil Engineering           |
-+-----+---------------------------------------------+
-|  90 | Material Science and Engineering            |
-+-----+---------------------------------------------+
-|  91 | Structural Engineering                      |
-+-----+---------------------------------------------+
-|  92 | Environmental Engineering                   |
-+-----+---------------------------------------------+
-|  93 | Energy Systems Engineering                  |
-+-----+---------------------------------------------+
-|  94 | Aerodynamics                                |
-+-----+---------------------------------------------+
-|  95 | Heat Transfer                               |
-+-----+---------------------------------------------+
-|  96 | Renewable Energy Systems                    |
-+-----+---------------------------------------------+
-|  97 | Transportation Engineering                  |
-+-----+---------------------------------------------+
-| 102 | Business Analytics                          |
-+-----+---------------------------------------------+
+Reasoning strategies can improve difficult filters by asking the model to work
+through the decision before producing ``True`` or ``False``.
 
-Output Statistics:
+.. code-block:: python
 
-{'pos_cascade_threshold': 0.62, 'neg_cascade_threshold': 0.58, 'filters_resolved_by_helper_model': 101, 'filters_resolved_by_large_model': 2, 'num_routed_to_helper_model': 101}
+    from lotus.types import ReasoningStrategy
 
+    filtered = issues.sem_filter(
+        "{issue_title} is a small, self-contained task for a new contributor",
+        strategy=ReasoningStrategy.ZS_COT,
+        additional_cot_instructions="Focus on codebase knowledge and blast radius.",
+    )
+
+``system_prompt`` changes the model's role for the filter. ``output_tokens``
+changes the positive and negative labels, which defaults to ``("True",
+"False")``.
+
+Cascades
+--------
+
+Cascades reduce cost by using a cheaper helper first and routing uncertain
+rows to the main LM. See :doc:`approximation_cascades` for the full details.
+
+.. code-block:: python
+
+    from lotus.types import CascadeArgs, ProxyModel
+
+    lotus.settings.configure(
+        lm=LM(model="gpt-4o"),
+        helper_lm=LM(model="gpt-4o-mini"),
+    )
+
+    cascade_args = CascadeArgs(
+        recall_target=0.9,
+        precision_target=0.9,
+        sampling_percentage=0.5,
+        failure_probability=0.2,
+        proxy_model=ProxyModel.HELPER_LM,
+        helper_filter_instruction="{issue_title} is easy for a new contributor",
+    )
+
+    filtered, stats = issues.sem_filter(
+        "{issue_title} is a good first issue",
+        cascade_args=cascade_args,
+        return_stats=True,
+    )
+
+``helper_filter_instruction`` can be simpler than the main instruction. If it
+is omitted, the helper LM uses the main instruction.
+
+Return Value
+------------
+
+Without ``return_stats``, ``sem_filter`` returns a DataFrame. With
+``return_stats=True`` and a cascade, it returns ``(df, stats)``. The stats
+describe learned thresholds and how many rows were resolved by the helper
+versus the main LM.
 
 Required Parameters
----------------------
-- **user_instruction** : The user instruction for filtering.
+-------------------
+
+- ``user_instruction``: Natural language predicate. Rows where the predicate is
+  judged true are kept. Reference columns with ``{column_name}``.
 
 Optional Parameters
-----------------------
-- **return_raw_outputs** : Whether to return raw outputs. Defaults to False.
-- **default** : The default value for filtering in case of parsing errors. Defaults to True.
-- **suffix** : The suffix for the new columns. Defaults to "_filter".
-- **examples** : The examples dataframe. Defaults to None.
-- **helper_examples** : The helper examples dataframe. Defaults to None.
-- **strategy** : The reasoning strategy. Defaults to None.
-- **cascade_args** : The arguments for join cascade. Defaults to None.
-        recall_target : The target recall. Defaults to None.
-        precision_target : The target precision when cascading. Defaults to None.
-        sampling_percentage : The percentage of the data to sample when cascading. Defaults to 0.1.
-        failure_probability : The failure probability when cascading. Defaults to 0.2.
-- **return_stats** : Whether to return statistics. Defaults to False.
+-------------------
+
+- ``return_raw_outputs``: Add raw model text columns.
+- ``return_explanations``: Add explanation columns when available.
+- ``return_all``: Keep all rows and add the boolean decision column instead of
+  dropping false rows.
+- ``default``: Boolean decision to use when output parsing is uncertain.
+- ``suffix``: Output column suffix when ``return_all=True``.
+- ``examples``: Few-shot examples for the main LM with an ``Answer`` column.
+- ``helper_examples``: Few-shot examples for the helper LM in cascade mode.
+- ``strategy``: Optional reasoning strategy.
+- ``cascade_args``: Optional cascade configuration.
+- ``return_stats``: Return ``(DataFrame, stats)`` when stats are available.
+- ``safe_mode``: Estimate cost before execution.
+- ``progress_bar_desc``: Progress bar label.
+- ``additional_cot_instructions``: Extra instructions for CoT prompting.
+- ``system_prompt``: Custom system prompt for the LM.
+- ``output_tokens``: Positive and negative output tokens. Defaults to
+  ``("True", "False")``.
+- ``**model_kwargs``: Extra keyword arguments passed to the configured LM.
