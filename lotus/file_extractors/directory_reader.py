@@ -296,7 +296,7 @@ class DirectoryReader:
         _file_path = None
         try:
             # Using stream mode to allow large files
-            with requests.get(url, timeout=timeout, stream=True) as response:
+            with requests.get(str(url), timeout=timeout, stream=True) as response:
                 response.raise_for_status()
 
                 # Download initial chunk to determine file type

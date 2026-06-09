@@ -59,15 +59,15 @@ def cluster(col_name: str, ncentroids: int) -> Callable[[pd.DataFrame, int, bool
         vec_set = vs.get_vectors_from_index(col_index_dir, ids)
         d = vec_set.shape[1]
         kmeans = faiss.Kmeans(d, ncentroids, niter=niter, verbose=verbose)
-        kmeans.train(vec_set)
+        kmeans.train(vec_set)  # type: ignore[arg-type]
 
         # get nearest centroid to each vector
-        scores, indices = kmeans.index.search(vec_set, 1)
+        scores, indices = kmeans.index.search(vec_set, 1)  # type: ignore[arg-type]
 
         # get the cluster centroids
         # centroids = kmeans.centroids
         # return indices.flatten(), scores.flatten(), centroids
-        return indices.flatten()
+        return indices.flatten()  # type: ignore[return-value]
 
     return ret
 
