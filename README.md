@@ -20,7 +20,7 @@ LOTUS is the framework that allows you to easily process your datasets, includin
 
 LOTUS stands for **L**LMs **O**ver **T**ext, **U**nstructured and **S**tructured Data, and it introduces [**semantic operators**](https://arxiv.org/abs/2407.11418). Semantic operators extend the core philosophy of relational operators—designed for declarative and robust _structured-data_ processing—to _unstructured-data_ processing with AI. Semantic operators are expressive, allowing you to easily capture all of your data-intensive AI programs, from simple RAG, to document extraction, image classification, LLM-judge evals, unstructured data analysis, complex research-based synthesis and more.
 
-📰 **New:** Read about [**LOTUSPlan**](https://liana313.github.io/blog/lotusplan.html), our new API for optimized LLM-based data processing via lazy execution—delivering up to 2.4× cost reduction and up to 4.6× higher accuracy across diverse tasks.
+📰 **New:** Read about [**LOTUSPlan**](https://liana313.github.io/blog/lotusplan.html), our new API for optimized LLM-based data processing via lazy execution—delivering up to 2.4× cost reduction and up to 4.6× higher accuracy across diverse tasks (e.g., LLM-judge evals, agent trace analysis, RAG, deep research and document extraction)
 
 For trouble-shooting or feature requests, please raise an issue and we'll get to it promptly. To share feedback and applications you're working on, you can send us a message on our [community discord][#discord], or send an email (lianapat@stanford.edu).
 
