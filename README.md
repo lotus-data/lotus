@@ -4,6 +4,7 @@
 [![Colab Demo](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1mP65YHHdD6mnZmC5-Uqm2uCXJ4-Kbkhu?usp=sharing)
 [![Arxiv](https://img.shields.io/badge/arXiv-2407.11418-B31B1B.svg)][#arxiv-paper-package]
 [![Discord](https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white)](https://discord.gg/ZWQBurm5bt)
+[![Blog](https://img.shields.io/badge/Blog-LOTUSPlan-f09228.svg)](https://liana313.github.io/blog/lotusplan.html)
 [![Documentation Status](https://readthedocs.org/projects/lotus-ai/badge/?version=latest)](https://lotus-ai.readthedocs.io/en/latest/?badge=latest)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/lotus-ai)][#pypi-package]
 [![PyPI](https://img.shields.io/pypi/v/lotus-ai)][#pypi-package]
@@ -18,6 +19,8 @@
 LOTUS is the framework that allows you to easily process your datasets, including unstructured and structured data, with LLMs. It provides an **intuitive Pandas-like API**, offers algorithms for **optimizing your programs for up to 1000x speedups**, and makes LLM-based data processing **robust with accuracy guarantees** with respect to high-quality reference algorithms.
 
 LOTUS stands for **L**LMs **O**ver **T**ext, **U**nstructured and **S**tructured Data, and it introduces [**semantic operators**](https://arxiv.org/abs/2407.11418). Semantic operators extend the core philosophy of relational operators—designed for declarative and robust _structured-data_ processing—to _unstructured-data_ processing with AI. Semantic operators are expressive, allowing you to easily capture all of your data-intensive AI programs, from simple RAG, to document extraction, image classification, LLM-judge evals, unstructured data analysis, complex research-based synthesis and more.
+
+📰 **New:** Read about [**LOTUSPlan**](https://liana313.github.io/blog/lotusplan.html), our new API for optimized LLM-based data processing via lazy execution—delivering up to 2.4× cost reduction and up to 4.6× higher accuracy across diverse tasks.
 
 For trouble-shooting or feature requests, please raise an issue and we'll get to it promptly. To share feedback and applications you're working on, you can send us a message on our [community discord][#discord], or send an email (lianapat@stanford.edu).
 
