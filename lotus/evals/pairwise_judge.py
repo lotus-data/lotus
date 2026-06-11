@@ -53,15 +53,15 @@ class PairwiseJudgeDataframe:
             estimation. Defaults to False.
         progress_bar_desc (str, optional): Description for the progress bar.
             Defaults to "Evaluating".
-        default_to_col1 (bool, optional): [sem_filter mode only] The default filter decision when
+        default_to_col1 (bool, optional): The default filter decision when
             the model is uncertain. Defaults to True.
-        helper_examples (pd.DataFrame | None, optional): [sem_filter mode only] Example
+        helper_examples (pd.DataFrame | None, optional): Example
             DataFrame for the helper LM in cascade filtering. Defaults to None.
-        cascade_args (CascadeArgs | None, optional): [sem_filter mode only] Arguments for
+        cascade_args (CascadeArgs | None, optional): Arguments for
             cascade filtering to reduce cost via a proxy model. Defaults to None.
-        return_stats (bool, optional): [sem_filter mode only] Whether to return a stats
+        return_stats (bool, optional): Whether to return a stats
             dict alongside the DataFrame as a (DataFrame, stats) tuple. Defaults to False.
-        additional_cot_instructions (str, optional): [sem_filter mode only] Extra
+        additional_cot_instructions (str, optional): Extra
             instructions appended to the chain-of-thought prompt. Defaults to "".
         **model_kwargs: Any: Additional keyword arguments to pass to the model.
 
