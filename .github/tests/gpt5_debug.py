@@ -97,43 +97,38 @@ def probe_litellm(label, model_name, user_content, **kwargs):
 
 
 if __name__ == "__main__":
+    # Round 3: VERIFY the fix. lm.py now defaults reasoning models to
+    # max_tokens=8192, so gpt-5 with pure library defaults should ace the
+    # hard set that previously scored 5/6 with an empty/defaulted row.
     print(f"litellm version: {importlib.metadata.version('litellm')}")
+    from lotus.models.lm import DEFAULT_MAX_TOKENS, DEFAULT_REASONING_MAX_TOKENS
 
-    hard_user = f"Context:\n[Text]: {HARD_TEXTS[3]}\n\nClaim: the claim implied by the text is arithmetically correct"
+    lm5 = LM(model="gpt-5")
+    lm4 = LM(model="gpt-4o-mini")
+    print(f"gpt-5 resolved max_tokens: {lm5.max_tokens} (expect {DEFAULT_REASONING_MAX_TOKENS})")
+    print(f"gpt-4o-mini resolved max_tokens: {lm4.max_tokens} (expect {DEFAULT_MAX_TOKENS})")
+    assert lm5.max_tokens == DEFAULT_REASONING_MAX_TOKENS
+    assert lm4.max_tokens == DEFAULT_MAX_TOKENS
 
-    # How many hidden reasoning tokens does a hard claim cost, and what happens
-    # when they exceed the budget?
-    probe_litellm("gpt-5 hard claim, lotus default budget", "gpt-5", hard_user, max_completion_tokens=512)
-    probe_litellm("gpt-5 hard claim, big budget", "gpt-5", hard_user, max_completion_tokens=8000)
-    probe_litellm("gpt-5 hard claim, tiny budget (forced exhaustion)", "gpt-5", hard_user, max_completion_tokens=64)
-
-    # End-to-end: hard claims, default lotus settings.
-    run_lotus_filter("4o-mini hard baseline", "gpt-4o-mini", HARD_TEXTS, HARD_EXPECTED, HARD_INSTRUCTION)
-    run_lotus_filter("gpt-5 hard, defaults", "gpt-5", HARD_TEXTS, HARD_EXPECTED, HARD_INSTRUCTION)
+    # Previously 5/6 (row 3 empty -> defaulted True). Expect 6/6 now.
+    run_lotus_filter("gpt-5 hard, library defaults (FIXED?)", "gpt-5", HARD_TEXTS, HARD_EXPECTED, HARD_INSTRUCTION)
+    # Previously 5/6 via the same truncation. Expect 6/6 now.
     run_lotus_filter(
-        "gpt-5 hard, big budget", "gpt-5", HARD_TEXTS, HARD_EXPECTED, HARD_INSTRUCTION, max_tokens=8000
-    )
-
-    # ZS_COT: visible chain-of-thought + hidden reasoning share the 512 budget.
-    run_lotus_filter(
-        "4o-mini hard ZS_COT baseline",
-        "gpt-4o-mini",
-        HARD_TEXTS,
-        HARD_EXPECTED,
-        HARD_INSTRUCTION,
-        strategy=ReasoningStrategy.ZS_COT,
-    )
-    run_lotus_filter(
-        "gpt-5 hard ZS_COT, defaults",
+        "gpt-5 hard ZS_COT, library defaults (FIXED?)",
         "gpt-5",
         HARD_TEXTS,
         HARD_EXPECTED,
         HARD_INSTRUCTION,
         strategy=ReasoningStrategy.ZS_COT,
     )
-
-    # Forced budget exhaustion on the easy task: proves the silent default=True
-    # failure mode end-to-end (expect ~all True, empty raw outputs).
+    # Easy set sanity check with defaults.
+    run_lotus_filter("gpt-5 easy, library defaults", "gpt-5", EASY_TEXTS, EASY_EXPECTED, EASY_INSTRUCTION)
+    # Starved budget should now WARN about truncation instead of failing silently.
     run_lotus_filter(
-        "gpt-5 easy, starved budget", "gpt-5", EASY_TEXTS, EASY_EXPECTED, EASY_INSTRUCTION, max_tokens=64
+        "gpt-5 easy, starved budget (expect truncation warnings)",
+        "gpt-5",
+        EASY_TEXTS,
+        EASY_EXPECTED,
+        EASY_INSTRUCTION,
+        max_tokens=64,
     )
