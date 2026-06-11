@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 import os
-from typing import Any, Literal, cast
+from typing import Any, cast
 
 import pandas as pd
 import pytest
@@ -72,14 +72,12 @@ def _make_shared_assign_lf() -> LazyFrame:
 def _make_pairwise_sem_filter_lf(
     helper_instruction: str | None = None,
     *,
-    mode: Literal["llm_as_judge", "sem_filter"] = "sem_filter",
     proxy_model: ProxyModel = ProxyModel.HELPER_LM,
 ) -> LazyFrame:
     return LazyFrame().pairwise_judge(
         col1="answer_a",
         col2="answer_b",
         judge_instruction="Prefer better answer for {question}",
-        mode=mode,
         cascade_args=CascadeArgs(
             proxy_model=proxy_model,
             helper_filter_instruction=helper_instruction,
@@ -197,8 +195,9 @@ class TestCollectTargets:
         lf = _make_pairwise_sem_filter_lf()
         targets = self.opt._collect_targets(lf._nodes)
         helper_target = next(t for t in targets if t.param_name == "cascade_args.helper_filter_instruction")
+        # Mirrors the runtime cascade which renames cols to single-token A/B.
         assert helper_target.value == (
-            "{answer_a} is better than {answer_b} given the criteria: Prefer better answer for {question}"
+            "{A} is better than {B} given the criteria: Prefer better answer for {question}"
         )
 
     def test_pairwise_helper_instruction_target_uses_explicit_override(self) -> None:
@@ -207,14 +206,12 @@ class TestCollectTargets:
         helper_target = next(t for t in targets if t.param_name == "cascade_args.helper_filter_instruction")
         assert helper_target.value == "{answer_a} is safer than {answer_b}"
 
-    def test_pairwise_helper_instruction_target_not_enabled_for_non_helper_cases(self) -> None:
+    def test_pairwise_helper_instruction_target_not_enabled_for_embedding_proxy(self) -> None:
+        # Embedding-proxy cascades rank by similarity, not a helper instruction,
+        # so there is no helper_filter_instruction to optimize.
         lf_embedding = _make_pairwise_sem_filter_lf(proxy_model=ProxyModel.EMBEDDING_MODEL)
         targets_embedding = self.opt._collect_targets(lf_embedding._nodes)
         assert all(t.param_name != "cascade_args.helper_filter_instruction" for t in targets_embedding)
-
-        lf_llm_as_judge = _make_pairwise_sem_filter_lf(mode="llm_as_judge")
-        targets_llm_as_judge = self.opt._collect_targets(lf_llm_as_judge._nodes)
-        assert all(t.param_name != "cascade_args.helper_filter_instruction" for t in targets_llm_as_judge)
 
 
 # ---------------------------------------------------------------------------

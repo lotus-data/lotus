@@ -999,10 +999,14 @@ class PairwiseJudgeNode(BaseNode):
     model_kwargs: dict[str, Any] | None = None
 
     def _effective_sem_filter_user_instruction(self) -> str:
-        renamed_instr = self.judge_instruction.replace(f"{{{self.col1}}}", "{col_A}").replace(
-            f"{{{self.col2}}}", "{col_B}"
+        # Mirror the runtime pairwise_judge cascade, which renames the two
+        # columns to single-token "A"/"B" (see evals/pairwise_judge.py
+        # _unique_col_names). Single tokens are required for the cascade —
+        # "col_A"/"col_B" tokenize to 2 tokens and break it (see #248).
+        renamed_instr = self.judge_instruction.replace(f"{{{self.col1}}}", "{A}").replace(
+            f"{{{self.col2}}}", "{B}"
         )
-        return f"{{col_A}} is better than {{col_B}} given the criteria: {renamed_instr}"
+        return f"{{A}} is better than {{B}} given the criteria: {renamed_instr}"
 
     def supports_optimizable_param(self, param_name: str) -> bool:
         if param_name == self._HELPER_FILTER_INSTRUCTION_PARAM:

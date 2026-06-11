@@ -256,8 +256,8 @@ class GEPAOptimizer(BaseOptimizer):
     ``join_instruction`` on sem_join, and ``query`` on sem_search are optimized.
     For sem_filter cascades that use ``HELPER_LM``, the helper prompt target
     ``cascade_args.helper_filter_instruction`` is also optimized.
-    The same helper prompt target is exposed for ``pairwise_judge`` nodes in
-    ``mode="sem_filter"`` when using helper-LM cascades.
+    The same helper prompt target is exposed for ``pairwise_judge`` nodes
+    when using helper-LM cascades (pairwise_judge runs on a sem_filter cascade).
     Use ``mark_optimizable`` on the ``LazyFrame`` to customize which parameters
     to optimize or to exclude specific nodes entirely.
 
