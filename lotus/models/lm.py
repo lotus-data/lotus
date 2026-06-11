@@ -10,7 +10,7 @@ import numpy as np
 from litellm import batch_completion
 from litellm.exceptions import AuthenticationError
 from litellm.types.utils import ChatCompletionTokenLogprob, ChoiceLogprobs, Choices, ModelResponse
-from litellm.utils import decode, encode, token_counter
+from litellm.utils import decode, encode, supports_reasoning, token_counter
 from openai._exceptions import OpenAIError
 from pydantic import BaseModel
 from tokenizers import Tokenizer
@@ -36,6 +36,15 @@ logging.getLogger("httpx").setLevel(logging.CRITICAL)
 # This is a known upstream litellm issue and the warnings are harmless — the values
 # are still serialized correctly.
 warnings.filterwarnings("ignore", message="Pydantic serializer warnings", category=UserWarning, module="pydantic.*")
+
+# Default completion-token budgets. Reasoning models (gpt-5, o-series, ...) spend
+# hidden reasoning tokens from the same max_completion_tokens budget as the visible
+# answer, so they need a much larger default: with the standard 512-token budget a
+# reasoning model can exhaust the entire budget before emitting any visible text,
+# returning an empty completion that operators silently coerce to their default
+# output (see issue #255).
+DEFAULT_MAX_TOKENS = 512
+DEFAULT_REASONING_MAX_TOKENS = 8192
 
 
 class LM:
@@ -69,7 +78,7 @@ class LM:
         model: str = "gpt-4o-mini",
         temperature: float = 0.0,
         max_ctx_len: int = 128000,
-        max_tokens: int = 512,
+        max_tokens: int | None = None,
         max_batch_size: int = 64,
         rate_limit: int | None = None,
         tpm_limit: int | None = None,
@@ -86,7 +95,11 @@ class LM:
             model (str): Name of the model to use. Defaults to "gpt-4o-mini".
             temperature (float): Sampling temperature. Defaults to 0.0.
             max_ctx_len (int): Maximum context length in tokens. Defaults to 128000.
-            max_tokens (int): Maximum number of tokens to generate. Defaults to 512.
+            max_tokens (int | None): Maximum number of completion tokens. Defaults to
+                512, or 8192 for reasoning models (gpt-5, o-series, ...), whose hidden
+                reasoning tokens are spent from this same budget. Set explicitly to
+                override; pass reasoning_effort (e.g. "minimal") via kwargs to trade
+                reasoning depth for cost on supported models.
             max_batch_size (int): Maximum batch size for concurrent requests. Defaults to 64.
             rate_limit (int | None): Maximum requests per minute. If set, caps max_batch_size and adds delays.
             tokenizer (Tokenizer | None): Custom tokenizer instance. Defaults to None.
@@ -97,6 +110,8 @@ class LM:
         """
         self.model = model
         self.max_ctx_len = max_ctx_len
+        if max_tokens is None:
+            max_tokens = DEFAULT_REASONING_MAX_TOKENS if self.is_reasoning_model() else DEFAULT_MAX_TOKENS
         self.max_tokens = max_tokens
         self.rate_limit = rate_limit
         self.tpm_limit = tpm_limit
@@ -489,6 +504,19 @@ class LM:
 
         choice = response.choices[0]
         assert isinstance(choice, Choices)
+        if choice.finish_reason == "length":
+            lotus.logger.warning(
+                f"Completion from {self.model} was truncated by the max_tokens limit "
+                f"({self.max_tokens}). "
+                + (
+                    "This is a reasoning model: hidden reasoning tokens are spent from the same "
+                    "budget, so an exhausted budget can return an empty answer that operators "
+                    "silently coerce to their default output. Raise max_tokens or lower "
+                    "reasoning_effort."
+                    if self.is_reasoning_model()
+                    else "Consider raising max_tokens."
+                )
+            )
         if choice.message.content is None:
             raise ValueError(f"No content in response: {response}")
         return choice.message.content
@@ -612,3 +640,12 @@ class LM:
     def is_deepseek(self) -> bool:
         model_name = self.get_model_name()
         return model_name.startswith("deepseek-r1")
+
+    def is_reasoning_model(self) -> bool:
+        """Whether the model spends hidden reasoning tokens from the completion budget
+        (e.g. gpt-5 and the o-series)."""
+        try:
+            return supports_reasoning(model=self.model)
+        except Exception:
+            # Unknown/unmapped models: assume non-reasoning.
+            return False
