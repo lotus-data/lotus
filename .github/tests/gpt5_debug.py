@@ -12,6 +12,8 @@ text, the content comes back empty, and filter_postprocess silently falls
 back to default=True for every row.
 """
 
+import importlib.metadata
+
 import litellm
 import pandas as pd
 
@@ -83,7 +85,7 @@ def probe_litellm(label: str, model_name: str, **kwargs) -> None:
 
 
 if __name__ == "__main__":
-    print(f"litellm version: {litellm.__version__}")
+    print(f"litellm version: {importlib.metadata.version('litellm')}")
 
     # Low-level probes first: where do gpt-5's completion tokens go?
     probe_litellm("baseline 4o-mini, lotus defaults", "gpt-4o-mini", temperature=0.0, max_completion_tokens=512)
