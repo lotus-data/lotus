@@ -26,9 +26,15 @@ jobs:
           curl -LsSf https://astral.sh/uv/install.sh | sh
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
+      - name: Generate locked constraints
+        # Pin every dependency to uv.lock so CI is deterministic and does not
+        # drift onto newly-released versions. --locked fails if uv.lock is out
+        # of sync with pyproject.toml (run `uv lock` to update it).
+        run: uv export --locked --no-emit-project --no-hashes --all-extras -o /tmp/constraints.txt
+
       - name: Install dependencies
         run: |
-          uv pip install --system -e '.[dev]'
+          uv pip install --system -e '.[dev]' --constraint /tmp/constraints.txt
 
       - name: Run ruff
         run: ruff check lotus/
@@ -98,12 +104,18 @@ jobs:
           curl -LsSf https://astral.sh/uv/install.sh | sh
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
+      - name: Generate locked constraints
+        # Pin every dependency to uv.lock so CI is deterministic and does not
+        # drift onto newly-released versions. --locked fails if uv.lock is out
+        # of sync with pyproject.toml (run `uv lock` to update it).
+        run: uv export --locked --no-emit-project --no-hashes --all-extras -o /tmp/constraints.txt
+
       - name: Install dependencies
         run: |
-          uv pip install --system -e '.[dev]'
+          uv pip install --system -e '.[dev]' --constraint /tmp/constraints.txt
           if [ "${{ matrix.extra-deps }}" != "" ]; then
             echo "Installing extra dependencies: ${{ matrix.extra-deps }}"
-            uv pip install --system ${{ matrix.extra-deps }}
+            uv pip install --system ${{ matrix.extra-deps }} --constraint /tmp/constraints.txt
           fi
 
       - name: Setup Ollama
