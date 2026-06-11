@@ -51,3 +51,34 @@ def test_unknown_model_falls_back_to_standard_default():
 def test_reasoning_detection():
     assert LM(model="gpt-5").is_reasoning_model()
     assert not LM(model="gpt-4o-mini").is_reasoning_model()
+
+
+def test_truncation_warning_includes_configure_hint(caplog):
+    import logging
+
+    from litellm.types.utils import ModelResponse
+
+    lm = LM(model="gpt-5", max_tokens=64)
+    truncated = ModelResponse(
+        choices=[{"finish_reason": "length", "message": {"role": "assistant", "content": ""}}]
+    )
+    with caplog.at_level(logging.WARNING, logger="lotus"):
+        assert lm._get_top_choice(truncated) == ""
+    assert "truncated by the max_tokens limit (64)" in caplog.text
+    # The warning must tell users exactly how to fix it via the settings API.
+    assert 'lotus.settings.configure(lm=LM(model="gpt-5", max_tokens=128))' in caplog.text
+    assert 'reasoning_effort="minimal"' in caplog.text
+
+
+def test_truncation_warning_standard_model(caplog):
+    import logging
+
+    from litellm.types.utils import ModelResponse
+
+    lm = LM(model="gpt-4o-mini", max_tokens=64)
+    truncated = ModelResponse(
+        choices=[{"finish_reason": "length", "message": {"role": "assistant", "content": "partial"}}]
+    )
+    with caplog.at_level(logging.WARNING, logger="lotus"):
+        assert lm._get_top_choice(truncated) == "partial"
+    assert 'lotus.settings.configure(lm=LM(model="gpt-4o-mini", max_tokens=128))' in caplog.text

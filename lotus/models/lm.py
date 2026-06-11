@@ -505,16 +505,20 @@ class LM:
         choice = response.choices[0]
         assert isinstance(choice, Choices)
         if choice.finish_reason == "length":
+            fix_hint = (
+                f"Raise the budget when configuring the model, e.g.: "
+                f'lotus.settings.configure(lm=LM(model="{self.model}", max_tokens={self.max_tokens * 2}))'
+            )
             lotus.logger.warning(
                 f"Completion from {self.model} was truncated by the max_tokens limit "
                 f"({self.max_tokens}). "
                 + (
                     "This is a reasoning model: hidden reasoning tokens are spent from the same "
                     "budget, so an exhausted budget can return an empty answer that operators "
-                    "silently coerce to their default output. Raise max_tokens or lower "
-                    "reasoning_effort."
+                    f"silently coerce to their default output. {fix_hint}, or lower the "
+                    'reasoning depth with LM(..., reasoning_effort="minimal").'
                     if self.is_reasoning_model()
-                    else "Consider raising max_tokens."
+                    else f"{fix_hint}."
                 )
             )
         if choice.message.content is None:
