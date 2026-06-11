@@ -21,7 +21,7 @@ class FaissVS(VS):
 
     def index(self, docs: list[str], embeddings: NDArray[np.float64], index_dir: str, **kwargs: dict[str, Any]) -> None:
         self.faiss_index = faiss.index_factory(embeddings.shape[1], self.factory_string, self.metric)
-        self.faiss_index.add(embeddings)
+        self.faiss_index.add(embeddings)  # type: ignore[arg-type]
         self.index_dir = index_dir
 
         os.makedirs(index_dir, exist_ok=True)
@@ -61,10 +61,10 @@ class FaissVS(VS):
             # Create a temporary FAISS index for the subset. This means we assume the same
             # dimensionality, factory, and metric as the main index.
             tmp_index = faiss.index_factory(subset_vecs.shape[1], self.factory_string, self.metric)
-            tmp_index.add(subset_vecs)
+            tmp_index.add(subset_vecs)  # type: ignore[arg-type]
 
             # Perform search on the temporary index.
-            distances, sub_indices = tmp_index.search(query_vectors, K)
+            distances, sub_indices = tmp_index.search(query_vectors, K)  # type: ignore[arg-type]
 
             # Remap the sub-indices to the original global ids.
             # Here we convert the list of filtered ids into a NumPy array so that we can index it.
@@ -72,6 +72,6 @@ class FaissVS(VS):
             indices = np.array([subset_ids[sub_indices[i]] for i in range(len(sub_indices))]).tolist()
         else:
             # Otherwise, search against the entire index.
-            distances, indices = self.faiss_index.search(query_vectors, K)
+            distances, indices = self.faiss_index.search(query_vectors, K)  # type: ignore[arg-type]
 
         return RMOutput(distances=distances, indices=indices)  # type: ignore
