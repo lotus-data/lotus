@@ -7,6 +7,7 @@ from lotus.types import RMOutput
 from lotus.vector_store.vs import VS
 
 try:
+    from qdrant_client import QdrantClient
     from qdrant_client.http import models
 
     qdrant_available = True
@@ -20,7 +21,7 @@ class QdrantVS(VS):
             raise ImportError("Please install the qdrant client using `pip install lotus-ai[qdrant]`")
 
         super().__init__()
-        self.client = client
+        self.client: QdrantClient = client
         self.max_batch_size = max_batch_size
 
         self.index_dir: str | None = None
@@ -92,7 +93,7 @@ class QdrantVS(VS):
         if self.index_dir is None:
             raise ValueError("No collection loaded. Call load_index first.")
 
-        results = []
+        results: list[models.QueryResponse] = []
         for query_vector in query_vectors:
             # Create a filter for specific IDs if provided
             id_filter = None
@@ -107,9 +108,9 @@ class QdrantVS(VS):
                 )
 
             # Perform the search
-            search_result = self.client.search(
+            search_result = self.client.query_points(
                 collection_name=self.index_dir,
-                query_vector=query_vector.tolist(),
+                query=query_vector.tolist(),
                 limit=K,
                 query_filter=id_filter,
                 with_payload=True,
@@ -124,7 +125,7 @@ class QdrantVS(VS):
             distances = []
             indices = []
 
-            for scored_point in result:
+            for scored_point in result.points:
                 # Get document ID
                 doc_id = scored_point.payload.get("doc_id", -1)
                 indices.append(doc_id)

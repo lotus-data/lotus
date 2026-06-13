@@ -106,14 +106,17 @@ Here is another example that uses ZS_COT
 
 Supported Reasoning Strategies
 -------------------------------
-ReasoningStrategy.DEFAULT
-* Description: The default strategy. The model receives a plain instruction and is expected to provide a direct answer without any explicit reasoning.
+``ReasoningStrategy.DEFAULT``
+    The default strategy. The model receives a plain instruction and is
+    expected to provide a direct answer without explicit reasoning.
 
-ReasoningStrategy.COT (Chain of Thought)
-* Description: The model is prompted to reason step-by-step after being shown a few reasoning examples. Useful for tasks that benefit from intermediate steps to improve answer accuracy or interpretability.
+``ReasoningStrategy.COT``
+    Chain-of-thought prompting with reasoning examples. Useful for tasks that
+    benefit from intermediate steps.
 
-* ReasoningStrategy.ZS_COT (Zero-Shot Chain of Thought)
-Description: The model is instructed to reason step-by-step without examples. The reasoning process is triggered purely by the prompt (e.g., “Let’s think step by step”).
+``ReasoningStrategy.ZS_COT``
+    Zero-shot chain-of-thought prompting. The model is instructed to reason
+    step by step without examples.
 
-ReasoningStrategy.FEW_SHOT
-* Description: The model is provided with few-shot examples, but without explicit reasoning steps. It imitates the behavior from the examples to answer the final prompt.
+``ReasoningStrategy.FEW_SHOT``
+    Few-shot prompting without explicit reasoning steps.

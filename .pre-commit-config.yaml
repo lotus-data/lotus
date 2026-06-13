@@ -10,9 +10,11 @@ repos:
     rev: v1.13.0
     hooks:
       - id: mypy
-        args: ["--config-file", "mypy.ini"]
+        args: ["--config-file", "mypy.ini", "--explicit-package-bases"]
+        exclude: \.pyi$
         additional_dependencies:
           - types-setuptools
+          - pydantic>=2.11.7
           - litellm>=1.51.0
           - numpy>=1.25.0
           - pandas>=2.0.0

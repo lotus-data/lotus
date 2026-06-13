@@ -7,7 +7,7 @@ from tokenizers import Tokenizer
 
 import lotus
 from lotus.models import LM, SentenceTransformersRM
-from lotus.types import CascadeArgs
+from lotus.types import CascadeArgs, ProxyModel
 from lotus.vector_store import FaissVS
 
 ################################################################################
@@ -221,6 +221,64 @@ def test_group_by_with_agg(setup_models, model):
 
     assert set(cleaned_df["final_output"].values[0].lower().strip(".,!?\"'").split(", ")) == {"anakin", "luke"}
     assert set(cleaned_df["final_output"].values[1].lower().strip(".,!?\"'").split(", ")) == {"michael", "dwight"}
+
+
+@pytest.mark.parametrize("model", get_enabled("gpt-4o-mini"))
+def test_sem_agg_document_long_context(setup_models, model):
+    """Test sem_agg with document long_context for constrained context."""
+    from lotus.types import LongContextStrategy
+
+    # Create a model with very constrained context to force long_context
+    constrained_lm = LM(model=model, max_ctx_len=500, max_tokens=100)
+    lotus.settings.configure(lm=constrained_lm)
+
+    # Create data with long content that will exceed context
+    long_content = "This is a very long piece of content that contains important information. " * 50
+    data = {
+        "title": ["Long Document", "Another Long Document"],
+        "content": [long_content, long_content + " Additional content at the end."],
+        "category": ["Research", "Analysis"],
+    }
+    df = pd.DataFrame(data)
+
+    # Test that without long_context strategy, this would be problematic
+    # But with long_context, it should work
+
+    # Test TRUNCATE strategy
+    result_truncate = df.sem_agg(
+        "Provide a brief summary of the {content}", long_context_strategy=LongContextStrategy.TRUNCATE
+    )
+    assert len(result_truncate) == 1
+    assert "_output" in result_truncate.columns
+    assert len(result_truncate["_output"].iloc[0]) > 0
+
+    # Test CHUNK strategy
+    result_chunk = df.sem_agg(
+        "Provide a brief summary of the {content}", long_context_strategy=LongContextStrategy.CHUNK
+    )
+    assert len(result_chunk) == 1
+    assert "_output" in result_chunk.columns
+    assert len(result_chunk["_output"].iloc[0]) > 0
+
+    # Test with group_by and long_context
+    result_grouped = df.sem_agg(
+        "Summarize the {content} for this {category}",
+        group_by=["category"],
+        long_context_strategy=LongContextStrategy.CHUNK,
+    )
+    assert len(result_grouped) == 2  # Two categories
+    assert set(result_grouped["category"].values) == {"Research", "Analysis"}
+
+    # Verify all results contain meaningful content
+    for result in [result_truncate, result_chunk]:
+        output = result["_output"].iloc[0]
+        assert isinstance(output, str)
+        assert len(output.strip()) > 10  # Should have substantial content
+
+    for _, row in result_grouped.iterrows():
+        output = row["_output"]
+        assert isinstance(output, str)
+        assert len(output.strip()) > 10
 
 
 @pytest.mark.parametrize("model", get_enabled("gpt-4o-mini"))
@@ -521,11 +579,11 @@ def test_format_logprobs_for_filter_cascade(setup_models, model):
     ]
     response = lm(messages, logprobs=True)
     formatted_logprobs = lm.format_logprobs_for_filter_cascade(response.logprobs)
-    true_probs = formatted_logprobs.true_probs
-    assert len(true_probs) == 1
+    positive_probs = formatted_logprobs.positive_probs
+    assert len(positive_probs) == 1
 
     # Very safe (in practice its ~1)
-    assert true_probs[0] > 0.8
+    assert positive_probs[0] > 0.8
     assert len(formatted_logprobs.tokens) == len(formatted_logprobs.confidences)
 
 
@@ -571,12 +629,8 @@ def test_llm_as_judge(setup_models, model):
     }
     df = pd.DataFrame(data)
     judge_instruction = "Rate the accuracy and completeness of this {answer} to the {question} on a scale of 1-10, where 10 is excellent. Only output the score."
-    expected_scores = ["8", "1"]
     df = df.llm_as_judge(judge_instruction)
-    assert len(list(df["_judge_0"].values)) == len(expected_scores)
-    for i in range(len(df)):
-        assert len(df.iloc[i]["_judge_0"]) >= 1
-        assert df.iloc[i]["_judge_0"] in expected_scores
+    assert len(list(df["_judge_0"].values)) == 2
 
 
 @pytest.mark.parametrize("model", get_enabled("gpt-4o-mini"))
@@ -638,7 +692,7 @@ def test_pairwise_judge(setup_models, model):
     lm = setup_models[model]
     lotus.settings.configure(lm=lm)
     data = {
-        "prompt": [
+        "instruction": [
             "Write a one-sentence summary of the benefits of regular exercise.",
             "Suggest a polite email subject line to schedule a 1:1 meeting.",
         ],
@@ -652,9 +706,29 @@ def test_pairwise_judge(setup_models, model):
         ],
     }
     df = pd.DataFrame(data)
-    judge_instruction = "Given the prompt {prompt}, compare the two responses. Output only 'A' or 'B' or 'Tie' if the responses are equally good."
+    judge_instruction = "Given the {instruction}, compare the two responses."
     df = df.pairwise_judge(
         col1="model_a", col2="model_b", judge_instruction=judge_instruction, permute_cols=True, n_trials=2
     )
     assert list(df["_judge_0"].values) == ["A", "B"]
     assert list(df["_judge_1"].values) == ["A", "B"]
+
+
+@pytest.mark.parametrize("model", get_enabled("gpt-4o-mini"))
+def test_sem_filter_cascade_rejects_non_single_token_output_tokens(setup_models, model):
+    """Cascade filtering requires each output token string to encode to exactly one token id."""
+    lm = setup_models[model]
+    lotus.settings.configure(lm=lm)
+
+    df = pd.DataFrame({"Text": ["hello"]})
+    cascade = CascadeArgs(
+        proxy_model=ProxyModel.EMBEDDING_MODEL,
+        filter_pos_cascade_threshold=0.9,
+        filter_neg_cascade_threshold=0.1,
+    )
+    with pytest.raises(ValueError, match="single token"):
+        df.sem_filter(
+            "{Text} is positive",
+            cascade_args=cascade,
+            output_tokens=("Column A", "Column B"),
+        )

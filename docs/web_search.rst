@@ -1,149 +1,139 @@
 web_search
-========================
+===========
 
-Overview
----------
-The `web_search` function allows you to load documents from the web, then process that data with LOTUS.
+``web_search`` loads web search results into a pandas DataFrame. Use it when
+you need a tabular set of search results before applying semantic operators,
+pandas transformations, or a LazyFrame pipeline.
 
-Different search engines are supported, including Google, Google Scholar, Arxiv, You.com, Bing and Tavily.
+Use :doc:`web_extract` when you already have URLs or corpus-specific document
+IDs and want the full text.
 
-Arxiv Example
---------
-To get started, you will need to install the lotus submodule as follows:
-.. code-block:: shell
-    pip install lotus[arxiv]
+Supported corpora are:
 
-Then you can run your lotus program:
+- ``WebSearchCorpus.GOOGLE``
+- ``WebSearchCorpus.GOOGLE_SCHOLAR``
+- ``WebSearchCorpus.ARXIV``
+- ``WebSearchCorpus.YOU``
+- ``WebSearchCorpus.TAVILY``
+- ``WebSearchCorpus.PUBMED``
+- ``WebSearchCorpus.BING``; Bing is discontinued and raises a deprecation
+  warning in the current implementation.
 
-.. code-block:: python
+Basic Search
+------------
 
-    import lotus
-    from lotus import WebSearchCorpus, web_search
-    from lotus.models import LM
-
-    lm = LM(model="gpt-4o-mini")
-
-    lotus.settings.configure(lm=lm)
-
-    df = web_search(WebSearchCorpus.ARXIV, "deep learning", 5)[["title", "abstract"]]
-    print(f"Results from Arxiv\n{df}\n\n")
-
-    most_interesting_articles = df.sem_topk("Which {abstract} is most exciting?", K=1)
-    print(f"Most interesting article: \n{most_interesting_articles.iloc[0]}")
-
-Google Example
---------
-Before running the following example, you need to set the `SERPAPI_API_KEY` environment variable. You will also need to install the lotus submodule as follows:
-.. code-block:: shell
-    pip install lotus[serpapi]
-
-Then you can run your lotus program:
+``web_search`` accepts one query or a list of queries and returns one DataFrame
+with a ``query`` column.
 
 .. code-block:: python
 
-    import lotus
     from lotus import WebSearchCorpus, web_search
-    from lotus.models import LM
 
-    lm = LM(model="gpt-4o-mini")
+    df = web_search(
+        WebSearchCorpus.ARXIV,
+        query="lazy dataframe query optimization",
+        K=5,
+    )
 
-    lotus.settings.configure(lm=lm)
+    print(df[["title", "abstract", "query"]])
 
-    df = web_search(WebSearchCorpus.GOOGLE, "deep learning research", 5)[["title", "snippet"]]
-    print(f"Results from Google\n{df}")
-    most_interesting_articles = df.sem_topk("Which {snippet} is the most exciting?", K=1)
-    print(f"Most interesting articles\n{most_interesting_articles}")
-
-You.com Example
---------
-Before running the following example, you need to set the `YOU_API_KEY` environment variable. You will also need to install the lotus submodule as follows:
-.. code-block:: shell
-    pip install lotus[you]
-
-Then you can run your lotus program:
+Search Multiple Queries
+-----------------------
 
 .. code-block:: python
 
-    import lotus
-    from lotus import WebSearchCorpus, web_search
-    from lotus.models import LM
+    df = web_search(
+        WebSearchCorpus.PUBMED,
+        query=[
+            "large language models clinical summarization",
+            "retrieval augmented generation medicine",
+        ],
+        K=3,
+    )
 
-    lm = LM(model="gpt-4o-mini")
+Date Filtering
+--------------
 
-    lotus.settings.configure(lm=lm)
-
-    df = web_search(WebSearchCorpus.YOU, "latest AI breakthroughs", 10)[["title", "snippet"]]
-    print(f"Results from You.com:\n{df}\n")
-    top_you_articles = df.sem_topk("Which {snippet} is the most groundbreaking?", K=3)
-    print(f"Top 3 most interesting articles from You.com:\n{top_you_articles}")
-
-
-Bing Example
---------
-Before running the following example, you need to set the `BING_API_KEY` environment variable. You will also need to install the lotus submodule as follows:
-.. code-block:: shell
-    pip install lotus[bing]
-
-Then you can run your lotus program:
+``start_date`` and ``end_date`` filter results for Google, Google Scholar,
+arXiv, You.com, Tavily, and PubMed. ``sort_by_date`` is supported for arXiv.
 
 .. code-block:: python
 
-    import lotus
+    from datetime import datetime
     from lotus import WebSearchCorpus, web_search
-    from lotus.models import LM
 
-    lm = LM(model="gpt-4o-mini")
+    df = web_search(
+        WebSearchCorpus.ARXIV,
+        "transformer architecture",
+        10,
+        sort_by_date=True,
+        start_date=datetime(2024, 1, 1),
+        end_date=datetime(2024, 12, 31),
+    )
 
-    lotus.settings.configure(lm=lm)
+Select Columns
+--------------
 
-    df = web_search(WebSearchCorpus.BING, "state-of-the-art AI models", 10)[["title", "snippet"]]
-    print(f"Results from Bing:\n{df}\n")
-    top_bing_articles = df.sem_topk("Which {snippet} provides the best insight into AI models?", K=3)
-    print(f"Top 3 most insightful articles from Bing:\n{top_bing_articles}")
-
-
-Tavily Example
---------
-Before running the following example, you need to set the `TAVILY_API_KEY` environment variable. You will also need to install the lotus submodule as follows:
-.. code-block:: shell
-    pip install lotus[tavily]
-
-Then you can run your lotus program:
+Use ``cols`` to request a subset of result fields.
 
 .. code-block:: python
 
-    import lotus
-    from lotus import WebSearchCorpus, web_search
-    from lotus.models import LM
+    df = web_search(
+        WebSearchCorpus.TAVILY,
+        "AI safety evaluations",
+        5,
+        cols=["title", "url", "content"],
+    )
 
-    lm = LM(model="gpt-4o-mini")
+Common default columns include:
 
-    lotus.settings.configure(lm=lm)
+- arXiv: ``id``, ``title``, ``link``, ``abstract``, ``published``,
+  ``authors``, ``categories``
+- Google and Google Scholar: ``title``, ``link``, ``snippet``, ``date``,
+  ``publication_info``
+- You.com: ``title``, ``url``, ``snippets``, ``description``
+- Tavily: ``title``, ``url``, ``content``
+- PubMed: ``id``, ``title``, ``link``, ``abstract``, ``published``,
+  ``authors``, ``journal``, ``doi``, ``methods``, ``results``,
+  ``conclusions``
 
-    df = web_search(WebSearchCorpus.TAVILY, "AI ethics in 2025", 10)[["title", "summary"]]
-    print(f"Results from Tavily:\n{df}\n")
-    top_tavily_articles = df.sem_topk("Which {summary} best explains ethical concerns in AI?", K=3)
-    print(f"Top 3 articles from Tavily on AI ethics:\n{top_tavily_articles}")
+Required Setup
+--------------
 
+- Google and Google Scholar require ``SERPAPI_API_KEY`` and the ``serpapi``
+  extra.
+- arXiv requires the ``arxiv`` extra.
+- PubMed requires the ``pubmed`` extra.
+- You.com requires ``YOU_API_KEY`` and the ``web_search`` extra.
+- Tavily requires ``TAVILY_API_KEY`` and the ``web_search`` extra.
 
-Required Parameters
---------------------
-- **corpus** : The search corpus to use. Available options:
-  - ``WebSearchCorpus.ARXIV``: Search academic papers on arxiv.org
-  - ``WebSearchCorpus.GOOGLE``: Search the web using Google Search
-  - ``WebSearchCorpus.GOOGLE_SCHOLAR``: Search academic papers using Google Scholar
-  - ``WebSearchCorpus.YOU``: Search the web using You.com
-  - ``WebSearchCorpus.BING``: Search the web using Bing
-  - ``WebSearchCorpus.TAVILY``: Search the web using Tavily
-- **query** : The query to search for
-- **K** : The number of results to return
+.. code-block:: console
 
-Optional Parameters
---------------------
-- **cols** : The columns to take from the API search results. Default values should be sufficient for most use cases. To see available columns, enable logging:
+    $ pip install "lotus-ai[serpapi]"
+    $ pip install "lotus-ai[arxiv]"
+    $ pip install "lotus-ai[pubmed]"
+    $ pip install "lotus-ai[web_search]"
 
-  .. code-block:: python
+Parameters
+----------
 
-      import logging
-      logging.basicConfig(level=logging.INFO)
+.. code-block:: python
 
+    web_search(
+        corpus,
+        query,
+        K,
+        cols=None,
+        sort_by_date=False,
+        start_date=None,
+        end_date=None,
+        delay=0.1,
+    )
+
+API Reference
+-------------
+
+.. autoclass:: lotus.web_search.WebSearchCorpus
+   :members:
+
+.. autofunction:: lotus.web_search.web_search

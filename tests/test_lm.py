@@ -64,6 +64,7 @@ class TestLM(BaseTest):
             cache_type=CacheType.SQLITE, max_size=1000, cache_dir=os.path.expanduser("~/.lotus/cache")
         )
         cache = CacheFactory.create_cache(cache_config)
+        cache.reset()
 
         lm = LM(model="gpt-4o-mini", cache=cache)
         lotus.settings.configure(lm=lm, enable_cache=True)
@@ -269,3 +270,17 @@ class TestLM(BaseTest):
             # Verify second call was with 10 messages
             second_call_args = mock_batch_completion.call_args_list[1]
             assert len(second_call_args[0][1]) == 10  # Second argument is the batch
+
+    def test_max_tokens_parameter_uses_max_completion_tokens(self):
+        """Test that the LM uses max_completion_tokens for all models.
+
+        LiteLLM automatically translates max_completion_tokens to max_tokens for older models
+        that don't support it, so we can use max_completion_tokens universally without needing
+        model-specific logic.
+        """
+        # All models use max_completion_tokens - LiteLLM handles translation
+        for model_name in ["gpt-4o-mini", "gpt-5", "o3-mini", "claude-3-opus"]:
+            lm = LM(model=model_name, max_tokens=100)
+            assert "max_completion_tokens" in lm.kwargs
+            assert lm.kwargs["max_completion_tokens"] == 100
+            assert "max_tokens" not in lm.kwargs

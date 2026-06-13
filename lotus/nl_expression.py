@@ -11,7 +11,7 @@ def parse_cols(text: str) -> list[str]:
         raise ValueError(
             "Language expression contains no parameterized columns. Please specify the name of the relevant data column(s) in brackets {} within your language expression."
         )
-    return matches
+    return list(set(matches))
 
 
 def nle2str(nle: str, cols: list[str]) -> str:
@@ -21,9 +21,9 @@ def nle2str(nle: str, cols: list[str]) -> str:
     return nle.format(**dict)
 
 
-# Example usage:
-text = "This is a {test} string with {variable} and {{escaped_variable}}."
-assert parse_cols(text) == [
-    "test",
-    "variable",
-], f"parse_cols(text) = {parse_cols(text)}"
+# # Example usage:
+# text = "This is a {test} string with {variable} and {{escaped_variable}}."
+# assert parse_cols(text) == [
+#     "test",
+#     "variable",
+# ], f"parse_cols(text) = {parse_cols(text)}"

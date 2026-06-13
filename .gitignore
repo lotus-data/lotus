@@ -12,3 +12,6 @@ docs/_build
 
 test_env/
 
+.cursor
+
+qdrant_storage/

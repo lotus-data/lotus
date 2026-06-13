@@ -38,7 +38,7 @@ def operator_cache(func: Callable) -> Callable:
         model = lotus.settings.lm
         use_operator_cache = lotus.settings.enable_cache
 
-        if use_operator_cache and model.cache:
+        if use_operator_cache and model.cache is not None:
 
             def serialize(value: Any) -> Any:
                 """
@@ -103,10 +103,11 @@ def operator_cache(func: Callable) -> Callable:
 class CacheType(Enum):
     IN_MEMORY = "in_memory"
     SQLITE = "sqlite"
+    PICKLE_FILE = "pickle_file"
 
 
 class CacheConfig:
-    def __init__(self, cache_type: CacheType, max_size: int, **kwargs):
+    def __init__(self, cache_type: "CacheType", max_size: int, **kwargs):
         self.cache_type = cache_type
         self.max_size = max_size
         self.kwargs = kwargs
@@ -139,6 +140,9 @@ class CacheFactory:
             if not isinstance(cache_dir, str):
                 raise ValueError("cache_dir must be a string")
             return SQLiteCache(max_size=config.max_size, cache_dir=cache_dir)
+        elif config.cache_type == CacheType.PICKLE_FILE:
+            cache_file = config.kwargs.get("cache_file", os.path.expanduser("~/.lotus/lotus_cache.pkl"))
+            return PickleFileCache(max_size=config.max_size, cache_file=cache_file)
         else:
             raise ValueError(f"Unsupported cache type: {config.cache_type}")
 
@@ -249,6 +253,12 @@ class InMemoryCache(Cache):
         super().__init__(max_size)
         self.cache: OrderedDict[str, Any] = OrderedDict()
 
+    def __len__(self) -> int:
+        return len(self.cache)
+
+    def __bool__(self) -> bool:
+        return True
+
     def get(self, key: str) -> Any | None:
         if key in self.cache:
             lotus.logger.debug(f"Cache hit for {key}")
@@ -266,3 +276,61 @@ class InMemoryCache(Cache):
         self.cache.clear()
         if max_size is not None:
             self.max_size = max_size
+
+
+class PickleFileCache(Cache):
+    """
+    A file-backed cache that persistently stores entries in a pickle file on disk,
+    supporting LRU eviction and a maximum size.
+    """
+
+    def __init__(self, max_size: int, cache_file: str = os.path.expanduser("~/.lotus/lotus_cache.pkl")):
+        super().__init__(max_size)
+        self.cache_file = cache_file
+        self.cache_dir = os.path.dirname(self.cache_file)
+        os.makedirs(self.cache_dir, exist_ok=True)
+        # We'll use an OrderedDict to maintain LRU order
+        self.cache: OrderedDict[str, Any] = self._load_cache()
+
+    def _load_cache(self) -> OrderedDict[str, Any]:
+        if os.path.exists(self.cache_file):
+            try:
+                with open(self.cache_file, "rb") as f:
+                    data = pickle.load(f)
+                if isinstance(data, OrderedDict):
+                    return data
+                if isinstance(data, dict):
+                    # Convert to LRU semantics on upgrade
+                    return OrderedDict(data)
+            except Exception as e:
+                lotus.logger.warning(f"Could not load cache from {self.cache_file}: {e}")
+        return OrderedDict()
+
+    def _save_cache(self):
+        # Never let cache grow beyond max_size
+        while len(self.cache) > self.max_size:
+            self.cache.popitem(last=False)
+        with open(self.cache_file, "wb") as f:
+            pickle.dump(self.cache, f)
+
+    def get(self, key: str) -> Any | None:
+        if key in self.cache:
+            lotus.logger.debug(f"Cache hit for {key}")
+            # Move accessed entry to the end to mark it as most recently used
+            self.cache.move_to_end(key)
+            self._save_cache()  # persist order change
+            return self.cache[key]
+        return None
+
+    def insert(self, key: str, value: Any):
+        self.cache[key] = value
+        # LRU eviction if needed
+        while len(self.cache) > self.max_size:
+            self.cache.popitem(last=False)
+        self._save_cache()
+
+    def reset(self, max_size: int | None = None):
+        self.cache.clear()
+        if max_size is not None:
+            self.max_size = max_size
+        self._save_cache()

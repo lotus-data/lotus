@@ -3,14 +3,14 @@ import logging
 import math
 import time
 import warnings
+from collections import deque
 from typing import Any
 
-import litellm
 import numpy as np
-from litellm import batch_completion, completion_cost
+from litellm import batch_completion
 from litellm.exceptions import AuthenticationError
 from litellm.types.utils import ChatCompletionTokenLogprob, ChoiceLogprobs, Choices, ModelResponse
-from litellm.utils import token_counter
+from litellm.utils import decode, encode, supports_reasoning, token_counter
 from openai._exceptions import OpenAIError
 from pydantic import BaseModel
 from tokenizers import Tokenizer
@@ -18,6 +18,7 @@ from tqdm import tqdm
 
 import lotus
 from lotus.cache import CacheFactory
+from lotus.pricing import calculate_cost_from_response
 from lotus.types import (
     LMOutput,
     LMStats,
@@ -29,6 +30,21 @@ from lotus.types import (
 
 logging.getLogger("LiteLLM").setLevel(logging.CRITICAL)
 logging.getLogger("httpx").setLevel(logging.CRITICAL)
+
+# Suppress Pydantic serialization warnings emitted by litellm when its ModelResponse
+# Choices/Message types don't exactly match the expected StreamingChoices schema.
+# This is a known upstream litellm issue and the warnings are harmless — the values
+# are still serialized correctly.
+warnings.filterwarnings("ignore", message="Pydantic serializer warnings", category=UserWarning, module="pydantic.*")
+
+# Default completion-token budgets. Reasoning models (gpt-5, o-series, ...) spend
+# hidden reasoning tokens from the same max_completion_tokens budget as the visible
+# answer, so they need a much larger default: with the standard 512-token budget a
+# reasoning model can exhaust the entire budget before emitting any visible text,
+# returning an empty completion that operators silently coerce to their default
+# output (see issue #255).
+DEFAULT_MAX_TOKENS = 512
+DEFAULT_REASONING_MAX_TOKENS = 8192
 
 
 class LM:
@@ -62,9 +78,10 @@ class LM:
         model: str = "gpt-4o-mini",
         temperature: float = 0.0,
         max_ctx_len: int = 128000,
-        max_tokens: int = 512,
+        max_tokens: int | None = None,
         max_batch_size: int = 64,
         rate_limit: int | None = None,
+        tpm_limit: int | None = None,
         tokenizer: Tokenizer | None = None,
         cache: Any = None,
         physical_usage_limit: UsageLimit = UsageLimit(),
@@ -78,7 +95,11 @@ class LM:
             model (str): Name of the model to use. Defaults to "gpt-4o-mini".
             temperature (float): Sampling temperature. Defaults to 0.0.
             max_ctx_len (int): Maximum context length in tokens. Defaults to 128000.
-            max_tokens (int): Maximum number of tokens to generate. Defaults to 512.
+            max_tokens (int | None): Maximum number of completion tokens. Defaults to
+                512, or 8192 for reasoning models (gpt-5, o-series, ...), whose hidden
+                reasoning tokens are spent from this same budget. Set explicitly to
+                override; pass reasoning_effort (e.g. "minimal") via kwargs to trade
+                reasoning depth for cost on supported models.
             max_batch_size (int): Maximum batch size for concurrent requests. Defaults to 64.
             rate_limit (int | None): Maximum requests per minute. If set, caps max_batch_size and adds delays.
             tokenizer (Tokenizer | None): Custom tokenizer instance. Defaults to None.
@@ -89,8 +110,13 @@ class LM:
         """
         self.model = model
         self.max_ctx_len = max_ctx_len
+        if max_tokens is None:
+            max_tokens = DEFAULT_REASONING_MAX_TOKENS if self.is_reasoning_model() else DEFAULT_MAX_TOKENS
         self.max_tokens = max_tokens
         self.rate_limit = rate_limit
+        self.tpm_limit = tpm_limit
+        self._token_usage_history: deque = deque()  # (timestamp, tokens)
+
         if rate_limit is not None:
             self._rate_limit_delay: float = 60 / rate_limit
             if max_batch_size is not None:
@@ -100,13 +126,14 @@ class LM:
         else:
             self.max_batch_size = max_batch_size
         self.tokenizer = tokenizer
-        self.kwargs = dict(temperature=temperature, max_tokens=max_tokens, **kwargs)
+        # Use max_completion_tokens - LiteLLM translates to max_tokens for older models automatically
+        self.kwargs = dict(temperature=temperature, max_completion_tokens=max_tokens, **kwargs)
 
         self.stats: LMStats = LMStats()
         self.physical_usage_limit = physical_usage_limit
         self.virtual_usage_limit = virtual_usage_limit
 
-        self.cache = cache or CacheFactory.create_default_cache()
+        self.cache = cache if cache is not None else CacheFactory.create_default_cache()
 
     def __call__(
         self,
@@ -185,7 +212,7 @@ class LM:
         progress_bar_desc: str = "Processing uncached messages",
         response_format: BaseModel | None = None,
         **kwargs: dict[str, Any],
-    ) -> str:
+    ) -> str | BaseModel:
         messages = [
             [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
         ]
@@ -197,7 +224,6 @@ class LM:
             **kwargs,
         ).outputs[0]
         if response_format:
-            assert isinstance(output, BaseModel)
             return response_format.model_validate_json(output)
         return output
 
@@ -231,7 +257,9 @@ class LM:
 
         batch = [msg for msg, _ in uncached_data]
 
-        if self.rate_limit is not None:
+        if self.tpm_limit is not None:
+            uncached_responses = self._process_with_tpm_limiting(batch, all_kwargs, pbar)
+        elif self.rate_limit is not None:
             uncached_responses = self._process_with_rate_limiting(batch, all_kwargs, pbar)
         else:
             uncached_responses = batch_completion(
@@ -289,6 +317,93 @@ class LM:
                     time.sleep(to_sleep)
         return responses
 
+    def _get_tokens_used_in_last_minute(self) -> int:
+        current_time = time.time()
+        while self._token_usage_history and self._token_usage_history[0][0] < current_time - 60:
+            self._token_usage_history.popleft()
+        return sum(tokens for _, tokens in self._token_usage_history)
+
+    def _process_with_tpm_limiting(
+        self, batch: list[list[dict[str, str]]], all_kwargs: dict[str, Any], pbar: tqdm
+    ) -> list[ModelResponse]:
+        assert self.tpm_limit is not None
+        responses = []
+        token_estimates = []
+        max_allowed_tpm = int(self.tpm_limit * 0.95)
+
+        for idx, msg in enumerate(batch):
+            est = self.count_tokens(msg)
+            total_est = est + self.max_tokens
+
+            if total_est > max_allowed_tpm:
+                raise ValueError(
+                    f"Row {idx} estimated size ({total_est} tokens) exceeds your "
+                    f"total TPM limit with safety buffer ({max_allowed_tpm} tokens). "
+                    f"This row is too large to ever be sent on your current API tier. "
+                    f"Please trim your data or upgrade your account tier."
+                )
+            token_estimates.append(est)
+
+        i = 0
+        while i < len(batch):
+            tokens_in_last_minute = self._get_tokens_used_in_last_minute()
+            # Use a 5% safety buffer to avoid tight boundary errors
+            available_tokens = max(0, int(self.tpm_limit * 0.95) - tokens_in_last_minute)
+
+            # Build sub-batch based on available tokens and optional rate (RPM) limit
+            sub_batch = []
+            sub_batch_estimate = 0
+
+            # Determine max possible requests in this specific burst
+            # based on self.max_batch_size AND optional self.rate_limit
+            effective_max_batch = self.max_batch_size
+
+            while i < len(batch):
+                # Include max_tokens in estimate as buffer for the completion
+                est = token_estimates[i] + self.max_tokens
+
+                if sub_batch_estimate + est <= available_tokens:
+                    sub_batch.append(batch[i])
+                    sub_batch_estimate += est
+                    i += 1
+                    if len(sub_batch) >= effective_max_batch:
+                        break
+                else:
+                    # Row doesn't fit in current budget. Stop here.
+                    break
+
+            if sub_batch:
+                start_time = time.time()
+                sub_responses = batch_completion(
+                    self.model, sub_batch, drop_params=True, max_workers=len(sub_batch), **all_kwargs
+                )
+                responses.extend(sub_responses)
+
+                # Record actual usage from response
+                actual_tokens = sum(r.usage.total_tokens for r in sub_responses if hasattr(r, "usage"))
+                self._token_usage_history.append((start_time, actual_tokens))
+                pbar.update(len(sub_batch))
+
+                # IF rate_limit is set, we must also enforce the RPM-based delay
+                # to prevent hitting RPM limits with many small requests.
+                if self.rate_limit is not None:
+                    elapsed = time.time() - start_time
+                    required_time_for_rpm = len(sub_batch) * (60 / self.rate_limit)
+                    to_sleep = required_time_for_rpm - elapsed
+                    if to_sleep > 0:
+                        time.sleep(to_sleep)
+            else:
+                # Need to wait for token window to clear
+                wait_time = 1.0
+                if self._token_usage_history:
+                    wait_time = max(0.1, self._token_usage_history[0][0] + 60.1 - time.time())
+
+                pbar.set_postfix_str(f"TPM Limit reached, waiting {wait_time:.1f}s")
+                time.sleep(wait_time)
+                pbar.set_postfix_str("")
+
+        return responses
+
     def _cache_response(self, response: ModelResponse, hash: str) -> None:
         """
         Cache a response and update stats if successful.
@@ -327,33 +442,51 @@ class LM:
             raise LotusUsageLimitException(f"Usage limit exceeded. Current {usage_type} usage: {usage}, Limit: {limit}")
 
     def _update_usage_stats(self, usage: LMStats.TotalUsage, response: ModelResponse, cost: float | None):
-        """Helper to update usage statistics"""
-        if hasattr(response, "usage"):
-            usage.prompt_tokens += response.usage.prompt_tokens
-            usage.completion_tokens += response.usage.completion_tokens
-            usage.total_tokens += response.usage.total_tokens
+        """Helper to update usage statistics including cached tokens"""
+        if hasattr(response, "usage") and response.usage:
+            usage.prompt_tokens += response.usage.prompt_tokens or 0
+            usage.completion_tokens += response.usage.completion_tokens or 0
+            usage.total_tokens += response.usage.total_tokens or 0
             if cost is not None:
                 usage.total_cost += cost
 
+            # Extract cached token information from prompt_tokens_details if available
+            if hasattr(response.usage, "prompt_tokens_details") and response.usage.prompt_tokens_details:
+                details = response.usage.prompt_tokens_details
+                if isinstance(details, dict):
+                    cached_tokens = details.get("cached_tokens", 0) or 0
+                    cache_creation_tokens = details.get("cache_creation_tokens", 0) or 0
+                else:
+                    cached_tokens = getattr(details, "cached_tokens", 0) or 0
+                    cache_creation_tokens = getattr(details, "cache_creation_tokens", 0) or 0
+
+                usage.cached_prompt_tokens += cached_tokens
+                usage.cache_creation_tokens += cache_creation_tokens
+
     def _update_stats(self, response: ModelResponse, is_cached: bool = False):
+        """
+        Update usage statistics from a model response.
+
+        Uses LiteLLM's completion_cost() function which:
+        - Maintains up-to-date pricing for 100+ models
+        - Automatically handles cached tokens and their different pricing
+        - Supports all token types (input, cached, cache creation, output, image)
+
+        Args:
+            response: The ModelResponse from LiteLLM
+            is_cached: Whether this response came from Lotus's operator cache
+        """
         if not hasattr(response, "usage"):
             return
 
-        # Calculate cost once
-        try:
-            cost = completion_cost(completion_response=response)
-        except litellm.exceptions.NotFoundError as e:
-            # Sometimes the model's pricing information is not available
-            lotus.logger.debug(f"Error updating completion cost: {e}")
-            cost = None
-        except Exception as e:
-            # Handle any other unexpected errors when calculating cost
-            lotus.logger.debug(f"Unexpected error calculating completion cost: {e}")
-            warnings.warn(
-                "Error calculating completion cost - cost metrics will be inaccurate. Enable debug logging for details."
-            )
+        # Use LiteLLM's completion_cost (handles cached tokens automatically)
+        cost = calculate_cost_from_response(response)
 
-            cost = None
+        if cost is not None:
+            lotus.logger.debug(f"Calculated cost: ${cost:.6f} for model {self.model}")
+        else:
+            lotus.logger.debug(f"No pricing information available for model {self.model}")
+            warnings.warn(f"No pricing information available for model {self.model}. ")
 
         # Always update virtual usage
         self._update_usage_stats(self.stats.virtual_usage, response, cost)
@@ -371,6 +504,23 @@ class LM:
 
         choice = response.choices[0]
         assert isinstance(choice, Choices)
+        if choice.finish_reason == "length":
+            fix_hint = (
+                f"Raise the budget when configuring the model, e.g.: "
+                f'lotus.settings.configure(lm=LM(model="{self.model}", max_tokens={self.max_tokens * 2}))'
+            )
+            lotus.logger.warning(
+                f"Completion from {self.model} was truncated by the max_tokens limit "
+                f"({self.max_tokens}). "
+                + (
+                    "This is a reasoning model: hidden reasoning tokens are spent from the same "
+                    "budget, so an exhausted budget can return an empty answer that operators "
+                    f"silently coerce to their default output. {fix_hint}, or lower the "
+                    'reasoning depth with LM(..., reasoning_effort="minimal").'
+                    if self.is_reasoning_model()
+                    else f"{fix_hint}."
+                )
+            )
         if choice.message.content is None:
             raise ValueError(f"No content in response: {response}")
         return choice.message.content
@@ -397,36 +547,36 @@ class LM:
         return LogprobsForCascade(tokens=all_tokens, confidences=all_confidences)
 
     def format_logprobs_for_filter_cascade(
-        self, logprobs: list[list[ChatCompletionTokenLogprob]]
+        self,
+        logprobs: list[list[ChatCompletionTokenLogprob]],
+        output_tokens: tuple[str, str] = ("True", "False"),
     ) -> LogprobsForFilterCascade:
-        # Get base cascade format first
+        positive_token, negative_token = output_tokens
         base_cascade = self.format_logprobs_for_cascade(logprobs)
-        all_true_probs = []
+        all_positive_probs = []
 
-        def get_normalized_true_prob(token_probs: dict[str, float]) -> float | None:
-            if "True" in token_probs and "False" in token_probs:
-                true_prob = token_probs["True"]
-                false_prob = token_probs["False"]
-                return true_prob / (true_prob + false_prob)
+        def get_normalized_positive_prob(token_probs: dict[str, float]) -> float | None:
+            if positive_token in token_probs and negative_token in token_probs:
+                pos_prob = token_probs[positive_token]
+                neg_prob = token_probs[negative_token]
+                return pos_prob / (pos_prob + neg_prob)
             return None
 
-        # Get true probabilities for filter cascade
         for resp_idx, response_logprobs in enumerate(logprobs):
-            true_prob = None
+            pos_prob = None
             for logprob in response_logprobs:
                 token_probs = {top.token: np.exp(top.logprob) for top in logprob.top_logprobs}
-                true_prob = get_normalized_true_prob(token_probs)
-                if true_prob is not None:
+                pos_prob = get_normalized_positive_prob(token_probs)
+                if pos_prob is not None:
                     break
 
-            # Default to 1 if "True" in tokens, 0 if not
-            if true_prob is None:
-                true_prob = 1 if "True" in base_cascade.tokens[resp_idx] else 0
+            if pos_prob is None:
+                pos_prob = 1 if positive_token in base_cascade.tokens[resp_idx] else 0
 
-            all_true_probs.append(true_prob)
+            all_positive_probs.append(pos_prob)
 
         return LogprobsForFilterCascade(
-            tokens=base_cascade.tokens, confidences=base_cascade.confidences, true_probs=all_true_probs
+            tokens=base_cascade.tokens, confidences=base_cascade.confidences, positive_probs=all_positive_probs
         )
 
     def count_tokens(self, messages: list[dict[str, str]] | str) -> int:
@@ -443,6 +593,20 @@ class LM:
             model=self.model,
             messages=messages,
         )
+
+    def encode_text(self, text: str) -> list[int]:
+        """Encode text into tokens using either custom tokenizer or model's default tokenizer"""
+        custom_tokenizer: dict[str, Any] | None = None
+        if self.tokenizer:
+            custom_tokenizer = dict(type="huggingface_tokenizer", tokenizer=self.tokenizer)
+        return encode(model=self.model, text=text, custom_tokenizer=custom_tokenizer)
+
+    def decode_tokens(self, tokens: list[int]) -> str:
+        """Decode tokens into text using either custom tokenizer or model's default tokenizer"""
+        custom_tokenizer: dict[str, Any] | None = None
+        if self.tokenizer:
+            custom_tokenizer = dict(type="huggingface_tokenizer", tokenizer=self.tokenizer)
+        return decode(model=self.model, tokens=tokens, custom_tokenizer=custom_tokenizer)
 
     def print_total_usage(self):
         print("\n=== Usage Statistics ===")
@@ -480,3 +644,12 @@ class LM:
     def is_deepseek(self) -> bool:
         model_name = self.get_model_name()
         return model_name.startswith("deepseek-r1")
+
+    def is_reasoning_model(self) -> bool:
+        """Whether the model spends hidden reasoning tokens from the completion budget
+        (e.g. gpt-5 and the o-series)."""
+        try:
+            return supports_reasoning(model=self.model)
+        except Exception:
+            # Unknown/unmapped models: assume non-reasoning.
+            return False

@@ -70,7 +70,7 @@ def test_filter_operation(setup_models, model):
         "https://thumbs.dreamstime.com/b/comida-r%C3%A1pida-nachos-con-el-sause-del-tomate-ejemplo-exhausto-de-la-acuarela-mano-aislado-en-blanco-150936354.jpg",
         "https://i1.wp.com/www.alloverthemap.net/wp-content/uploads/2014/02/2012-09-25-12.46.15.jpg?resize=400%2C284&amp;ssl=1",
         "https://i.pinimg.com/236x/a4/3a/65/a43a65683a0314f29b66402cebdcf46d.jpg",
-        "https://pravme.ru/wp-content/uploads/2018/01/sobor-Bogord-1.jpg",
+        "https://images.pexels.com/photos/45201/kitty-cat-kitten-pet-45201.jpeg?auto=compress&cs=tinysrgb&w=600",
     ]
     df = pd.DataFrame({"image": ImageArray(image_url)})
     user_instruction = "{image} represents food"
@@ -96,7 +96,7 @@ def test_join_operation(setup_models, model):
         "https://img.etsystatic.com/il/4bee20/1469037676/il_340x270.1469037676_iiti.jpg?version=0",
         "https://i1.wp.com/www.alloverthemap.net/wp-content/uploads/2014/02/2012-09-25-12.46.15.jpg?resize=400%2C284&amp;ssl=1",
         "https://i.pinimg.com/236x/a4/3a/65/a43a65683a0314f29b66402cebdcf46d.jpg",
-        "https://pravme.ru/wp-content/uploads/2018/01/sobor-Bogord-1.jpg",
+        "https://images.pexels.com/photos/45201/kitty-cat-kitten-pet-45201.jpeg?auto=compress&cs=tinysrgb&w=600",
     ]
     elements = ["doll", "bird"]
     image_df = pd.DataFrame({"image": ImageArray(image_url)})
@@ -123,14 +123,14 @@ def test_topk_operation(setup_models, model):
         "https://thumbs.dreamstime.com/b/comida-r%C3%A1pida-nachos-con-el-sause-del-tomate-ejemplo-exhausto-de-la-acuarela-mano-aislado-en-blanco-150936354.jpg",
         "https://i1.wp.com/www.alloverthemap.net/wp-content/uploads/2014/02/2012-09-25-12.46.15.jpg?resize=400%2C284&amp;ssl=1",
         "https://i.pinimg.com/236x/a4/3a/65/a43a65683a0314f29b66402cebdcf46d.jpg",
-        "https://pravme.ru/wp-content/uploads/2018/01/sobor-Bogord-1.jpg",
+        "https://images.pexels.com/photos/45201/kitty-cat-kitten-pet-45201.jpeg?auto=compress&cs=tinysrgb&w=600",
     ]
     df = pd.DataFrame({"image": ImageArray(image_url)})
     user_instruction = "{image} represents living beings"
     top_2_expected = set(
         [
             "https://i.pinimg.com/236x/a4/3a/65/a43a65683a0314f29b66402cebdcf46d.jpg",
-            "https://pravme.ru/wp-content/uploads/2018/01/sobor-Bogord-1.jpg",
+            "https://images.pexels.com/photos/45201/kitty-cat-kitten-pet-45201.jpeg?auto=compress&cs=tinysrgb&w=600",
         ]
     )
 
@@ -148,7 +148,7 @@ def test_topk_with_groupby_operation(setup_models, model):
         "https://img.etsystatic.com/il/4bee20/1469037676/il_340x270.1469037676_iiti.jpg?version=0",
         "https://i1.wp.com/www.alloverthemap.net/wp-content/uploads/2014/02/2012-09-25-12.46.15.jpg?resize=400%2C284&amp;ssl=1",
         "https://i.pinimg.com/236x/a4/3a/65/a43a65683a0314f29b66402cebdcf46d.jpg",
-        "https://pravme.ru/wp-content/uploads/2018/01/sobor-Bogord-1.jpg",
+        "https://images.pexels.com/photos/45201/kitty-cat-kitten-pet-45201.jpeg?auto=compress&cs=tinysrgb&w=600",
     ]
     elements = ["doll", "bird"]
     image_df = pd.DataFrame({"image": ImageArray(image_url)})
@@ -169,7 +169,7 @@ def test_search_operation(setup_models, model):
         "https://img.etsystatic.com/il/4bee20/1469037676/il_340x270.1469037676_iiti.jpg?version=0",
         "https://i1.wp.com/www.alloverthemap.net/wp-content/uploads/2014/02/2012-09-25-12.46.15.jpg?resize=400%2C284&amp;ssl=1",
         "https://i.pinimg.com/236x/a4/3a/65/a43a65683a0314f29b66402cebdcf46d.jpg",
-        "https://pravme.ru/wp-content/uploads/2018/01/sobor-Bogord-1.jpg",
+        "https://images.pexels.com/photos/45201/kitty-cat-kitten-pet-45201.jpeg?auto=compress&cs=tinysrgb&w=600",
     ]
 
     expected_result = set(["https://i.pinimg.com/236x/a4/3a/65/a43a65683a0314f29b66402cebdcf46d.jpg"])
@@ -190,7 +190,7 @@ def test_sim_join_operation_image_index(setup_models, model):
         "https://img.etsystatic.com/il/4bee20/1469037676/il_340x270.1469037676_iiti.jpg?version=0",
         "https://i1.wp.com/www.alloverthemap.net/wp-content/uploads/2014/02/2012-09-25-12.46.15.jpg?resize=400%2C284&amp;ssl=1",
         "https://i.pinimg.com/236x/a4/3a/65/a43a65683a0314f29b66402cebdcf46d.jpg",
-        "https://pravme.ru/wp-content/uploads/2018/01/sobor-Bogord-1.jpg",
+        "https://images.pexels.com/photos/45201/kitty-cat-kitten-pet-45201.jpeg?auto=compress&cs=tinysrgb&w=600",
     ]
     elements = ["doll", "bird"]
 

@@ -1,0 +1,79 @@
+name: Publish to PyPI
+
+# Builds the package and publishes it to PyPI when a version tag is pushed.
+#
+# Release flow:
+#   1. Merge a version bump (pyproject.toml `version = "X.Y.Z"`) into main.
+#   2. Tag the release commit and push the tag:
+#        git tag -a vX.Y.Z origin/main -m "Release vX.Y.Z"
+#        git push origin vX.Y.Z
+#   3. This workflow runs: it verifies the tag matches pyproject.toml, builds
+#      the sdist + wheel with uv, and uploads them to PyPI.
+#
+# Setup required once (see repo settings):
+#   - Add a repository secret `PYPI_API_TOKEN` (a PyPI project-scoped API token,
+#     value starts with "pypi-"), OR switch to Trusted Publishing (see bottom).
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Build only, do not publish'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Build and publish
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/lotus-ai/
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Verify tag matches package version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          pkg_version=$(grep -m1 '^version' pyproject.toml | sed -E 's/^version = "(.*)"/\1/')
+          tag_version="${GITHUB_REF_NAME#v}"
+          echo "pyproject.toml version: $pkg_version"
+          echo "git tag version:        $tag_version"
+          if [ "$pkg_version" != "$tag_version" ]; then
+            echo "::error::Tag '$GITHUB_REF_NAME' does not match pyproject.toml version '$pkg_version'. Bump pyproject.toml or fix the tag."
+            exit 1
+          fi
+
+      - name: Build sdist and wheel
+        run: uv build
+
+      - name: Check artifacts
+        run: ls -l dist/
+
+      - name: Publish to PyPI
+        if: ${{ github.event_name == 'push' || !inputs.dry_run }}
+        env:
+          UV_PUBLISH_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+        run: uv publish
+
+# ---------------------------------------------------------------------------
+# Alternative: PyPI Trusted Publishing (OIDC, no stored token)
+#
+# More secure — no long-lived token in repo secrets. To switch:
+#   1. On PyPI: project -> Settings -> Publishing -> add a GitHub trusted
+#      publisher (owner: lotus-data, repo: lotus, workflow: publish.yml,
+#      environment: pypi).
+#   2. Add `id-token: write` to the `permissions` block above.
+#   3. Drop the UV_PUBLISH_TOKEN env and run: `uv publish --trusted-publishing always`
+# ---------------------------------------------------------------------------
