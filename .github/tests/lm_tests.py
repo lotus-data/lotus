@@ -694,15 +694,15 @@ def test_pairwise_judge(setup_models, model):
     data = {
         "instruction": [
             "Write a one-sentence summary of the benefits of regular exercise.",
-            "Suggest a polite email subject line to schedule a 1:1 meeting.",
+            "Suggest a polite, professional email subject line to schedule a 1:1 meeting.",
         ],
         "model_a": [
             "Regular exercise improves physical health and mental well-being by boosting energy, mood, and resilience.",
-            "Meeting request.",
+            "ayo lets meet",
         ],
         "model_b": [
             "Exercise is good.",
-            "Requesting a 1:1: finding time to connect next week?",
+            "Request to schedule a brief 1:1 meeting at your convenience",
         ],
     }
     df = pd.DataFrame(data)
