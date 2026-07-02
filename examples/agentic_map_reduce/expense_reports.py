@@ -1,11 +1,12 @@
-"""Demo: agentic map-reduce over a corpus with a Python REPL tool.
+"""Agentic map-reduce demo: totaling expense reports.
 
-Run with a real OpenAI key set (OPENAI_API_KEY). The corpus is a set of tiny "expense
-report" documents; the task asks the agent to compute each report's total (using the
-REPL to do the arithmetic) and then reduce into one summary — exercising the full
-plan -> shard -> parallel map(REPL) -> reduce pipeline with just a `task`.
+Each document is a small expense report; the pipeline computes each report's total in
+parallel and reduces to a grand total + highest-spending category. Note the ``task``
+says nothing about *how* to compute — tool usage (the REPL) is handled transparently by
+the system prompt, so exact arithmetic is done in the sandbox, not by hand.
 
-    python examples/agentic_map_reduce_demo.py
+Run (needs OPENAI_API_KEY):
+    PYTHONPATH=<repo root> python examples/agentic_map_reduce/expense_reports.py
 """
 
 import lotus
@@ -22,18 +23,16 @@ REPORTS = [
 
 def main() -> None:
     lotus.settings.configure(lm=LM(model="gpt-4o-mini"))
-
     corpus = lotus.Corpus.from_documents(REPORTS)
 
     result = corpus.agentic_map_reduce(
+        # The task describes WHAT the user wants — not which tools to use.
         task=(
             "Each document is an expense report with line items. Compute the exact total "
-            "for the report in the shard (use the Python REPL for the arithmetic), and "
-            "report the category and total. Then produce one overall summary with the "
-            "grand total and the highest-spending category."
+            "for the report and report its category and total. Then produce one overall "
+            "summary with the grand total and the highest-spending category."
         ),
-        tools=[PythonREPLTool()],  # sandboxed REPL (local backend by default)
-        max_steps=6,
+        tools=[PythonREPLTool()],
     )
 
     print("\n=== PLAN ===")

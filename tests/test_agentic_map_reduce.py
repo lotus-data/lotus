@@ -22,9 +22,11 @@ class ScriptedCompleter:
     def __init__(self, steps: list[AgentStep]):
         self._steps = list(steps)
         self.calls = 0
+        self.last_tools_enabled: bool | None = None
 
-    def __call__(self, messages):
+    def __call__(self, messages, *, tools_enabled: bool = True):
         self.calls += 1
+        self.last_tools_enabled = tools_enabled
         if self._steps:
             return self._steps.pop(0)
         return AgentStep(content="(no more scripted steps)")
@@ -78,6 +80,8 @@ def test_run_agent_truncates_at_max_steps():
     res = run_agent(completer, [noop], system_prompt="s", user_content="u", max_steps=2)
     assert res.truncated is True
     assert res.output == "forced final"
+    # The forced-final turn must disable tools so the model must produce text.
+    assert completer.last_tools_enabled is False
 
 
 def test_run_agent_handles_unknown_and_failing_tools():
@@ -118,7 +122,7 @@ class StatelessFakeCompleter:
     produce a combined answer; map prompts echo their shard's unit id.
     """
 
-    def __call__(self, messages):
+    def __call__(self, messages, *, tools_enabled: bool = True):
         last = messages[-1]["content"]
         if "PER-SHARD FINDINGS" in last:
             return AgentStep(content="REDUCED: combined all shards")

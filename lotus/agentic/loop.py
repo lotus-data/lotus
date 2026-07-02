@@ -38,10 +38,12 @@ class AgentStep:
 class Completer(Protocol):
     """Sends the running message list to the model and returns the next step.
 
-    Implementations are bound to a fixed tool-schema list at construction.
+    Implementations are bound to a fixed tool-schema list at construction. Pass
+    ``tools_enabled=False`` to force a tool-free turn (used to extract a final text
+    answer when the step budget is exhausted).
     """
 
-    def __call__(self, messages: list[dict[str, Any]]) -> AgentStep: ...
+    def __call__(self, messages: list[dict[str, Any]], *, tools_enabled: bool = True) -> AgentStep: ...
 
 
 @dataclass
@@ -110,8 +112,12 @@ def run_agent(
                 {"role": "tool", "tool_call_id": tc.id, "name": tc.name, "content": str(result)}
             )
 
-    # Budget exhausted: one final tool-free turn to force an answer.
-    final = completer(messages + [{"role": "user", "content": "Provide your final answer now."}])
+    # Budget exhausted: one final tool-free turn to force a text answer (tools disabled
+    # so the model can't reply with yet another tool call and leave us empty-handed).
+    final = completer(
+        messages + [{"role": "user", "content": "Provide your final answer now."}],
+        tools_enabled=False,
+    )
     _add_usage(final.usage)
     return AgentResult(final.content or "", trace, max_steps, truncated=True, usage=usage)
 
@@ -126,7 +132,7 @@ class LiteLLMCompleter:
         self.lm = lm
         self.tool_schemas = [t.to_openai_schema() for t in (tools or [])] or None
 
-    def __call__(self, messages: list[dict[str, Any]]) -> AgentStep:
+    def __call__(self, messages: list[dict[str, Any]], *, tools_enabled: bool = True) -> AgentStep:
         import litellm
 
         kwargs: dict[str, Any] = {}
@@ -134,7 +140,7 @@ class LiteLLMCompleter:
         for k in ("temperature", "max_completion_tokens"):
             if k in getattr(self.lm, "kwargs", {}):
                 kwargs[k] = self.lm.kwargs[k]
-        if self.tool_schemas:
+        if self.tool_schemas and tools_enabled:
             kwargs["tools"] = self.tool_schemas
             kwargs["tool_choice"] = "auto"
 
