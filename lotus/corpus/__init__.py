@@ -78,7 +78,7 @@ class Corpus:
         return self.units[:n]
 
     def shard(self, shard_size: int | None = 1) -> list[list[Unit]]:
-        """Group units into bounded batches (Devin's Shard step)."""
+        """Group units into bounded batches (the shard step)."""
         size = max(1, shard_size or 1)
         return [self.units[i : i + size] for i in range(0, len(self.units), size)] or [[]]
 

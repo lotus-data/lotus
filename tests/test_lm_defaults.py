@@ -53,6 +53,20 @@ def test_reasoning_detection():
     assert not LM(model="gpt-4o-mini").is_reasoning_model()
 
 
+def test_import_degrades_gracefully_without_litellm_supports_reasoning(monkeypatch):
+    """Older litellm may lack supports_reasoning; lotus must not crash on import/use.
+
+    Simulate that by forcing the resolved symbol to None and confirming detection
+    falls back to non-reasoning (and the 512 default) instead of raising.
+    """
+    import lotus.models.lm as lm_mod
+
+    monkeypatch.setattr(lm_mod, "_supports_reasoning", None)
+    lm = LM(model="gpt-5")
+    assert lm.is_reasoning_model() is False
+    assert lm.max_tokens == DEFAULT_MAX_TOKENS
+
+
 def test_truncation_warning_includes_configure_hint(caplog):
     import logging
 

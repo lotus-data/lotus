@@ -1,9 +1,9 @@
 """The planner: turn a one-line ``task`` into a concrete ``Plan``.
 
-Like Devin's Plan step, the user provides only a ``task``; the planner derives the
-per-shard ``map_instruction`` and the ``reduce_instruction`` (plus segmentation and
-parallelism). Users may override ``map``/``reduce`` — the planner only fills what's
-missing. A heuristic fallback is used if the LLM planning call fails.
+The user provides only a ``task``; the planner derives the per-shard ``map_instruction``
+and the ``reduce_instruction`` (plus segmentation and parallelism). Users may override
+``map``/``reduce`` — the planner only fills what's missing. A heuristic fallback is used
+if the LLM planning call fails.
 """
 
 from __future__ import annotations

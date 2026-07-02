@@ -10,7 +10,7 @@ one answer. Tool usage is handled transparently — the `task` never has to ment
 | File | Corpus | What it shows |
 |------|--------|---------------|
 | `expense_reports.py` | `Corpus.from_documents` | Exact numeric aggregation — per-report totals (map) → grand total + top category (reduce), all computed via the REPL. |
-| `codebase_sweep.py` | `Corpus.from_files` | Codebase analysis (Devin-style) — per-file summary (map) → architecture overview (reduce). Sweeps LOTUS's own `lotus/agentic/*.py` by default; pass a glob to sweep something else. |
+| `codebase_sweep.py` | `Corpus.from_files` | Codebase analysis — per-file summary (map) → architecture overview (reduce). Sweeps LOTUS's own `lotus/agentic/*.py` by default; pass a glob to sweep something else. |
 
 ## Running
 

@@ -2,7 +2,7 @@
 
 Loads a set of source files as a corpus (one file per unit), analyzes each file in
 parallel (the "map"), and reduces the per-file analyses into a single architecture
-overview. This mirrors Devin's codebase use case: fan out over files, then synthesize.
+overview. A common codebase use case: fan out over files, then synthesize.
 
 By default it sweeps LOTUS's own agentic map-reduce implementation (small + cheap, and
 nicely self-referential). Pass a glob to sweep something else.

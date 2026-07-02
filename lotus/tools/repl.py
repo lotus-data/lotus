@@ -7,10 +7,10 @@ the backend is swappable and mockable in tests:
 - ``LocalSandbox``  — runs code in a restricted subprocess + temp dir. Zero infra, so
   it works everywhere (demos, CI). Weaker isolation — for trusted use.
 - ``DockerSandbox`` — runs code in an ephemeral container. Stronger isolation, closer
-  to Devin's verify sandbox. Requires Docker.
+  to a hardened verify sandbox. Requires Docker.
 
-Design decision (see notes/notes.md): Docker is the intended production default; the
-local backend exists so the minimal implementation is runnable/testable without Docker.
+Design decision: Docker is the intended production default; the local backend exists so
+the minimal implementation is runnable/testable without Docker.
 """
 
 from __future__ import annotations
