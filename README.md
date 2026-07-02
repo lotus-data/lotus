@@ -138,12 +138,11 @@ Join us on [Discord][#discord] to ask questions and share what you're building.
 Check out these awesome projects that are building with LOTUS:
 
 - **[MAP: Measuring Agents in Production](https://arxiv.org/abs/2512.04123)** — a large-scale
-  empirical study of deployed LLM agent systems across many domains (Stanford, Berkeley, and
-  collaborators).
+  empirical study of deployed LLM agent systems across many domains (UC Berkeley, Intesa Sanpaolo, UIUC, Stanford, IBM Research; ICML 2026).
 - **[VibeCheck](https://github.com/lisadunlap/VibeCheck)** — discovers and quantifies
   qualitative differences between LLMs (UC Berkeley; ICLR 2025).
 - **[DeepScholar](https://deep-scholar.vercel.app/)** — generative research synthesis over
-  the scientific literature (Stanford & Berkeley).
+  the scientific literature, competitive with OAI DR (Stanford, UC Berkeley).
 
 Using LOTUS in your project? Reach out to @semantic_operators on discord if you'd like it featured.
 
