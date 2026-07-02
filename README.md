@@ -48,9 +48,7 @@ pip install lotus-ai
 Or with [uv](https://docs.astral.sh/uv/): `uv add lotus-ai`. For the latest features, install
 from source: `pip install git+https://github.com/lotus-data/lotus.git@main`.
 
-> On macOS with pip, install FAISS via conda: `conda install -c pytorch faiss-cpu=1.8.0`
-> (uv handles this automatically). See the [docs](https://lotus-ai.readthedocs.io/en/latest/installation.html)
-> for GPU and troubleshooting details.
+See the [docs](https://lotus-ai.readthedocs.io/en/latest/installation.html) for more.
 
 ## Quickstart
 
@@ -123,8 +121,7 @@ See the
 
 ## Docs
 
-Full documentation at [lotus-ai.readthedocs.io](https://lotus-ai.readthedocs.io/en/latest/).
-Key sections:
+For more, you can checkout the official [docs](https://lotus-ai.readthedocs.io/en/latest/), which includes more on: 
 
 - [Installation](https://lotus-ai.readthedocs.io/en/latest/installation.html) & [Core Concepts](https://lotus-ai.readthedocs.io/en/latest/core_concepts.html)
 - [Agentic Map-Reduce](https://lotus-ai.readthedocs.io/en/latest/agentic_map_reduce.html) — corpus, tools/REPL, and worked [examples](https://lotus-ai.readthedocs.io/en/latest/agentic_examples.html)
@@ -148,8 +145,7 @@ Using LOTUS in your project? Reach out to @semantic_operators on discord if you'
 
 ## Contributing
 
-Contributions welcome! Read the [Contributing Guide](CONTRIBUTING.md) and check existing
-issues before opening a PR. For trouble-shooting or feature requests, open an issue and
+We welcome all contributions! Read the [Contributing Guide](CONTRIBUTING.md). For trouble-shooting or feature requests, open an issue and
 we'll get to it promptly.
 
 ## References
