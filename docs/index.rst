@@ -8,10 +8,13 @@
    :height: 170px
    :align: center
 
-LOTUS Makes LLM-Powered Data Processing Fast, Easy and Robust
+LOTUS: Optimized Agentic and LLM Bulk Processing
 =================================================================================
 
-LOTUS implements the semantic operator programming model and provides an optimized query engine for serving AI-based query pipelines over your data.
+LOTUS makes agentic and LLM-powered bulk data processing fast, easy, and robust. It
+provides agentic map-reduce for running tool-using agents over a corpus in parallel, the
+semantic operator programming model, and an optimized query engine for serving AI-based
+query pipelines over your data.
 
 .. toctree::
    :hidden:
@@ -21,6 +24,14 @@ LOTUS implements the semantic operator programming model and provides an optimiz
    installation
    core_concepts
    examples
+
+.. toctree::
+   :hidden:
+   :maxdepth: 1
+   :caption: Agentic Map-Reduce
+
+   agentic_map_reduce
+   agentic_examples
 
 .. toctree::
    :hidden:
