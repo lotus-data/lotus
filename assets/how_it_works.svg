@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1140 140" font-family="Arial, Helvetica, sans-serif" font-size="10.5">
+  <defs>
+    <marker id="hiw-arrow" markerWidth="10" markerHeight="10" refX="7" refY="3" orient="auto">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#777"/>
+    </marker>
+  </defs>
+
+  <!-- Corpus -->
+  <rect x="12" y="22" width="250" height="96" rx="10" fill="#eaf0fb" stroke="#4a72b0"/>
+  <text x="137" y="46" text-anchor="middle" font-size="14" font-weight="700" fill="#111">Corpus</text>
+  <line x1="111" y1="52" x2="163" y2="52" stroke="#4a72b0" stroke-width="1"/>
+  <text x="137" y="74" text-anchor="middle" fill="#444">Pandas DataFrames · SQL databases ·</text>
+  <text x="137" y="90" text-anchor="middle" fill="#444">images · codebases · documents · text</text>
+
+  <line x1="264" y1="70" x2="298" y2="70" stroke="#777" stroke-width="1.6" marker-end="url(#hiw-arrow)"/>
+
+  <!-- Declarative Programming -->
+  <rect x="300" y="22" width="250" height="96" rx="10" fill="#efeafb" stroke="#7a5ab0"/>
+  <text x="425" y="46" text-anchor="middle" font-size="14" font-weight="700" fill="#111">Declarative Programming</text>
+  <line x1="340" y1="52" x2="510" y2="52" stroke="#7a5ab0" stroke-width="1"/>
+  <text x="425" y="74" text-anchor="middle" fill="#444">Agent &amp; LLM-based semantic operators</text>
+  <text x="425" y="90" text-anchor="middle" fill="#444">(map · filter · reduce · join)</text>
+
+  <line x1="552" y1="70" x2="586" y2="70" stroke="#777" stroke-width="1.6" marker-end="url(#hiw-arrow)"/>
+
+  <!-- LOTUS Optimizer -->
+  <rect x="588" y="22" width="250" height="96" rx="10" fill="#fdebd0" stroke="#e08a2e"/>
+  <text x="713" y="46" text-anchor="middle" font-size="14" font-weight="700" fill="#111">LOTUS Optimizer</text>
+  <line x1="651" y1="52" x2="775" y2="52" stroke="#e08a2e" stroke-width="1"/>
+  <text x="713" y="74" text-anchor="middle" fill="#444">batching · model cascades · proxies ·</text>
+  <text x="713" y="90" text-anchor="middle" fill="#444">prompt optimization · lazy execution</text>
+
+  <line x1="840" y1="70" x2="874" y2="70" stroke="#777" stroke-width="1.6" marker-end="url(#hiw-arrow)"/>
+
+  <!-- Results -->
+  <rect x="876" y="22" width="250" height="96" rx="10" fill="#e6f4ea" stroke="#34a853"/>
+  <text x="1001" y="46" text-anchor="middle" font-size="14" font-weight="700" fill="#111">Results</text>
+  <line x1="973" y1="52" x2="1029" y2="52" stroke="#34a853" stroke-width="1"/>
+  <text x="1001" y="80" text-anchor="middle" font-size="12" fill="#444">higher accuracy · lower cost</text>
+</svg>

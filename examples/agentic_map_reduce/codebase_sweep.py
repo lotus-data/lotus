@@ -32,7 +32,7 @@ def main() -> None:
 
     result = corpus.agentic_map_reduce(
         task=(
-            "You are analyzing a Python codebase, one file per shard. For each file, "
+            "You are analyzing a Python codebase. For each file, "
             "summarize its purpose and list the key functions/classes it defines, each "
             "with a one-line description. Then produce a single architecture overview "
             "explaining how the files fit together and the overall design."
