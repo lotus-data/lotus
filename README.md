@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/logo_with_text.png" width="360" alt="LOTUS logo"/>
+<img src="assets/logo_cropped.png" width="360" alt="LOTUS logo"/>
 
 # LOTUS: Optimized Agentic and LLM Bulk Processing
 
