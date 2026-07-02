@@ -61,7 +61,8 @@ class Corpus:
         units = []
         for path in paths:
             try:
-                content = open(path, encoding=encoding, errors="replace").read()
+                with open(path, encoding=encoding, errors="replace") as f:
+                    content = f.read()
             except OSError as e:
                 content = f"<unreadable: {e}>"
             units.append(Unit(id=path, content=content, metadata={"path": path}))
