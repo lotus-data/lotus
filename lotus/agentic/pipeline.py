@@ -30,7 +30,9 @@ _MAP_SYSTEM = (
 _REDUCE_SYSTEM = (
     "You are the reducer in an agentic map-reduce. You are given the per-shard findings "
     "from many parallel workers. Aggregate them into a single, coherent result per the "
-    "instruction: deduplicate, reconcile, and prioritize."
+    "instruction: deduplicate, reconcile, and prioritize. Use the available tools (e.g. a "
+    "Python REPL) for any arithmetic or deterministic aggregation rather than computing by "
+    "hand."
 )
 
 
@@ -110,15 +112,17 @@ def agentic_map_reduce(
     for o in map_outputs:
         _merge_usage(usage, o.usage)
 
-    # 4) REDUCE — aggregate the findings into one answer (no tools).
-    reduce_completer = completer_factory([])
+    # 4) REDUCE — aggregate the findings into one answer. The reducer gets the same
+    #    tools as the map agents (e.g. the REPL) so numeric/deterministic aggregation is
+    #    computed, not done by hand (a hand-done grand total was wrong in early testing).
+    reduce_completer = completer_factory(tools)
     joined = "\n\n".join(f"[shard {i}]\n{f}" for i, f in enumerate(findings))
     reduce_res = run_agent(
         reduce_completer,
-        [],
+        tools,
         system_prompt=_REDUCE_SYSTEM,
         user_content=f"INSTRUCTION:\n{the_plan.reduce_instruction}\n\nPER-SHARD FINDINGS:\n{joined}",
-        max_steps=1,
+        max_steps=max_steps,
     )
     _merge_usage(usage, reduce_res.usage)
 
