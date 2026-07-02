@@ -10,7 +10,18 @@ import numpy as np
 from litellm import batch_completion
 from litellm.exceptions import AuthenticationError
 from litellm.types.utils import ChatCompletionTokenLogprob, ChoiceLogprobs, Choices, ModelResponse
-from litellm.utils import decode, encode, supports_reasoning, token_counter
+from litellm.utils import decode, encode, token_counter
+
+# ``supports_reasoning`` moved around / was added in newer litellm. Import defensively so
+# `import lotus` never hard-fails on older litellm — fall back to the top-level symbol,
+# then to None (treated as "not a reasoning model") if unavailable.
+try:
+    from litellm.utils import supports_reasoning as _supports_reasoning
+except ImportError:  # pragma: no cover - depends on litellm version
+    try:
+        from litellm import supports_reasoning as _supports_reasoning
+    except ImportError:  # pragma: no cover
+        _supports_reasoning = None  # type: ignore[assignment]
 from openai._exceptions import OpenAIError
 from pydantic import BaseModel
 from tokenizers import Tokenizer
@@ -33,9 +44,29 @@ logging.getLogger("httpx").setLevel(logging.CRITICAL)
 
 # Suppress Pydantic serialization warnings emitted by litellm when its ModelResponse
 # Choices/Message types don't exactly match the expected StreamingChoices schema.
-# This is a known upstream litellm issue and the warnings are harmless — the values
-# are still serialized correctly.
-warnings.filterwarnings("ignore", message="Pydantic serializer warnings", category=UserWarning, module="pydantic.*")
+# This is a known upstream litellm issue and the warnings are harmless — the values are
+# still serialized correctly.
+#
+# We do this two ways because a plain filter isn't reliable across environments: the
+# warning is emitted from worker threads / litellm's frame (so a module-scoped filter
+# leaks), and other libraries can reset ``warnings.filters`` after we set it. So we both
+# register the filter AND install a ``showwarning`` shim that drops exactly these and
+# delegates everything else — the shim survives filter-list resets.
+warnings.filterwarnings("ignore", message="Pydantic serializer warnings", category=UserWarning)
+
+_PYDANTIC_SERIALIZER_WARNING = "Pydantic serializer warnings"
+_prev_showwarning = warnings.showwarning
+
+
+def _drop_pydantic_serializer_warnings(message, category, filename, lineno, file=None, line=None):
+    if issubclass(category, UserWarning) and str(message).startswith(_PYDANTIC_SERIALIZER_WARNING):
+        return
+    return _prev_showwarning(message, category, filename, lineno, file=file, line=line)
+
+
+# Install once (idempotent — don't wrap our own shim if the module is re-imported).
+if getattr(warnings.showwarning, "__name__", "") != "_drop_pydantic_serializer_warnings":
+    warnings.showwarning = _drop_pydantic_serializer_warnings
 
 # Default completion-token budgets. Reasoning models (gpt-5, o-series, ...) spend
 # hidden reasoning tokens from the same max_completion_tokens budget as the visible
@@ -648,8 +679,11 @@ class LM:
     def is_reasoning_model(self) -> bool:
         """Whether the model spends hidden reasoning tokens from the completion budget
         (e.g. gpt-5 and the o-series)."""
+        if _supports_reasoning is None:
+            # litellm too old to know — assume non-reasoning (keeps the 512 default).
+            return False
         try:
-            return supports_reasoning(model=self.model)
+            return _supports_reasoning(model=self.model)
         except Exception:
             # Unknown/unmapped models: assume non-reasoning.
             return False
