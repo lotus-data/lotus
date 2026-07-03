@@ -39,6 +39,8 @@ LOTUS makes **agentic and LLM bulk processing** fast, easy, and robust. It intro
 - **Document extraction & unstructured analysis** — structured fields and insights from text.
 - **LLM-judge evals & RAG** — declarative pipelines that the engine optimizes for you.
 
+LOTUS stands for **L**LMs **O**ver **T**ext, **U**nstructured and **S**tructured Data.
+
 ## Installation
 
 ```bash
@@ -91,7 +93,7 @@ and [`examples/agentic_map_reduce/`](examples/agentic_map_reduce) for more.
 
 ## How it works
 
-You express *what* you want over a **corpus** using high-level **semantic operators** (i.e., LLM-based map, reduce, filter); LOTUS' **optimizer** decides *how* to run it — batching calls, applying model
+You express *what* you want over a dataset using high-level **semantic operators** (i.e., LLM-based map, reduce, filter); LOTUS' **optimizer** decides *how* to run it — batching calls, applying model
 cascades and proxies, and lazily planning the whole pipeline — for higher accuracy at lower
 cost.
 
