@@ -11,7 +11,7 @@
 
   <!-- ============ Semantic Projection (sem_map) ============ -->
   <g transform="translate(0,0)">
-    <text x="140" y="24" text-anchor="middle" font-weight="700" fill="#111">Semantic Projection</text>
+    <text x="140" y="24" text-anchor="middle" font-weight="700" fill="#111">Semantic Map</text>
     <!-- 3 input docs -->
     <rect x="16" y="52" width="44" height="26" rx="5" fill="#eaf0fb" stroke="#4a72b0"/><text x="38" y="69" text-anchor="middle" fill="#111">doc</text>
     <rect x="16" y="86" width="44" height="26" rx="5" fill="#eaf0fb" stroke="#4a72b0"/><text x="38" y="103" text-anchor="middle" fill="#111">doc</text>

@@ -52,30 +52,38 @@ See the [docs](https://lotus-ai.readthedocs.io/en/latest/installation.html) for 
 
 ## Quickstart
 
-Give LOTUS a **corpus** and a **task**. It allows you to run parallel agent and LLM calls. Below we show an example of an agentic map reduce, allowing you to bulk process code files by automatically sharding the corpus, spawning an agent per shard **in parallel** (each with a sandboxed Python REPL), and reducing the
-results into one answer.
+Give LOTUS a **corpus** and a **task**. It shards the corpus, spawns an agent per shard
+**in parallel** (each with a sandboxed Python REPL for exact computation), and reduces the
+per-shard findings into one answer. The example below is fully self-contained — set your
+API key, paste, and run.
 
 ```python
 import lotus
 from lotus.models import LM
 from lotus.tools import PythonREPLTool
 
-# Configure the LM — export your API key first (e.g. OPENAI_API_KEY)
-lotus.settings.configure(lm=LM(model="gpt-4o-mini"))
+# Configure the LM — export your API key first (e.g. export OPENAI_API_KEY=sk-...)
+lotus.settings.configure(lm=LM(model="gpt-5", reasoning_effort="low"))
 
-# A corpus can be files, documents, DataFrame rows, or one large text
-corpus = lotus.Corpus.from_files("myproject/**/*.py")
+# A corpus can be inline documents, a DataFrame, files, or one large text.
+# Here: a few small functions, some of them subtly buggy.
+snippets = [
+    "def average(nums): return sum(nums) / (len(nums) - 1)",
+    "def word_count(s): return len(s.split())",
+    "def percent(part, whole): return part / whole",
+    "def reverse(s): return s[::-1]",
+]
+corpus = lotus.Corpus.from_documents(snippets)
 
-# One task. LOTUS derives the map + reduce, runs agents in parallel, and aggregates.
+# Each agent actually *runs* its function in a sandboxed REPL to find bugs —
+# then LOTUS reduces the per-function results into one report.
 result = corpus.agentic_map_reduce(
-    task="For each file, find security-sensitive code and summarize the risks with "
-         "file:line. Then produce one prioritized report across the codebase.",
+    task="Test each function on example inputs and report which ones are buggy, "
+         "with a counterexample for each bug.",
     tools=[PythonREPLTool()],
 )
 
-print(result.output)     # the reduced report
-print(result.findings)   # per-file findings
-print(result.usage)      # token usage
+print(result.output)   # the reduced bug report
 ```
 
 See the [Agentic Map-Reduce docs](https://lotus-ai.readthedocs.io/en/latest/agentic_map_reduce.html)
