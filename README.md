@@ -33,11 +33,12 @@ LOTUS makes **agentic and LLM bulk processing** fast, easy, and robust. It intro
 
 - **Agentic code processing** — run a tool-using agent (with a sandboxed Python REPL) over
   every file, document, or record, then reduce to one answer (codebase analysis, security
-  sweeps, migrations).
-- **Deep research & synthesis** — fan out over a corpus, extract, and synthesize.
-- **Agent-trace failure analysis** — mine large volumes of agent logs for failure modes.
-- **Document extraction & unstructured analysis** — structured fields and insights from text.
-- **LLM-judge evals & RAG** — declarative pipelines that the engine optimizes for you.
+  sweeps, migrations). [[example](examples/agentic_map_reduce/codebase_sweep.py)]
+- **Deep research & synthesis** — fan out over a corpus, extract, and synthesize. [[example](examples/web_search_examples/arxiv_extract.py), [blog](https://liana313.github.io/blog/lotusplan.html#deepresearch-agents)]
+- **Agent-trace failure analysis** — mine large volumes of agent logs for failure modes. [[blog](https://liana313.github.io/blog/lotusplan.html#agent-trace-analysis)]
+- **Document extraction & unstructured analysis** — structured fields and insights from text. [[example](examples/op_examples/extract.py), [blog](https://liana313.github.io/blog/lotusplan.html#document-extraction)]
+- **LLM-judge evals** — score model outputs, app responses, and content quality, row by row. [[example](examples/eval_examples/llm_as_judge.py), [blog](https://liana313.github.io/blog/lotusplan.html#llm-judge-evals)]
+- **RAG** — retrieve the relevant context and generate grounded answers over your data. [[blog](https://liana313.github.io/blog/lotusplan.html#rag)]
 
 LOTUS stands for **L**LMs **O**ver **T**ext, **U**nstructured and **S**tructured Data.
 
@@ -113,6 +114,8 @@ high-quality baselines while running substantially faster and cheaper:
 
 </div>
 
+See the [blog](https://liana313.github.io/blog/lotusplan.html#exciting-results) for the full results and further reading.
+
 ## What are Semantic Operators
 
 LOTUS introduced and optimizes [semantic operators](https://arxiv.org/abs/2407.11418).
@@ -132,9 +135,10 @@ LOTUS supports **two classes of semantic operators**, so you can match the execu
 
 - **LLM operators** (`sem_map`, `sem_filter`, `sem_agg`, `sem_join`, `sem_extract`, …) invoke **far fewer model calls per record** and are ideal for **well-defined tasks** — LLM-as-judge evaluations, document and attribute extraction, and unstructured data analysis at scale.
 
-See the
-[documentation](https://lotus-ai.readthedocs.io/en/latest/) and the
-[intro Colab tutorial](https://colab.research.google.com/drive/1mP65YHHdD6mnZmC5-Uqm2uCXJ4-Kbkhu?usp=sharing) for more on semantic operators that LOTUS serves.
+LOTUS **optimizes** semantic operators for **higher accuracy and lower cost**. See the
+[blog](https://liana313.github.io/blog/lotusplan.html#semantic-operators-intro) for walkthrough
+examples, or the [documentation](https://lotus-ai.readthedocs.io/en/latest/) and the
+[intro Colab tutorial](https://colab.research.google.com/drive/1mP65YHHdD6mnZmC5-Uqm2uCXJ4-Kbkhu?usp=sharing) for more.
 
 ## Docs
 
