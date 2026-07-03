@@ -1,5 +1,5 @@
-Evaluation Suite
-================
+Overview
+========
 
 LOTUS includes LLM-as-judge tools for evaluating model outputs, application
 responses, and content quality directly from pandas DataFrames.

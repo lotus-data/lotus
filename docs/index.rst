@@ -59,17 +59,6 @@ LLM-as-judge evaluation, document extraction, and unstructured data analysis.
 .. toctree::
    :hidden:
    :maxdepth: 1
-   :caption: Utility Operators
-
-   sem_partition
-   sem_index
-   sem_dedup
-   web_search
-   web_extract
-
-.. toctree::
-   :hidden:
-   :maxdepth: 1
    :caption: Optimizations
 
    lazyframe
@@ -79,12 +68,23 @@ LLM-as-judge evaluation, document extraction, and unstructured data analysis.
 .. toctree::
    :hidden:
    :maxdepth: 1
-   :caption: Evaluation Suite
+   :caption: LLM Judge Suite
 
    evaluation
    llm_as_judge
    pairwise_judge
    evaluation_advanced
+
+.. toctree::
+   :hidden:
+   :maxdepth: 1
+   :caption: Utility Operators
+
+   sem_partition
+   sem_index
+   sem_dedup
+   web_search
+   web_extract
 
 .. toctree::
    :hidden:
