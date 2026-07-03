@@ -14,3 +14,5 @@ print(f"Extracted from ArXiv:\n{df}\n\n")
 if df["full_text"].iloc[0]:
     print(f"Full text length: {len(df['full_text'].iloc[0])} characters")
     print(f"First 500 characters:\n{df['full_text'].iloc[0][:500]}...")
+    res = df.sem_agg("Summarize the paper's {full_text} in a few sentences, highlighting the main contributions and findings.")
+    print(f"\nSummary:\n{res.iloc[0]._output}")
