@@ -30,19 +30,20 @@ def main() -> None:
     corpus = lotus.Corpus.from_files(pattern)
     print(f"Loaded {len(corpus)} files from {pattern}")
 
-    result = corpus.agentic_map_reduce(
+    result = corpus.agent(
         task=(
             "You are analyzing a Python codebase. For each file, "
             "summarize its purpose and list the key functions/classes it defines, each "
             "with a one-line description. Then produce a single architecture overview "
             "explaining how the files fit together and the overall design."
         ),
+        ops=["map", "reduce"],
         tools=[PythonREPLTool()],
     )
 
     print("\n=== PLAN ===")
-    print("map:   ", result.plan.map_instruction)
-    print("reduce:", result.plan.reduce_instruction)
+    print("map:   ", result.plan.instructions.get("map"))
+    print("reduce:", result.plan.instructions.get("reduce"))
     print(f"shard_size={result.plan.shard_size}  parallelism={result.plan.parallelism}")
 
     print("\n=== PER-FILE FINDINGS ===")

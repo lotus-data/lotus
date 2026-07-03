@@ -26,7 +26,6 @@ from lotus.web_search import web_search, web_extract, WebSearchCorpus
 from lotus.settings import settings  # type: ignore[attr-defined]
 from lotus.ast import LazyFrame
 from lotus.corpus import Corpus
-from lotus.agentic import agentic_map_reduce
 
 logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -62,5 +61,4 @@ __all__ = [
     "LazyFrame",
     "Optimizer",
     "Corpus",
-    "agentic_map_reduce",
 ]

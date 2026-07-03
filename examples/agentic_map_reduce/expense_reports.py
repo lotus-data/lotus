@@ -22,22 +22,24 @@ REPORTS = [
 
 
 def main() -> None:
-    lotus.settings.configure(lm=LM(model="gpt-4o-mini"))
+    # Exact arithmetic in the reduce benefits from a reasoning model.
+    lotus.settings.configure(lm=LM(model="gpt-5", reasoning_effort="low"))
     corpus = lotus.Corpus.from_documents(REPORTS)
 
-    result = corpus.agentic_map_reduce(
+    result = corpus.agent(
         # The task describes WHAT the user wants — not which tools to use.
         task=(
             "Each document is an expense report with line items. Compute the exact total "
             "for the report and report its category and total. Then produce one overall "
             "summary with the grand total and the highest-spending category."
         ),
+        ops=["map", "reduce"],
         tools=[PythonREPLTool()],
     )
 
     print("\n=== PLAN ===")
-    print("map:   ", result.plan.map_instruction)
-    print("reduce:", result.plan.reduce_instruction)
+    print("map:   ", result.plan.instructions.get("map"))
+    print("reduce:", result.plan.instructions.get("reduce"))
     print(f"shard_size={result.plan.shard_size}  parallelism={result.plan.parallelism}")
 
     print("\n=== PER-SHARD FINDINGS ===")

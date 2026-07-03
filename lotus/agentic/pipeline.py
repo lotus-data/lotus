@@ -1,9 +1,14 @@
-"""Agentic map-reduce pipeline: plan -> shard -> parallel map -> reduce.
+"""Agentic operator pipeline: a composable chain of agent ops over a corpus.
 
-This is the high-level entry point behind ``Corpus.agentic_map_reduce``. The user gives
-a ``task``; the planner derives the map/reduce instructions and sharding; each shard is
-processed in parallel by an agent (with tools, incl. an optional REPL); the per-shard
-results are reduced into one answer.
+This is the engine behind ``Corpus.agent`` and the standalone helpers. The user gives a
+``task`` and an ordered list of ``ops`` (``map`` / ``filter`` / ``reduce``); the planner
+derives one instruction per op; then the ops are folded over the corpus:
+
+    corpus --filter--> corpus --map--> corpus --reduce--> answer
+
+``map`` and ``filter`` are Corpus -> Corpus (chainable); ``reduce`` collapses the corpus
+to a single answer and is terminal. Each op runs the agentic tool-calling loop, so every
+op has access to the same ``tools`` (e.g. the Python REPL).
 
 The model is reached through a ``completer_factory`` so the whole pipeline is testable
 without a network (tests inject a fake factory + explicit ``Plan``).
@@ -11,24 +16,36 @@ without a network (tests inject a fake factory + explicit ``Plan``).
 
 from __future__ import annotations
 
+import json
+import logging
+import re
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Callable
 
 from .loop import Completer, LiteLLMCompleter, run_agent
+from .ops import FILTER, MAP, REDUCE, normalize_ops
 from .planner import DEFAULT_PARALLELISM_CAP, Plan, derive_plan
 
 if TYPE_CHECKING:
     from lotus.corpus import Corpus, Unit
     from lotus.tools.base import Tool
 
+logger = logging.getLogger("lotus")
+
 _MAP_SYSTEM = (
     "You are one worker in a parallel agentic map-reduce. You are given ONE shard of a "
     "larger corpus and an instruction. Investigate only your shard and report your "
     "findings concisely and completely."
 )
+_FILTER_SYSTEM = (
+    "You are one worker in a parallel agentic filter. You are given a shard of a corpus "
+    "(one or more units) and a keep/drop criterion. Investigate as needed — including with "
+    "any tools available — and decide keep or drop for each unit. Follow the output format "
+    "given in the instruction exactly."
+)
 _REDUCE_SYSTEM = (
-    "You are the reducer in an agentic map-reduce. You are given the per-shard findings "
+    "You are the reducer in an agentic map-reduce. You are given the per-shard results "
     "from many parallel workers. Aggregate them into a single, coherent result per the "
     "instruction: deduplicate, reconcile, and prioritize."
 )
@@ -55,10 +72,19 @@ def _tools_guidance(tools: list["Tool"]) -> str:
 
 @dataclass
 class Result:
-    output: str
-    findings: list[str]
+    """The result of an agent pipeline.
+
+    ``output`` is set when the pipeline ends on a terminal op (``reduce``); ``corpus`` is
+    set when it ends on a corpus op (``map``/``filter``). ``findings`` holds the per-shard
+    outputs of the ``map`` op, when one ran.
+    """
+
+    ops: list[str]
     plan: Plan
     usage: dict[str, int] = field(default_factory=dict)
+    output: str | None = None
+    corpus: "Corpus | None" = None
+    findings: list[str] | None = None
 
 
 def _default_completer_factory(lm) -> Callable[[list["Tool"]], Completer]:
@@ -72,13 +98,243 @@ def _shard_content(shard: list["Unit"]) -> str:
     return "\n\n".join(f"[unit {u.id}]\n{u.content}" for u in shard)
 
 
-def agentic_map_reduce(
+def _parse_verdict(text: str) -> bool:
+    """Parse a filter agent's KEEP/DROP verdict. Default to KEEP (never silently drop)."""
+    m = re.search(r"VERDICT:\s*(KEEP|DROP)", text or "", re.IGNORECASE)
+    if m:
+        return m.group(1).upper() == "KEEP"
+    upper = (text or "").upper()
+    if "DROP" in upper and "KEEP" not in upper:
+        return False
+    if "KEEP" in upper and "DROP" not in upper:
+        return True
+    logger.warning("agentic filter: could not parse a KEEP/DROP verdict; keeping the unit by default.")
+    return True
+
+
+# -------------------------------------------------------------- op execution core
+# ``map`` and ``filter`` share one execution core. A **strategy** controls how much
+# context each per-unit decision gets (and how many agents run); the **op kind** controls
+# how each unit's result is projected — ``map`` turns it into a new unit, ``filter`` reads
+# it as a keep/drop verdict. So filter is map-to-a-verdict-then-select.
+#
+# Strategies:
+#   - "per_unit"       one unit per agent, no cross-unit context (default).
+#   - "batched"        several units per agent (sibling context); the agent returns one
+#                      result *per unit* as a JSON array keyed by unit id.
+#   - "shared_context" one unit per agent, plus injected shared background ``context``.
+
+_BATCH_MAP_SUFFIX = (
+    "\n\nThe shard contains MULTIPLE units, each marked '[unit <id>]'. Use the other units "
+    "as context, but produce the requested output for EACH unit. End your reply with a "
+    'single JSON array on its own line: [{"id": "<id>", "output": "<result>"}, ...] with '
+    "exactly one entry per unit id."
+)
+_BATCH_FILTER_SUFFIX = (
+    "\n\nThe shard contains MULTIPLE units, each marked '[unit <id>]'. Use the other units "
+    "as context, but decide KEEP or DROP for EACH unit. End your reply with a single JSON "
+    'array on its own line: [{"id": "<id>", "keep": true|false}, ...] with exactly one '
+    "entry per unit id."
+)
+_FILTER_SINGLE_SUFFIX = "\n\nEnd your reply with a line 'VERDICT: KEEP' or 'VERDICT: DROP'."
+
+
+def _op_user_content(kind: str, instruction: str, shard: list["Unit"], context: str | None, batched: bool) -> str:
+    parts = [f"INSTRUCTION:\n{instruction}"]
+    if context:
+        parts.append(f"SHARED CONTEXT:\n{context}")
+    parts.append(f"SHARD:\n{_shard_content(shard)}")
+    body = "\n\n".join(parts)
+    if batched:
+        body += _BATCH_FILTER_SUFFIX if kind == FILTER else _BATCH_MAP_SUFFIX
+    elif kind == FILTER:
+        body += _FILTER_SINGLE_SUFFIX
+    return body
+
+
+def _parse_batched(text: str, kind: str) -> dict[str, str]:
+    """Parse a batched agent's per-unit JSON array into ``{unit_id: result_text}``.
+
+    For ``filter``, results are normalized to ``"VERDICT: KEEP"``/``"VERDICT: DROP"`` so
+    the same :func:`_parse_verdict` reads them; for ``map`` the ``output`` string is kept.
+    """
+    result: dict[str, str] = {}
+    m = re.search(r"\[[\s\S]*\]", text or "")
+    if not m:
+        return result
+    try:
+        arr = json.loads(m.group(0))
+    except (json.JSONDecodeError, ValueError):
+        return result
+    if not isinstance(arr, list):
+        return result
+    for entry in arr:
+        if not isinstance(entry, dict) or entry.get("id") is None:
+            continue
+        eid = str(entry["id"])
+        if kind == FILTER:
+            result[eid] = "VERDICT: KEEP" if entry.get("keep") else "VERDICT: DROP"
+        else:
+            result[eid] = str(entry.get("output", ""))
+    return result
+
+
+def _run_op_shard(
+    completer: Completer,
+    tools: list["Tool"],
+    system: str,
+    kind: str,
+    instruction: str,
+    shard: list["Unit"],
+    context: str | None,
+    max_steps: int,
+) -> tuple[list[tuple["Unit", str]], dict[str, int]]:
+    """Run one shard's agent; return per-unit ``(unit, result_text)`` pairs + usage."""
+    batched = len(shard) > 1
+    res = run_agent(
+        completer,
+        tools,
+        system_prompt=system,
+        user_content=_op_user_content(kind, instruction, shard, context, batched),
+        max_steps=max_steps,
+    )
+    if not batched:
+        return [(shard[0], res.output)], res.usage
+
+    parsed = _parse_batched(res.output, kind)
+    pairs: list[tuple["Unit", str]] = []
+    for u in shard:
+        if u.id in parsed:
+            pairs.append((u, parsed[u.id]))
+        else:
+            logger.warning("agentic %s: batched output missing unit '%s'; using default.", kind, u.id)
+            pairs.append((u, "VERDICT: KEEP" if kind == FILTER else u.content))
+    return pairs, res.usage
+
+
+def _run_agentic_op(
+    corpus: "Corpus",
+    kind: str,
+    instruction: str,
+    *,
+    strategy: str,
+    context: str | None,
+    completer: Completer,
+    tools: list["Tool"],
+    system: str,
+    shard_size: int | None,
+    parallelism: int,
+    max_steps: int,
+    usage: dict[str, int],
+) -> list[tuple["Unit", str]]:
+    """Shard per the strategy, run one agent per shard in parallel, and return per-unit
+    ``(unit, result_text)`` pairs in corpus order."""
+    size = max(2, shard_size or 2) if strategy == "batched" else 1
+    shards = corpus.shard(size)
+
+    def _one(shard: list["Unit"]) -> tuple[list[tuple["Unit", str]], dict[str, int]]:
+        return _run_op_shard(completer, tools, system, kind, instruction, shard, context, max_steps)
+
+    with ThreadPoolExecutor(max_workers=max(1, parallelism)) as ex:
+        shard_outs = list(ex.map(_one, shards))
+
+    pairs: list[tuple["Unit", str]] = []
+    for prs, u in shard_outs:
+        pairs.extend(prs)
+        _merge_usage(usage, u)
+    return pairs
+
+
+# ------------------------------------------------------------------ op runners
+def _op_map(
+    corpus: "Corpus",
+    instruction: str,
+    *,
+    strategy: str,
+    context: str | None,
+    completer: Completer,
+    tools: list["Tool"],
+    system: str,
+    shard_size: int | None,
+    parallelism: int,
+    max_steps: int,
+    usage: dict[str, int],
+) -> tuple["Corpus", list[str]]:
+    """Corpus -> Corpus. Each unit is transformed to a new unit (one output per unit)."""
+    from lotus.corpus import Corpus, Unit
+
+    pairs = _run_agentic_op(
+        corpus, MAP, instruction, strategy=strategy, context=context, completer=completer,
+        tools=tools, system=system, shard_size=shard_size, parallelism=parallelism,
+        max_steps=max_steps, usage=usage,
+    )
+    units = [Unit(id=u.id, content=r, metadata={"op": "map", "source_id": u.id}) for u, r in pairs]
+    findings = [r for _, r in pairs]
+    return Corpus(units), findings
+
+
+def _op_filter(
+    corpus: "Corpus",
+    instruction: str,
+    *,
+    strategy: str,
+    context: str | None,
+    completer: Completer,
+    tools: list["Tool"],
+    system: str,
+    shard_size: int | None,
+    parallelism: int,
+    max_steps: int,
+    usage: dict[str, int],
+) -> "Corpus":
+    """Corpus -> Corpus (subset). Filter is ``map`` projected to a keep/drop verdict per unit."""
+    from lotus.corpus import Corpus
+
+    pairs = _run_agentic_op(
+        corpus, FILTER, instruction, strategy=strategy, context=context, completer=completer,
+        tools=tools, system=system, shard_size=shard_size, parallelism=parallelism,
+        max_steps=max_steps, usage=usage,
+    )
+    return Corpus([u for u, r in pairs if _parse_verdict(r)])
+
+
+def _op_reduce(
+    corpus: "Corpus",
+    instruction: str,
+    *,
+    completer: Completer,
+    tools: list["Tool"],
+    system: str,
+    max_steps: int,
+    usage: dict[str, int],
+) -> str:
+    """Corpus -> single answer (terminal). One agent aggregates all current units.
+
+    The reducer gets the same tools as the other ops (e.g. the REPL) so numeric or
+    otherwise deterministic aggregation is computed, not done by hand.
+    """
+    joined = "\n\n".join(f"[shard {i}]\n{u.content}" for i, u in enumerate(corpus.units))
+    res = run_agent(
+        completer,
+        tools,
+        system_prompt=system,
+        user_content=f"INSTRUCTION:\n{instruction}\n\nPER-SHARD FINDINGS:\n{joined}",
+        max_steps=max_steps,
+    )
+    _merge_usage(usage, res.usage)
+    return res.output
+
+
+# ------------------------------------------------------------------- driver
+def run_pipeline(
     corpus: "Corpus",
     task: str,
     *,
+    ops: "str | list[str] | None" = None,
     tools: list["Tool"] | None = None,
-    map: str | None = None,
-    reduce: str | None = None,
+    instructions: dict[str, str] | None = None,
+    strategies: dict[str, str] | None = None,
+    contexts: dict[str, str] | None = None,
     plan: "Plan | str" = "auto",
     max_parallelism: int | str = "auto",
     max_steps: int = 6,
@@ -86,73 +342,107 @@ def agentic_map_reduce(
     lm=None,
     completer_factory: Callable[[list["Tool"]], Completer] | None = None,
 ) -> Result:
-    """Run agentic map-reduce over ``corpus`` for ``task``. See module docstring."""
+    """Run an ordered pipeline of agent ops over ``corpus`` for ``task``.
+
+    ``ops`` is a list of op names (default ``["map", "reduce"]``). ``instructions`` is an
+    optional per-op override, keyed by op name (otherwise the planner derives each).
+    ``strategies``/``contexts`` optionally override the per-op execution strategy
+    (``"per_unit"`` | ``"batched"`` | ``"shared_context"``) and its shared context.
+    """
+    op_list = normalize_ops(ops)
+    tools = tools or []
+    overrides = dict(instructions or {})
+    strat_overrides = dict(strategies or {})
+    ctx_overrides = dict(contexts or {})
+
     if lm is None:
         import lotus
 
         lm = lotus.settings.lm
-    tools = tools or []
     if completer_factory is None:
         completer_factory = _default_completer_factory(lm)
 
-    # 1) PLAN — derive map/reduce + sharding from the task (unless given explicitly).
+    # 1) PLAN — derive an instruction per op + sharding (unless a Plan is given).
     cap = DEFAULT_PARALLELISM_CAP if max_parallelism == "auto" else int(max_parallelism)
     if isinstance(plan, Plan):
         the_plan = plan
     else:
         the_plan = derive_plan(
-            task, corpus, lm=lm, map_override=map, reduce_override=reduce, parallelism_cap=cap
+            task, corpus, op_list, lm=lm, overrides=overrides, parallelism_cap=cap
         )
+    the_plan.ops = op_list
     the_plan.parallelism = max(1, min(the_plan.parallelism, cap))
 
-    # 2) SHARD.
-    shards = corpus.shard(the_plan.shard_size)
-
-    # 3) MAP — one agent per shard, in parallel.
-    map_completer = completer_factory(tools)
-    map_system = _MAP_SYSTEM + _tools_guidance(tools)
+    completer = completer_factory(tools)
+    guidance = _tools_guidance(tools)
     usage: dict[str, int] = {}
 
-    def _map_one(shard: list["Unit"]) -> AgentOutput:
-        res = run_agent(
-            map_completer,
-            tools,
-            system_prompt=map_system,
-            user_content=f"INSTRUCTION:\n{the_plan.map_instruction}\n\nSHARD:\n{_shard_content(shard)}",
-            max_steps=max_steps,
-        )
-        return AgentOutput(res.output, res.usage)
+    def _instruction(op: str) -> str:
+        from .planner import _heuristic_instruction
 
-    with ThreadPoolExecutor(max_workers=the_plan.parallelism) as ex:
-        map_outputs = list(ex.map(_map_one, shards))
+        return the_plan.instructions.get(op) or overrides.get(op) or _heuristic_instruction(op, task)
 
-    findings = [o.output for o in map_outputs]
-    for o in map_outputs:
-        _merge_usage(usage, o.usage)
+    def _strategy(op: str) -> str:
+        return strat_overrides.get(op) or the_plan.strategies.get(op) or "per_unit"
 
-    # 4) REDUCE — aggregate the findings into one answer. The reducer gets the same
-    #    tools as the map agents (e.g. the REPL) so numeric/deterministic aggregation is
-    #    computed, not done by hand (a hand-done grand total was wrong in early testing).
-    reduce_completer = completer_factory(tools)
-    joined = "\n\n".join(f"[shard {i}]\n{f}" for i, f in enumerate(findings))
-    reduce_res = run_agent(
-        reduce_completer,
-        tools,
-        system_prompt=_REDUCE_SYSTEM + _tools_guidance(tools),
-        user_content=f"INSTRUCTION:\n{the_plan.reduce_instruction}\n\nPER-SHARD FINDINGS:\n{joined}",
-        max_steps=max_steps,
+    def _context(op: str) -> "str | None":
+        return ctx_overrides.get(op) or the_plan.contexts.get(op)
+
+    # 2) RUN — fold the ops over the corpus.
+    current: "Corpus | None" = corpus
+    findings: list[str] | None = None
+    output: str | None = None
+
+    for op in op_list:
+        assert current is not None  # a terminal op is always last (validated in normalize_ops)
+        if op == MAP:
+            current, findings = _op_map(
+                current,
+                _instruction(op),
+                strategy=_strategy(op),
+                context=_context(op),
+                completer=completer,
+                tools=tools,
+                system=_MAP_SYSTEM + guidance,
+                shard_size=the_plan.shard_size,
+                parallelism=the_plan.parallelism,
+                max_steps=max_steps,
+                usage=usage,
+            )
+        elif op == FILTER:
+            current = _op_filter(
+                current,
+                _instruction(op),
+                strategy=_strategy(op),
+                context=_context(op),
+                completer=completer,
+                tools=tools,
+                system=_FILTER_SYSTEM + guidance,
+                shard_size=the_plan.shard_size,
+                parallelism=the_plan.parallelism,
+                max_steps=max_steps,
+                usage=usage,
+            )
+        elif op == REDUCE:
+            output = _op_reduce(
+                current,
+                _instruction(op),
+                completer=completer,
+                tools=tools,
+                system=_REDUCE_SYSTEM + guidance,
+                max_steps=max_steps,
+                usage=usage,
+            )
+            current = None  # collapsed to a single answer
+
+    return Result(
+        ops=op_list, plan=the_plan, usage=usage, output=output, corpus=current, findings=findings
     )
-    _merge_usage(usage, reduce_res.usage)
-
-    return Result(output=reduce_res.output, findings=findings, plan=the_plan, usage=usage)
-
-
-@dataclass
-class AgentOutput:
-    output: str
-    usage: dict[str, int]
 
 
 def _merge_usage(into: dict[str, int], other: dict[str, int]) -> None:
     for k, v in (other or {}).items():
         into[k] = into.get(k, 0) + v
+
+
+__all__ = ["Result", "run_pipeline"]

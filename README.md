@@ -79,9 +79,10 @@ corpus = lotus.Corpus.from_documents(snippets)
 
 # Each agent actually *runs* its function in a sandboxed REPL to find bugs —
 # then LOTUS reduces the per-function results into one report.
-result = corpus.agentic_map_reduce(
+result = corpus.agent(
     task="Test each function on example inputs and report which ones are buggy, "
          "with a counterexample for each bug.",
+    ops=["map", "reduce"],       # compose agentic ops: map, filter, reduce
     tools=[PythonREPLTool()],
 )
 
@@ -125,6 +126,12 @@ Here are a few examples:
 
 </div>
 
+LOTUS supports **two classes of semantic operators**, so you can match the execution style to the task:
+
+- **Agentic operators** run tool-using agents over a corpus (`corpus.agent(ops=["map", "filter", "reduce"], ...)`). They shine on **complex or ambiguous tasks that benefit from multiple steps and tool calls** — running code to compute exact values, parsing files, sweeping a codebase, or filtering with non-trivial judgment. See the runnable [`examples/agentic_map_reduce/`](examples/agentic_map_reduce) (an expense-report roll-up and a codebase sweep).
+
+- **LLM operators** (`sem_map`, `sem_filter`, `sem_agg`, `sem_join`, `sem_extract`, …) invoke **far fewer model calls per record** and are ideal for **well-defined tasks** — LLM-as-judge evaluations, document and attribute extraction, and unstructured data analysis at scale.
+
 See the
 [documentation](https://lotus-ai.readthedocs.io/en/latest/) and the
 [intro Colab tutorial](https://colab.research.google.com/drive/1mP65YHHdD6mnZmC5-Uqm2uCXJ4-Kbkhu?usp=sharing) for more on semantic operators that LOTUS serves.
@@ -134,9 +141,9 @@ See the
 For more, you can checkout the official [docs](https://lotus-ai.readthedocs.io/en/latest/), which includes more on: 
 
 - [Installation](https://lotus-ai.readthedocs.io/en/latest/installation.html) & [Core Concepts](https://lotus-ai.readthedocs.io/en/latest/core_concepts.html)
-- [Agentic Map-Reduce](https://lotus-ai.readthedocs.io/en/latest/agentic_map_reduce.html) — corpus, tools/REPL, and worked [examples](https://lotus-ai.readthedocs.io/en/latest/agentic_examples.html)
-- [Semantic Operators](https://lotus-ai.readthedocs.io/en/latest/sem_map.html) — `sem_map`, `sem_filter`, `sem_agg`, `sem_join`, and more
-- [Lazy Execution & Optimizations](https://lotus-ai.readthedocs.io/en/latest/lazyframe.html) — the query engine, cascades, and lazy execution
+- [Agentic Semantic Operators](https://lotus-ai.readthedocs.io/en/latest/agentic_operators.html) — the `Corpus`, agentic map-reduce and filter, tools/REPL, and worked [examples](https://lotus-ai.readthedocs.io/en/latest/agentic_examples.html)
+- [LLM Semantic Operators](https://lotus-ai.readthedocs.io/en/latest/sem_map.html) — `sem_map`, `sem_filter`, `sem_agg`, `sem_join`, and more
+- [Optimizations](https://lotus-ai.readthedocs.io/en/latest/lazyframe.html) — the query engine, cascades, and lazy execution
 - [Supported Models](https://lotus-ai.readthedocs.io/en/latest/llm.html) — LMs, retrievers, rerankers (any [LiteLLM](https://litellm.vercel.app) provider)
 
 ## Community

@@ -5,7 +5,7 @@ be sharded into bounded batches for parallel agentic mapping. Loaders cover seve
 input forms; more can be added without touching the pipeline.
 
     corpus = Corpus.from_files("repo/**/*.py")
-    result = corpus.agentic_map_reduce(task="Find every use of foo() and rank by risk.")
+    result = corpus.agent(task="Find every use of foo() and rank by risk.", ops=["map", "reduce"])
 """
 
 from __future__ import annotations
@@ -84,11 +84,17 @@ class Corpus:
         return [self.units[i : i + size] for i in range(0, len(self.units), size)] or [[]]
 
     # ------------------------------------------------------------------ pipeline
-    def agentic_map_reduce(self, task: str, **kwargs: Any) -> "Result":
-        """Run agentic map-reduce over this corpus. See ``pipeline.agentic_map_reduce``."""
-        from lotus.agentic.pipeline import agentic_map_reduce
+    def agent(self, task: str, *, ops: "str | list[str] | None" = None, **kwargs: Any) -> "Result":
+        """Run an ordered pipeline of agent ops over this corpus.
 
-        return agentic_map_reduce(self, task, **kwargs)
+        ``ops`` is a list of op names — ``"map"``, ``"filter"``, ``"reduce"`` — run in
+        order (default ``["map", "reduce"]``). ``map``/``filter`` are Corpus -> Corpus
+        (chainable); ``reduce`` collapses the corpus to one answer and must be last.
+        See ``pipeline.run_pipeline``.
+        """
+        from lotus.agentic.pipeline import run_pipeline
+
+        return run_pipeline(self, task, ops=ops, **kwargs)
 
 
 __all__ = ["Unit", "Corpus"]

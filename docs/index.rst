@@ -12,8 +12,15 @@ LOTUS: Optimized Agentic and LLM Bulk Processing
 =================================================================================
 
 LOTUS makes agentic and LLM bulk processing fast, easy, and robust. It
-introduces semantic operators (e.g., LLM-based map, reduce, filter primitives) for procuessing structured and unstructured data corpora at scale with parallel agents and LLM calls.
+introduces semantic operators (e.g., map, reduce, filter primitives) for processing structured and unstructured data corpora at scale with parallel agents and LLM calls.
 LOTUS' optimized query engine allows you to write declarative code for complex data processing tasks with higher accuracy and lower cost.
+
+LOTUS supports two classes of semantic operators. **Agentic semantic operators**
+(``corpus.agent(ops=[...])``) run tool-using agents over a corpus and are built for
+complex or ambiguous tasks that benefit from multiple steps and tool calls. **LLM
+semantic operators** (``sem_map``, ``sem_filter``, ``sem_agg``, ``sem_join``, …) invoke
+far fewer model calls per record and are ideal for well-defined tasks such as
+LLM-as-judge evaluation, document extraction, and unstructured data analysis.
 
 .. toctree::
    :hidden:
@@ -22,20 +29,22 @@ LOTUS' optimized query engine allows you to write declarative code for complex d
 
    installation
    core_concepts
-   examples
 
 .. toctree::
    :hidden:
    :maxdepth: 1
-   :caption: Agentic Map-Reduce
+   :caption: Agentic Semantic Operators
 
+   agentic_operators
+   corpus
    agentic_map_reduce
    agentic_examples
+   agentic_filter
 
 .. toctree::
    :hidden:
    :maxdepth: 1
-   :caption: Semantic Operators
+   :caption: LLM Semantic Operators
 
    sem_map
    sem_extract
@@ -61,7 +70,7 @@ LOTUS' optimized query engine allows you to write declarative code for complex d
 .. toctree::
    :hidden:
    :maxdepth: 1
-   :caption: LazyFrame
+   :caption: Optimizations
 
    lazyframe
    lazyframe_optimizations

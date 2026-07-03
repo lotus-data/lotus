@@ -17,7 +17,7 @@ category. Because the reducer has the REPL, the arithmetic is computed, not esti
     from lotus.models import LM
     from lotus.tools import PythonREPLTool
 
-    lotus.settings.configure(lm=LM(model="gpt-4o-mini"))
+    lotus.settings.configure(lm=LM(model="gpt-5", reasoning_effort="low"))
 
     reports = [
         "Q1 travel: flights 420.50, hotel 610.00, meals 133.25.",
@@ -27,12 +27,13 @@ category. Because the reducer has the REPL, the arithmetic is computed, not esti
     ]
     corpus = lotus.Corpus.from_documents(reports)
 
-    result = corpus.agentic_map_reduce(
+    result = corpus.agent(
         task=(
             "Each document is an expense report with line items. Compute the exact total "
             "for the report and report its category and total. Then produce one overall "
             "summary with the grand total and the highest-spending category."
         ),
+        ops=["map", "reduce"],
         tools=[PythonREPLTool()],
     )
 
@@ -55,7 +56,7 @@ Output (abridged)::
 You can inspect the intermediate results::
 
     result.findings   # ['... 1163.75', '... 1647.75', '... 1411.70', '... 3012.40']
-    result.plan       # map_instruction / reduce_instruction / shard_size / parallelism
+    result.plan       # ops / instructions (per-op) / shard_size / parallelism
     result.usage      # token totals
 
 Example 2: Sweeping a codebase
@@ -75,13 +76,14 @@ pattern over a codebase.
     corpus = lotus.Corpus.from_files("lotus/agentic/*.py")
     print(f"Loaded {len(corpus)} files")
 
-    result = corpus.agentic_map_reduce(
+    result = corpus.agent(
         task=(
             "You are analyzing a Python codebase. For each file, summarize its purpose "
             "and list the key functions/classes it defines, each with a one-line "
             "description. Then produce a single architecture overview explaining how the "
             "files fit together."
         ),
+        ops=["map", "reduce"],
         tools=[PythonREPLTool()],
     )
 

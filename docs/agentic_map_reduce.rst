@@ -4,22 +4,22 @@ Agentic Map-Reduce
 Overview
 --------
 Agentic map-reduce runs a tool-using agent over a body of work in parallel and reduces
-the per-item results into a single answer. You give it a **corpus** (documents, files, a
-DataFrame, or a large text) and a **task** in natural language; LOTUS plans how to split
+the per-item results into a single answer. You give it a :doc:`corpus` (documents, files,
+a DataFrame, or a large text) and a **task** in natural language; LOTUS plans how to split
 the work, runs one agent per shard in parallel (each with tools, including a sandboxed
 Python REPL), and aggregates the results.
+
+It is expressed as the ``map`` → ``reduce`` pipeline of the agentic operators (see
+:doc:`agentic_operators`):
+
+.. code-block:: python
+
+    result = corpus.agent(task="...", ops=["map", "reduce"], tools=[PythonREPLTool()])
 
 It is the right tool when a task is *decomposable over breadth* — analyzing every file in
 a codebase, processing a large batch of documents, or computing over many records — and
 where the per-item work benefits from an agent that can call tools (compute, parse, look
 things up) rather than a single LLM call.
-
-Motivation
-----------
-A plain semantic operator applies one model call per row. Some tasks need more: the model
-must *do* something per item (run code, compute an exact value, parse a file) and then the
-results must be combined. Agentic map-reduce gives each item a full tool-calling agent and
-then reduces the findings, while keeping the interface as simple as a single ``task``.
 
 How it works
 ------------
@@ -47,7 +47,7 @@ Basic Example
     from lotus.models import LM
     from lotus.tools import PythonREPLTool
 
-    lotus.settings.configure(lm=LM(model="gpt-4o-mini"))
+    lotus.settings.configure(lm=LM(model="gpt-5", reasoning_effort="low"))
 
     reports = [
         "Q1 travel: flights 420.50, hotel 610.00, meals 133.25.",
@@ -56,22 +56,23 @@ Basic Example
     ]
     corpus = lotus.Corpus.from_documents(reports)
 
-    result = corpus.agentic_map_reduce(
+    result = corpus.agent(
         task=(
             "Each document is an expense report with line items. Compute the exact total "
             "for the report. Then summarize the grand total and highest-spending category."
         ),
+        ops=["map", "reduce"],
         tools=[PythonREPLTool()],
     )
 
     print(result.output)     # the reduced answer
     print(result.findings)   # per-shard results
-    print(result.plan)       # the derived plan (map/reduce/sharding)
+    print(result.plan)       # the derived plan (instructions / sharding)
     print(result.usage)      # token usage
 
 The Corpus
 ----------
-A ``Corpus`` normalizes many input forms into shardable units:
+The input is a :doc:`corpus`, which normalizes many input forms into shardable units:
 
 .. code-block:: python
 
@@ -80,17 +81,23 @@ A ``Corpus`` normalizes many input forms into shardable units:
     lotus.Corpus.from_dataframe(df, content_cols=["text"])# tabular rows
     lotus.Corpus.from_text(big_string, chunk_chars=4000)  # one large document, chunked
 
+See :doc:`corpus` for the full list of loaders and options.
+
 Specifying the work
 -------------------
 You normally provide only a ``task``; the planner derives the map and reduce steps. For
-full control, override them — the planner fills in whatever you leave out:
+full control, override either with ``instructions`` — the planner fills in whatever you
+leave out:
 
 .. code-block:: python
 
-    corpus.agentic_map_reduce(
+    corpus.agent(
         task="Find every use of the deprecated API foo() and rank by risk.",
-        map="Report each call to foo() in this shard with file:line and a risk note.",
-        reduce="Merge and prioritize the per-shard findings into one report.",
+        ops=["map", "reduce"],
+        instructions={
+            "map": "Report each call to foo() in this shard with file:line and a risk note.",
+            "reduce": "Merge and prioritize the per-shard findings into one report.",
+        },
     )
 
 Tools
@@ -126,23 +133,28 @@ You can define your own tools with a decorator or a subclass:
         def run(self, filename: str) -> str:
             ...
 
-    corpus.agentic_map_reduce(task="...", tools=[repl, add, FileReadTool()])
+    corpus.agent(task="...", ops=["map", "reduce"], tools=[repl, add, FileReadTool()])
 
 Result
 ------
-``agentic_map_reduce`` returns a ``Result`` with:
+``corpus.agent`` returns a ``Result`` with:
 
-- ``output``: the reduced final answer.
-- ``findings``: the list of per-shard results (before reduction).
-- ``plan``: the ``Plan`` used — ``map_instruction``, ``reduce_instruction``,
-  ``segmentation``, ``shard_size``, ``parallelism``.
+- ``output``: the reduced final answer (set when the pipeline ends on ``reduce``).
+- ``findings``: the list of per-shard results from the ``map`` op (before reduction).
+- ``corpus``: the resulting corpus when the pipeline ends on a corpus op (``map`` /
+  ``filter``); ``None`` after a ``reduce``.
+- ``ops``: the ops that were run.
+- ``plan``: the ``Plan`` used — ``ops``, ``instructions`` (per-op), ``segmentation``,
+  ``shard_size``, ``parallelism``.
 - ``usage``: aggregated token usage.
 
 Parameters
 ----------
 - ``task``: The natural-language objective. The only required input.
+- ``ops``: Ordered list of ops to run (default ``["map", "reduce"]``).
 - ``tools``: Tools available to each agent (e.g. ``[PythonREPLTool()]``).
-- ``map`` / ``reduce``: Optional overrides for the derived instructions.
+- ``instructions``: Optional per-op overrides for the derived instructions, keyed by op
+  name (e.g. ``{"map": "...", "reduce": "..."}``).
 - ``plan``: ``"auto"`` (default) to let the planner decide, or an explicit ``Plan``.
 - ``max_parallelism``: Cap on concurrent agents (default ``"auto"``).
 - ``max_steps``: Tool-calling steps allowed per agent (default ``6``).
