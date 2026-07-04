@@ -1,27 +1,14 @@
+from __future__ import annotations
+
 import hashlib
 import logging
 import math
 import time
 import warnings
 from collections import deque
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
-from litellm import batch_completion
-from litellm.exceptions import AuthenticationError
-from litellm.types.utils import ChatCompletionTokenLogprob, ChoiceLogprobs, Choices, ModelResponse
-from litellm.utils import decode, encode, token_counter
-
-# ``supports_reasoning`` moved around / was added in newer litellm. Import defensively so
-# `import lotus` never hard-fails on older litellm — fall back to the top-level symbol,
-# then to None (treated as "not a reasoning model") if unavailable.
-try:
-    from litellm.utils import supports_reasoning as _supports_reasoning
-except ImportError:  # pragma: no cover - depends on litellm version
-    try:
-        from litellm import supports_reasoning as _supports_reasoning
-    except ImportError:  # pragma: no cover
-        _supports_reasoning = None  # type: ignore[assignment]
 from openai._exceptions import OpenAIError
 from pydantic import BaseModel
 from tokenizers import Tokenizer
@@ -38,6 +25,14 @@ from lotus.types import (
     LotusUsageLimitException,
     UsageLimit,
 )
+
+if TYPE_CHECKING:
+    from litellm.types.utils import ChatCompletionTokenLogprob, ModelResponse
+
+# litellm adds ~4s to import time and is only needed when an LM is actually
+# called, not at `import lotus` time. Runtime imports of litellm are deferred
+# to the methods that use them.
+_supports_reasoning = None  # resolved lazily in is_reasoning_model()
 
 logging.getLogger("LiteLLM").setLevel(logging.CRITICAL)
 logging.getLogger("httpx").setLevel(logging.CRITICAL)
@@ -173,6 +168,8 @@ class LM:
         progress_bar_desc: str = "Processing uncached messages",
         **kwargs: dict[str, Any],
     ) -> LMOutput:
+        from litellm.types.utils import ModelResponse
+
         all_kwargs = {**self.kwargs, **kwargs}
 
         # Set top_logprobs if logprobs requested
@@ -277,6 +274,8 @@ class LM:
         Returns:
             List of ModelResponse objects from the LLM API.
         """
+        from litellm import batch_completion
+
         total_calls = len(uncached_data)
 
         pbar = tqdm(
@@ -318,6 +317,8 @@ class LM:
         Returns:
             List of ModelResponse objects from the LLM API.
         """
+        from litellm import batch_completion
+
         responses = []
         num_batches = math.ceil(len(batch) / self.max_batch_size)
         # We know rate_limit is not None because we're in the rate limiting branch
@@ -357,6 +358,8 @@ class LM:
     def _process_with_tpm_limiting(
         self, batch: list[list[dict[str, str]]], all_kwargs: dict[str, Any], pbar: tqdm
     ) -> list[ModelResponse]:
+        from litellm import batch_completion
+
         assert self.tpm_limit is not None
         responses = []
         token_estimates = []
@@ -529,6 +532,9 @@ class LM:
             self._check_usage_limit(self.stats.physical_usage, self.physical_usage_limit, "physical")
 
     def _get_top_choice(self, response: ModelResponse) -> str:
+        from litellm.exceptions import AuthenticationError
+        from litellm.types.utils import Choices
+
         # Handle authentication errors and other exceptions
         if isinstance(response, (AuthenticationError, OpenAIError)):
             raise response
@@ -557,6 +563,9 @@ class LM:
         return choice.message.content
 
     def _get_top_choice_logprobs(self, response: ModelResponse) -> list[ChatCompletionTokenLogprob]:
+        from litellm.exceptions import AuthenticationError
+        from litellm.types.utils import ChoiceLogprobs, Choices
+
         # Handle authentication errors and other exceptions
         if isinstance(response, (AuthenticationError, OpenAIError)):
             raise response
@@ -612,6 +621,8 @@ class LM:
 
     def count_tokens(self, messages: list[dict[str, str]] | str) -> int:
         """Count tokens in messages using either custom tokenizer or model's default tokenizer"""
+        from litellm.utils import token_counter
+
         if isinstance(messages, str):
             messages = [{"role": "user", "content": messages}]
 
@@ -627,6 +638,8 @@ class LM:
 
     def encode_text(self, text: str) -> list[int]:
         """Encode text into tokens using either custom tokenizer or model's default tokenizer"""
+        from litellm.utils import encode
+
         custom_tokenizer: dict[str, Any] | None = None
         if self.tokenizer:
             custom_tokenizer = dict(type="huggingface_tokenizer", tokenizer=self.tokenizer)
@@ -634,6 +647,8 @@ class LM:
 
     def decode_tokens(self, tokens: list[int]) -> str:
         """Decode tokens into text using either custom tokenizer or model's default tokenizer"""
+        from litellm.utils import decode
+
         custom_tokenizer: dict[str, Any] | None = None
         if self.tokenizer:
             custom_tokenizer = dict(type="huggingface_tokenizer", tokenizer=self.tokenizer)
@@ -679,9 +694,21 @@ class LM:
     def is_reasoning_model(self) -> bool:
         """Whether the model spends hidden reasoning tokens from the completion budget
         (e.g. gpt-5 and the o-series)."""
+        global _supports_reasoning
         if _supports_reasoning is None:
-            # litellm too old to know — assume non-reasoning (keeps the 512 default).
-            return False
+            # ``supports_reasoning`` moved around / was added in newer litellm. Import
+            # defensively so this never hard-fails on older litellm — fall back to the
+            # top-level symbol, then to None (treated as "not a reasoning model").
+            try:
+                from litellm.utils import supports_reasoning as _supports_reasoning
+            except ImportError:  # pragma: no cover - depends on litellm version
+                try:
+                    from litellm import supports_reasoning as _supports_reasoning
+                except ImportError:  # pragma: no cover
+                    _supports_reasoning = None  # type: ignore[assignment]
+            if _supports_reasoning is None:
+                # litellm too old to know — assume non-reasoning (keeps the 512 default).
+                return False
         try:
             return _supports_reasoning(model=self.model)
         except Exception:
