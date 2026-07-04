@@ -1,4 +1,7 @@
+import hashlib
+import json
 from abc import ABC, abstractmethod
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -56,3 +59,36 @@ class VS(ABC):
         Retrieve vectors from a stored index given specific ids.
         """
         pass
+
+    def index_exists(self, index_dir: str) -> bool:
+        """
+        Check if an index exists at the given directory.
+        Default implementation checks for common index files.
+        Subclasses can override for vector store specific checks.
+        """
+        index_path = Path(index_dir)
+        return index_path.exists() and (index_path / "index").exists()
+
+    def is_data_consistent(self, index_dir: str, data: list, model_name: str | None = None) -> bool:
+        """
+        Check if the cached index is consistent with the current data.
+        Default implementation compares data hash stored in metadata.
+        Subclasses can override for more sophisticated consistency checks.
+        """
+        metadata_path = Path(index_dir) / "metadata.json"
+        if not metadata_path.exists():
+            return False
+
+        try:
+            with open(metadata_path, "r") as f:
+                metadata = json.load(f)
+
+            # Create hash of current data
+            content = str(sorted(data))
+            if model_name:
+                content += f"__{model_name}"
+            current_hash = hashlib.sha256(content.encode()).hexdigest()[:32]
+
+            return metadata.get("data_hash") == current_hash
+        except (json.JSONDecodeError, KeyError):
+            return False

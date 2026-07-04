@@ -1,6 +1,7 @@
 import base64
 import time
 from io import BytesIO
+from pathlib import Path
 from typing import Callable
 
 import numpy as np
@@ -132,3 +133,33 @@ def show_safe_mode(estimated_cost, estimated_LM_calls):
     except KeyboardInterrupt:
         print("\nExecution cancelled by user")
         exit(0)
+
+
+def get_index_cache(col_name: str, data: list, model_name: str | None = None) -> str:
+    """
+    Get cache path for semantic index. Uses a stable cache directory based on column name and model.
+    Data consistency is handled by sem_index() which checks if the cached data matches the current data.
+
+    Args:
+        col_name: Name of the column being indexed
+        data: Data to index (used for consistency checking in sem_index, not for cache path)
+        model_name: Name of embedding model (different models = different embeddings)
+
+    Returns:
+        Path a string of the cache directory in ~/.cache/lotus/indices/{col_name}_{model}
+
+    Example:
+        >>> data = ['Tech', 'Food', 'Sports']
+        >>> path = get_index_cache('category', data, 'text-embedding-3-small')
+        >>> # Returns: "~/.cache/lotus/indices/category_text-embedding-3-small"
+    """
+    # Create stable cache directory based on column name and model
+    cache_name = col_name
+    if model_name:
+        cache_name += f"_{model_name}"
+
+    # build cache location at ~/.cache/lotus/
+    cache_path = Path("~/.cache/lotus/indices").expanduser() / cache_name
+    cache_path.mkdir(parents=True, exist_ok=True)
+
+    return str(cache_path)
