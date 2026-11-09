@@ -38,17 +38,20 @@ def operator_cache(func: Callable) -> Callable:
         model = lotus.settings.lm
         use_operator_cache = lotus.settings.enable_cache
 
-        if use_operator_cache and model.cache is not None:
+        if use_operator_cache and model is not None and model.cache is not None:
 
             def serialize(value: Any) -> Any:
                 """
                 Serialize a value into a JSON-serializable format.
-                Supports basic types, pandas DataFrames, and objects with a `dict` or `__dict__` method.
+                Supports basic types, DataFrames, enums, and Pydantic data.
+                Unsupported values bypass operator caching.
                 """
                 if value is None or isinstance(value, (str, int, float, bool)):
                     return value
                 elif isinstance(value, pd.DataFrame):
-                    return value.to_json(orient="split")
+                    return {"dataframe": hashlib.sha256(pickle.dumps(value)).hexdigest()}
+                elif isinstance(value, Enum):
+                    return serialize(value.value)
                 elif isinstance(value, BaseModel):
                     return serialize(value.model_dump())
                 elif isinstance(value, type) and issubclass(value, BaseModel):  # in case of response_format
@@ -57,23 +60,36 @@ def operator_cache(func: Callable) -> Callable:
                     return [serialize(item) for item in value]
                 elif isinstance(value, dict):
                     return {key: serialize(val) for key, val in value.items()}
-                elif hasattr(value, "dict"):
-                    return value.dict()
-                elif hasattr(value, "__dict__"):
-                    return {key: serialize(val) for key, val in vars(value).items() if not key.startswith("_")}
                 else:
-                    # For unsupported types, convert to string (last resort)
-                    lotus.logger.warning(f"Unsupported type {type(value)} for serialization. Converting to string.")
-                    return str(value)
+                    raise TypeError(f"No operator cache identity for {type(value).__name__}")
 
-            serialize_self = serialize(self._obj)
-            serialized_kwargs = {key: serialize(value) for key, value in kwargs.items()}
-            serialized_args = [serialize(arg) for arg in args]
-            cache_key = hashlib.sha256(
-                json.dumps(
-                    {"self": serialize_self, "args": serialized_args, "kwargs": serialized_kwargs}, sort_keys=True
-                ).encode()
-            ).hexdigest()
+            try:
+                models = [
+                    None
+                    if lm is None
+                    else {
+                        "model": lm.model,
+                        "kwargs": lm.kwargs,
+                        "max_ctx_len": lm.max_ctx_len,
+                        "max_tokens": lm.max_tokens,
+                        "tokenizer": lm.tokenizer,
+                    }
+                    for lm in (model, lotus.settings.helper_lm)
+                ]
+                payload = serialize(
+                    {
+                        "operator": f"{func.__module__}.{func.__qualname__}",
+                        "models": models,
+                        "serialization_format": lotus.settings.serialization_format,
+                        "self": self._obj,
+                        "args": args,
+                        "kwargs": kwargs,
+                    }
+                )
+                cache_key = hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
+            except (TypeError, ValueError, pickle.PickleError, AttributeError) as exc:
+                lotus.logger.debug("Bypassing operator cache: %s", exc)
+                return func(self, *args, **kwargs)
             virtual_usage_cache_key = cache_key + "_usage"
 
             cached_result = model.cache.get(cache_key)
@@ -85,14 +101,14 @@ def operator_cache(func: Callable) -> Callable:
                 if cached_virtual_usage is not None:
                     model.stats.virtual_usage += cached_virtual_usage
 
-                return cached_result
+                return copy.deepcopy(cached_result)
             lotus.logger.debug(f"Cache miss for {cache_key}")
 
             virtual_usage_before = copy.deepcopy(lotus.settings.lm.stats.virtual_usage)
             result = func(self, *args, **kwargs)
             virtual_usage = lotus.settings.lm.stats.virtual_usage - virtual_usage_before
             model.cache.insert(virtual_usage_cache_key, virtual_usage)
-            model.cache.insert(cache_key, result)
+            model.cache.insert(cache_key, copy.deepcopy(result))
             return result
 
         return func(self, *args, **kwargs)
