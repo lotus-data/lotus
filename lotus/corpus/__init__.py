@@ -43,6 +43,8 @@ class Corpus:
     @classmethod
     def from_documents(cls, docs: Sequence[str], ids: Sequence[str] | None = None) -> "Corpus":
         ids = list(ids) if ids is not None else [str(i) for i in range(len(docs))]
+        if len(ids) != len(docs):
+            raise ValueError("docs and ids must have the same length")
         return cls([Unit(id=i, content=d) for i, d in zip(ids, docs)])
 
     @classmethod
