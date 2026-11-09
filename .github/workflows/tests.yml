@@ -48,10 +48,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        test-suite: [settings, lm-openai, lm-ollama, rm, multimodality, utility_operators, cache]
+        test-suite: [settings, operator-cache, lm-openai, lm-ollama, rm, multimodality, utility_operators, cache]
         include:
           - test-suite: settings
             file: tests/test_settings.py tests/test_lm_defaults.py
+            timeout: 5
+          - test-suite: operator-cache
+            file: tests/test_operator_cache.py
             timeout: 5
           - test-suite: lm-openai
             file: .github/tests/lm_tests.py
