@@ -24,6 +24,18 @@ Configurable Parameters
     Cache parameters include ``cache_type``, ``max_size``, and ``cache_dir``.
     It is recommended to enable caching.
 
+    Semantic operator entries are isolated by operator, input data, arguments,
+    and primary/helper LM request configuration. Changing model generation or
+    prompt serialization settings creates a new entry. Explicit callable
+    arguments, custom tokenizers, and values without a supported cache identity
+    bypass operator caching. Cached DataFrames are copied before storage and on cache hits,
+    so editing scalar columns of a returned result does not change later hits.
+
+    Existing operator entries created before this key format are treated as
+    misses and remain subject to normal cache eviction. Retrieval index changes
+    and mutations of objects nested inside DataFrame cells require application
+    level cache management.
+
 .. code-block:: python
 
     import pandas as pd
