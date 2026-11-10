@@ -35,7 +35,7 @@ LOTUS makes **agentic and LLM bulk processing** fast, easy, and robust. It intro
   every file, document, or record, then reduce to one answer (codebase analysis, security
   sweeps, migrations). [[example](examples/agentic_map_reduce/codebase_sweep.py)]
 - **Deep research & synthesis** — fan out over a corpus, extract, and synthesize. [[example](examples/web_search_examples/arxiv_extract.py), [blog](https://liana313.github.io/blog/lotusplan.html#deepresearch-agents)]
-- **Agent-trace failure analysis** — mine large volumes of agent logs for failure modes. [[blog](https://liana313.github.io/blog/lotusplan.html#agent-trace-analysis)]
+- **Agent-trace failure analysis** — mine large volumes of agent logs for failure modes. [[blog](https://liana313.github.io/blog/lotusplan.html#agent-trace-analysis), [collab demo](https://colab.research.google.com/drive/1EJm9A8r_ShYxR0s218J70XhsopOgeT6k?usp=sharing)]
 - **Document extraction & unstructured analysis** — structured fields and insights from text. [[example](examples/op_examples/extract.py), [blog](https://liana313.github.io/blog/lotusplan.html#document-extraction)]
 - **LLM-judge evals** — score model outputs, app responses, and content quality, row by row. [[example](examples/eval_examples/llm_as_judge.py), [blog](https://liana313.github.io/blog/lotusplan.html#llm-judge-evals)]
 - **RAG** — retrieve the relevant context and generate grounded answers over your data. [[blog](https://liana313.github.io/blog/lotusplan.html#rag)]
