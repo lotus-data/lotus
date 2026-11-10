@@ -15,8 +15,9 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 from typing import Any, Protocol
+from uuid import uuid4
 
-from lotus.tools.base import Tool
+from lotus.tools.base import Tool, _tool_session_id
 
 
 @dataclass
@@ -63,6 +64,20 @@ def run_agent(
     max_steps: int = 6,
 ) -> AgentResult:
     """Run a single agentic tool-calling session to completion."""
+    token = _tool_session_id.set(str(uuid4()))
+    try:
+        return _run_agent(completer, tools, system_prompt, user_content, max_steps)
+    finally:
+        _tool_session_id.reset(token)
+
+
+def _run_agent(
+    completer: Completer,
+    tools: list[Tool],
+    system_prompt: str,
+    user_content: str,
+    max_steps: int,
+) -> AgentResult:
     tool_by_name = {t.name: t for t in tools}
     messages: list[dict[str, Any]] = [
         {"role": "system", "content": system_prompt},
@@ -108,9 +123,7 @@ def run_agent(
                 except Exception as e:  # tool failures are fed back, not fatal
                     result = f"ERROR: {type(e).__name__}: {e}"
             trace.append({"tool": tc.name, "arguments": tc.arguments, "result": result})
-            messages.append(
-                {"role": "tool", "tool_call_id": tc.id, "name": tc.name, "content": str(result)}
-            )
+            messages.append({"role": "tool", "tool_call_id": tc.id, "name": tc.name, "content": str(result)})
 
     # Budget exhausted: one final tool-free turn to force a text answer (tools disabled
     # so the model can't reply with yet another tool call and leave us empty-handed).

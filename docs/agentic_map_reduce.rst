@@ -152,7 +152,7 @@ Parameters
 ----------
 - ``task``: The natural-language objective. The only required input.
 - ``ops``: Ordered list of ops to run (default ``["map", "reduce"]``).
-- ``tools``: Tools available to each agent (e.g. ``[PythonREPLTool()]``).
+- ``tools``: Tools available to each agent. Omit for Parallel web search/fetch; pass ``[]`` to disable tools, or an explicit list such as ``[PythonREPLTool()]``.
 - ``instructions``: Optional per-op overrides for the derived instructions, keyed by op
   name (e.g. ``{"map": "...", "reduce": "..."}``).
 - ``plan``: ``"auto"`` (default) to let the planner decide, or an explicit ``Plan``.
@@ -165,3 +165,39 @@ Parameters
    Agentic map-reduce is designed for read/compute-only fan-out. It is best for tasks that
    decompose over breadth; a single deep-judgment task is better served by a single
    operator call.
+
+Web research tools
+------------------
+
+When ``tools`` is omitted, corpus agents can search the web and read source pages
+with `Parallel Search MCP <https://docs.parallel.ai/integrations/mcp/search-mcp>`_.
+Search uses Fast mode with no account or API key. Requests are made only when the
+agent invokes ``web_search`` or ``web_fetch``. Queries and fetched URLs are sent to
+Parallel; omit sensitive information from research tasks. The anonymous service
+has usage limits; errors are returned to the agent, with no automatic provider
+fallback.
+
+.. code-block:: python
+
+    corpus = lotus.Corpus.from_documents(["A claim to verify against current sources"])
+    result = corpus.agent(task="Check each claim and include source URLs.", ops=["map"])
+    print(result.findings)
+
+Pass ``tools=[]`` to disable tools, including web access through these tools.
+An explicit list is an allowlist: it replaces the defaults completely. Existing
+REPL-only and custom-tool workflows keep their selected tools. To combine tools:
+
+.. code-block:: python
+
+    from lotus.tools import ParallelSearchTool, ParallelFetchTool, PythonREPLTool
+
+    result = corpus.agent(
+        task="Research each item and calculate a summary.",
+        tools=[ParallelSearchTool(timeout=20), ParallelFetchTool(timeout=20), PythonREPLTool()],
+    )
+
+Each web tool has a 30-second deadline by default, including connection setup and
+execution. Search, fetch and follow-up calls share an opaque session identifier
+within one agent run. Independent shard agents and new runs use separate IDs,
+even when they share the same tool instances. The standalone ``lotus.web_search``
+API and its explicit corpus/provider selection are unchanged.

@@ -31,6 +31,7 @@ dependencies = [
     "tiktoken>=0.7.0,<1.0.0",
     "tqdm>=4.66.4,<5.0.0",
     "pydantic>=2.11.7,<3.0.0",
+    "mcp>=1.30.0,<2.0.0",
 ]
 
 [project.optional-dependencies]

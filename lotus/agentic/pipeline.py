@@ -264,9 +264,18 @@ def _op_map(
     from lotus.corpus import Corpus, Unit
 
     pairs = _run_agentic_op(
-        corpus, MAP, instruction, strategy=strategy, context=context, completer=completer,
-        tools=tools, system=system, shard_size=shard_size, parallelism=parallelism,
-        max_steps=max_steps, usage=usage,
+        corpus,
+        MAP,
+        instruction,
+        strategy=strategy,
+        context=context,
+        completer=completer,
+        tools=tools,
+        system=system,
+        shard_size=shard_size,
+        parallelism=parallelism,
+        max_steps=max_steps,
+        usage=usage,
     )
     units = [Unit(id=u.id, content=r, metadata={"op": "map", "source_id": u.id}) for u, r in pairs]
     findings = [r for _, r in pairs]
@@ -291,9 +300,18 @@ def _op_filter(
     from lotus.corpus import Corpus
 
     pairs = _run_agentic_op(
-        corpus, FILTER, instruction, strategy=strategy, context=context, completer=completer,
-        tools=tools, system=system, shard_size=shard_size, parallelism=parallelism,
-        max_steps=max_steps, usage=usage,
+        corpus,
+        FILTER,
+        instruction,
+        strategy=strategy,
+        context=context,
+        completer=completer,
+        tools=tools,
+        system=system,
+        shard_size=shard_size,
+        parallelism=parallelism,
+        max_steps=max_steps,
+        usage=usage,
     )
     return Corpus([u for u, r in pairs if _parse_verdict(r)])
 
@@ -348,9 +366,15 @@ def run_pipeline(
     optional per-op override, keyed by op name (otherwise the planner derives each).
     ``strategies``/``contexts`` optionally override the per-op execution strategy
     (``"per_unit"`` | ``"batched"`` | ``"shared_context"``) and its shared context.
+    Omitting ``tools`` enables anonymous web search and page fetching via Parallel
+    Search MCP. Pass ``tools=[]`` to disable tools or a list to select exactly the
+    permitted tools. No network request occurs until the agent calls a tool.
     """
     op_list = normalize_ops(ops)
-    tools = tools or []
+    if tools is None:
+        from lotus.tools import ParallelFetchTool, ParallelSearchTool
+
+        tools = [ParallelSearchTool(), ParallelFetchTool()]
     overrides = dict(instructions or {})
     strat_overrides = dict(strategies or {})
     ctx_overrides = dict(contexts or {})
@@ -367,9 +391,7 @@ def run_pipeline(
     if isinstance(plan, Plan):
         the_plan = plan
     else:
-        the_plan = derive_plan(
-            task, corpus, op_list, lm=lm, overrides=overrides, parallelism_cap=cap
-        )
+        the_plan = derive_plan(task, corpus, op_list, lm=lm, overrides=overrides, parallelism_cap=cap)
     the_plan.ops = op_list
     the_plan.parallelism = max(1, min(the_plan.parallelism, cap))
 
@@ -435,9 +457,7 @@ def run_pipeline(
             )
             current = None  # collapsed to a single answer
 
-    return Result(
-        ops=op_list, plan=the_plan, usage=usage, output=output, corpus=current, findings=findings
-    )
+    return Result(ops=op_list, plan=the_plan, usage=usage, output=output, corpus=current, findings=findings)
 
 
 def _merge_usage(into: dict[str, int], other: dict[str, int]) -> None:

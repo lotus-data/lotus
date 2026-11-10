@@ -90,6 +90,10 @@ result = corpus.agent(
 print(result.output)   # the reduced bug report
 ```
 
+Omitting `tools` gives corpus agents free, keyless web search and page fetching through
+[Parallel Search MCP](https://docs.parallel.ai/integrations/mcp/search-mcp). Pass
+`tools=[]` to disable tools or an explicit list to select permitted tools.
+
 See the [Agentic Map-Reduce docs](https://lotus-ai.readthedocs.io/en/latest/agentic_map_reduce.html)
 and [`examples/agentic_map_reduce/`](examples/agentic_map_reduce) for more.
 

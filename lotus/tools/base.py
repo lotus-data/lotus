@@ -21,9 +21,12 @@ they work with native tool-calling. Two ways to define one:
 from __future__ import annotations
 
 import inspect
+from contextvars import ContextVar
 from typing import Any, Callable
 
 from pydantic import BaseModel, create_model
+
+_tool_session_id: ContextVar[str | None] = ContextVar("lotus_tool_session_id", default=None)
 
 
 class Tool:
