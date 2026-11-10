@@ -1,3 +1,4 @@
+import hashlib
 from typing import Any
 
 import pandas as pd
@@ -9,12 +10,13 @@ from lotus.cache import operator_cache
 @pd.api.extensions.register_dataframe_accessor("sem_index")
 class SemIndexDataframe:
     """
-    Create a vecgtor similarity index over a column in the DataFrame. Indexing is required for columns used in sem_search, sem_cluster_by, and sem_sim_join.
+    Create a vector similarity index over a column in the DataFrame. Indexing is required for columns used in sem_search, sem_cluster_by, and sem_sim_join.
     When using retrieval-based cascades for sem_filter and sem_join, indexing is required for the columns used in the semantic operation.
 
     Args:
         col_name (str): The column name to index.
-        index_dir (str): The directory to save the index.
+        index_dir (str): The directory to save the index. Required to prevent column name collisions.
+        override (bool): If True, recreate index even if it exists and data is consistent. Defaults to False.
 
     Returns:
         pd.DataFrame: The DataFrame with the index directory saved.
@@ -46,6 +48,9 @@ class SemIndexDataframe:
                                     title
             0  Machine learning tutorial
             1         Data science guide
+
+            # Example 3: force recreation of index with override=True
+            >>> df.sem_index('title', 'title_index', override=True) ## recreates index even if it exists
     """
 
     def __init__(self, pandas_obj: Any) -> None:
@@ -59,7 +64,18 @@ class SemIndexDataframe:
             raise AttributeError("Must be a DataFrame")
 
     @operator_cache
-    def __call__(self, col_name: str, index_dir: str) -> pd.DataFrame:
+    def __call__(self, col_name: str, index_dir: str, override: bool = False) -> pd.DataFrame:
+        """
+        Create or load a semantic index for the specified column.
+
+        Args:
+            col_name: Name of the column to index
+            index_dir: Directory where the index should be stored/loaded from
+            override: If True, recreate index even if it exists and data is consistent
+
+        Returns:
+            DataFrame with index directory stored in attrs
+        """
         lotus.logger.warning(
             "Do not reset the dataframe index to ensure proper functionality of get_vectors_from_index"
         )
@@ -71,7 +87,46 @@ class SemIndexDataframe:
                 "The retrieval model must be an instance of RM, and the vector store must be an instance of VS. Please configure a valid retrieval model using lotus.settings.configure()"
             )
 
-        embeddings = rm(self._obj[col_name].tolist())
-        vs.index(self._obj[col_name], embeddings, index_dir)
+        # Get data from column
+        data = self._obj[col_name].tolist()
+        model_name = getattr(rm, "model", None)
+
+        # Check if index exists and data is consistent.
+        index_exists = vs.index_exists(index_dir)
+        data_consistent = False
+
+        if index_exists:
+            data_consistent = vs.is_data_consistent(index_dir, data, model_name)
+
+        # Determine if we need to create a new index.
+        should_create_index = not index_exists or not data_consistent or override
+
+        if should_create_index:
+            # Index does not exist, data is inconsistent, or override requested. Creating new index.
+            if index_exists and not data_consistent and not override:
+                raise ValueError(
+                    f"Index exists at {index_dir} but data is inconsistent. "
+                    f"Set override=True to recreate the index or use a different index_dir."
+                )
+
+            # Create data hash for consistency checking.
+            content = str(sorted(data))
+            if model_name:
+                content += f"__{model_name}"
+            data_hash = hashlib.sha256(content.encode()).hexdigest()[:32]
+
+            # Create new index.
+            embeddings = rm(data)
+            vs.index(self._obj[col_name], embeddings, index_dir)
+
+            # Store metadata for data consistency checking (FAISS only).
+            if hasattr(vs, "_store_metadata"):
+                vs._store_metadata(index_dir, data_hash)
+            lotus.logger.info(f"Created new index at {index_dir}")
+        else:
+            # Load existing index.
+            vs.load_index(index_dir)
+            lotus.logger.info(f"Loaded existing index from {index_dir}")
+
         self._obj.attrs["index_dirs"][col_name] = index_dir
         return self._obj
