@@ -125,7 +125,7 @@ def run_agent(
 class LiteLLMCompleter:
     """Production ``Completer`` backed by litellm native tool-calling.
 
-    Reuses the configured LOTUS ``LM``'s model + kwargs (temperature, max tokens).
+    Reuses the configured LOTUS ``LM``'s model, endpoint, credentials, and generation limits.
     """
 
     def __init__(self, lm: Any, tools: list[Tool] | None = None):
@@ -135,11 +135,12 @@ class LiteLLMCompleter:
     def __call__(self, messages: list[dict[str, Any]], *, tools_enabled: bool = True) -> AgentStep:
         import litellm
 
-        kwargs: dict[str, Any] = {}
-        # Carry over the model's generation params (temperature, max_completion_tokens).
-        for k in ("temperature", "max_completion_tokens"):
-            if k in getattr(self.lm, "kwargs", {}):
-                kwargs[k] = self.lm.kwargs[k]
+        lm_kwargs = getattr(self.lm, "kwargs", {})
+        kwargs = {
+            key: lm_kwargs[key]
+            for key in ("api_base", "api_key", "temperature", "max_completion_tokens")
+            if key in lm_kwargs
+        }
         if self.tool_schemas and tools_enabled:
             kwargs["tools"] = self.tool_schemas
             kwargs["tool_choice"] = "auto"

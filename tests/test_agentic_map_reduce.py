@@ -6,6 +6,7 @@ loop, corpus sharding, parallel map, and reduce — is exercised deterministical
 
 from __future__ import annotations
 
+import litellm
 import pandas as pd
 import pytest
 
@@ -13,6 +14,7 @@ from lotus.agentic import Plan, normalize_ops, run_agent
 from lotus.agentic.loop import AgentStep, ToolCall
 from lotus.agentic.pipeline import _parse_verdict, run_pipeline
 from lotus.corpus import Corpus
+from lotus.models import LM
 from lotus.tools import PythonREPLTool, tool
 
 
@@ -52,6 +54,27 @@ def test_local_repl_executes_and_captures_error():
 
 
 # ---------------------------------------------------------------------- agent loop
+def test_corpus_agent_uses_configured_model_endpoint(monkeypatch):
+    endpoint = "https://models.example/v1"
+    lm = LM(model="hosted_vllm/test-model", api_base=endpoint, api_key="test-key")
+    requests = []
+
+    def complete(**kwargs):
+        requests.append(kwargs)
+        message = {"role": "assistant", "content": "mapped text"}
+        return litellm.ModelResponse(choices=[{"index": 0, "message": message}])
+
+    monkeypatch.setattr(litellm, "completion", complete)
+    plan = Plan(ops=["map"], instructions={"map": "summarize"}, shard_size=1, parallelism=1)
+
+    result = Corpus.from_documents(["text"]).agent("summarize", ops=["map"], plan=plan, lm=lm)
+
+    assert result.findings == ["mapped text"]
+    assert len(requests) == 1
+    assert requests[0]["api_base"] == endpoint
+    assert requests[0]["api_key"] == "test-key"
+
+
 def test_run_agent_executes_tool_then_finalizes():
     @tool(description="Add two integers.")
     def add(a: int, b: int) -> str:
