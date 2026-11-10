@@ -104,6 +104,12 @@ def test_run_agent_handles_unknown_and_failing_tools():
 
 
 # --------------------------------------------------------------------------- corpus
+@pytest.mark.parametrize("ids", [["A"], ["A", "B", "C"]])
+def test_corpus_rejects_mismatched_document_ids(ids):
+    with pytest.raises(ValueError, match="same length"):
+        Corpus.from_documents(["first", "second"], ids=ids)
+
+
 def test_corpus_loaders_and_sharding():
     assert [len(s) for s in Corpus.from_documents(["a", "b", "c"]).shard(2)] == [2, 1]
     df = pd.DataFrame({"x": [1, 2], "y": ["p", "q"]})
