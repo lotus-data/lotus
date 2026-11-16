@@ -1,10 +1,14 @@
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 import pandas as pd
-from litellm.types.utils import ChatCompletionTokenLogprob
 from pydantic import BaseModel, model_validator
+
+if TYPE_CHECKING:
+    from litellm.types.utils import ChatCompletionTokenLogprob
 
 
 ################################################################################

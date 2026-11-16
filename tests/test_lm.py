@@ -236,7 +236,7 @@ class TestLM(BaseTest):
         # Create test messages
         messages = [{"role": "user", "content": f"test message {i}"} for i in range(20)]
 
-        with patch("lotus.models.lm.batch_completion") as mock_batch_completion:
+        with patch("litellm.batch_completion") as mock_batch_completion:
             # Configure mock to return responses immediately
             mock_batch_completion.return_value = [mock_response] * 10
 

@@ -1,8 +1,7 @@
+from __future__ import annotations
+
 import logging
 from typing import Optional
-
-import litellm
-from litellm import completion_cost
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +21,9 @@ def calculate_cost_from_response(response) -> Optional[float]:
     Returns:
         Total cost in USD if pricing is available, None otherwise
     """
+    import litellm
+    from litellm import completion_cost
+
     try:
         return completion_cost(completion_response=response)
     except litellm.exceptions.NotFoundError as e:
