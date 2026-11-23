@@ -77,8 +77,9 @@ thresholds.
 - ``cascade_IS_weight``: Importance-sampling weight. Higher values bias the
   calibration sample toward high proxy scores; lower values make sampling more
   uniform. Default: ``0.9``.
-- ``cascade_IS_max_sample_range``: Maximum prefix of proxy-ranked candidates
-  considered for importance sampling. Default: ``200``.
+- ``cascade_IS_max_sample_range``: No longer used. Importance sampling draws
+  from all proxy-scored items, so that low-score items stay reachable.
+  Default: ``200``.
 - ``cascade_IS_random_seed``: Optional random seed for reproducible threshold
   sampling. Default: ``None``.
 - ``cascade_num_calibration_quantiles``: Number of quantile buckets used to
