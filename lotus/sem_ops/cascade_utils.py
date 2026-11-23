@@ -104,8 +104,8 @@ def learn_cascade_thresholds(
     best_combination = (best_combination[0], tau_neg_0)
 
     # Do a statistical correction to get a new target recall
-    Z1 = [int(x[1]) * x[2] for x in sorted_pairs if x[0] >= best_combination[1]]
-    Z2 = [int(x[1]) * x[2] for x in sorted_pairs if x[0] < best_combination[1]]
+    Z1 = [int(x[1]) * x[2] if x[0] >= best_combination[1] else 0.0 for x in sorted_pairs]
+    Z2 = [int(x[1]) * x[2] if x[0] < best_combination[1] else 0.0 for x in sorted_pairs]
 
     mean_z1 = float(np.mean(Z1)) if Z1 else 0.0
     std_z1 = float(np.std(Z1)) if Z1 else 0.0
